@@ -21,7 +21,8 @@ async function caricaEsterni(cache) {
 }
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES).then(() => Promise.all([caricaFont(c), caricaEsterni(c)]))).then(() => self.skipWaiting()));
+  // { cache: 'reload' }: all'installazione prendo i file veri dalla rete, mai copie vecchie della cache del browser
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))).then(() => Promise.all([caricaFont(c), caricaEsterni(c)]))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -38,8 +39,8 @@ self.addEventListener('fetch', (e) => {
   // tutto il resto (database, prove) passa diretto in rete
   if (!font && !sdk && !proprio) return;
   e.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: proprio, ignoreVary: true }).then((hit) => {
-    const net = fetch(req).then((r) => {
-      if (r && r.ok) c.put(req, r.clone());
+    const net = (proprio ? fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : fetch(req)).then((r) => {
+      if (r && r.ok) c.put(proprio ? req.url.split('?')[0].split('#')[0] : req, r.clone());
       return r;
     }).catch(() => hit || (req.mode === 'navigate' ? c.match('./index.html') : Response.error()));
     return hit || net;

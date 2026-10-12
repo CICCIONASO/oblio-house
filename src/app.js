@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.4.1';
+var APP_V='0.4.2';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
@@ -617,6 +617,7 @@ function syncCarica(){
   if(!DEV){DEV='d'+rid();lsSet(KEY+'.dev',DEV);}
 }
 function syncSalva(){lsSet(KEY+'.sync',JSON.stringify(SY));}
+function errTesto(e){if(!e)return 'errore sconosciuto';return (e.code?e.code+': ':'')+String(e.message||e).slice(0,200);}
 function remoteFirestore(cfg){
   return Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-firestore.js')]).then(function(m){
     var A=m[0],F=m[1];
@@ -673,7 +674,7 @@ function syncAvvia(){
   },10000);
   (SYNC.mock?remoteMock(SYNC):remoteFirestore(SYNC)).then(function(r){
     remote=r;
-    r.subscribe(SY.init?SY.cursor:0,ricevi,function(e){SST.errore=String(e&&e.message||e);SST.stato=SY.init?'attesa':'errore';statoSync();});
+    r.subscribe(SY.init?SY.cursor:0,ricevi,function(e){SST.errore=errTesto(e);SST.stato=SY.init?'attesa':'errore';statoSync();});
   },function(e){SST.stato='errore';SST.errore='Non riesco a caricare la sincronizzazione ('+(e&&e.message||e)+'). Riprovo alla prossima apertura con internet.';statoSync();});
 }
 function ricevi(changes,fromCache){
@@ -703,7 +704,7 @@ function syncSpingi(subito){
         SST.errore='';syncSalva();statoSync();
       },function(err){
         if(inVolo[x.key]===x.h)delete inVolo[x.key];
-        SST.errore=String(err&&err.message||err);statoSync();
+        SST.errore=errTesto(err);statoSync();
       });
     });
     syncSalva();statoSync();
@@ -735,6 +736,25 @@ function paintSync(){
   el.setAttribute('aria-label','Telefoni: '+syncTesto());
   el.title='Telefoni: '+syncTesto()+(SST.errore?' · '+SST.errore:'');
   var r=$('#sync-riga');if(r)r.textContent=syncTesto();
+  if(foglio&&foglio.open&&foglioT&&foglioT.textContent==='Telefoni collegati')refreshSheet();
+}
+function openSync(){
+  var live=function(){
+    var n=0,att=0;if(SY)Object.keys(SY.ent).forEach(function(k){n++;if(!SY.ent[k][2])att++;});
+    return [
+      h('dl',{class:'scheda'},
+        h('dt',null,'Stato'),h('dd',{class:SST.stato==='errore'?'rosso':null},syncTesto()||'spenta'),
+        SST.errore?[h('dt',null,'Errore'),h('dd',{class:'rosso'},SST.errore)]:null,
+        h('dt',null,'Ultimo contatto'),h('dd',null,SST.ultimo?hm(SST.ultimo):'mai'),
+        h('dt',null,'Cose condivise'),h('dd',null,String(n)),
+        h('dt',null,'Da inviare'),h('dd',null,String(att)),
+        h('dt',null,'Rete'),h('dd',null,navigator.onLine===false?'assente':'presente'),
+        h('dt',null,'Telefono'),h('dd',null,DEV||'—'),
+        h('dt',null,'Versione'),h('dd',null,APP_V)),
+      h('p',{class:'aiuto'},'Se resta «non collegati» o «mi collego», manda uno screenshot di questa pagina.'),
+      h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){location.reload();}},'Ricarica l’app'))];
+  };
+  openSheet('Telefoni collegati',live(),live);
 }
 /* se arriva una modifica mentre si sta scrivendo in un campo, ridisegno dopo */
 var renderRinviato=false;
@@ -1436,6 +1456,7 @@ function vAltro(){
   return [h('h2',{class:'titolo'},'Altro'),
     h('ul',{class:'menu'},
       voce('Classifiche','Re dell’oblio, consumi, freccette, debiti, pagatori, spazzatura',function(){go('altro','classifiche');}),
+      SYNC?voce('Telefoni collegati',syncTesto()+(SST.errore?' · '+SST.errore:''),openSync):null,
       voce('Cassa e registro',eur(D.cash)+' in cassa',function(){go('altro','cassa');}),
       voce('Scorte e lista della spesa',da?da+(da===1?' cosa da comprare':' cose da comprare'):'Niente da comprare',function(){go('altro','scorte');}),
       voce('Listino',S.products.filter(function(p){return p.on;}).length+' prodotti',function(){go('altro','listino');}),
