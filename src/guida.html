@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Guida all'uso · The Oblio House</title>
-<meta name="description" content="Come si usa l'app del reparto: installazione, farmacia, ticket, cassa, triage, freccette, classifiche, rifiuti e pulizie.">
+<meta name="description" content="Come si usa l'app del reparto: installazione, farmacia, ticket, cassa, quota del locale, triage, freccette, classifiche, medaglie, muro, rifiuti e pulizie.">
 <meta name="theme-color" content="#2A0E4F">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -78,7 +78,7 @@ a{color:inherit}
   </header>
 
   <h2 class="titolo">Guida all'uso del reparto</h2>
-  <p class="intro">Benvenuto, paziente. Questa è l'app del locale: bar, debiti, cassa, rifiuti, pulizie, il voto di chi sta peggio, freccette e classifiche. Ognuno la usa dal suo telefono e i dati sono gli stessi per tutti. Leggi questa pagina una volta; poi ti basta l'app.</p>
+  <p class="intro">Benvenuto, paziente. Questa è l'app del locale: bar, debiti, cassa, quota del locale, rifiuti, pulizie, il voto di chi sta peggio, freccette, classifiche e il muro dove sfogarsi. Ognuno la usa dal suo telefono e i dati sono gli stessi per tutti. Leggi questa pagina una volta; poi ti basta l'app.</p>
   <a class="pill" href="./">Apri l'app</a>
 
   <nav aria-label="Sommario">
@@ -86,17 +86,21 @@ a{color:inherit}
       <li><a href="#installa"><b>1</b>Installarla</a></li>
       <li><a href="#pallino"><b>2</b>Il pallino e la rete</a></li>
       <li><a href="#reparto"><b>3</b>Reparto</a></li>
-      <li><a href="#farmacia"><b>4</b>Farmacia</a></li>
+      <li><a href="#farmacia"><b>4</b>Farmacia, resto e misto</a></li>
       <li><a href="#ticket"><b>5</b>Ticket e debiti</a></li>
       <li><a href="#cassa"><b>6</b>Cassa e soldi</a></li>
-      <li><a href="#triage"><b>7</b>Triage</a></li>
-      <li><a href="#freccette"><b>8</b>Freccette</a></li>
-      <li><a href="#classifiche"><b>9</b>Classifiche</a></li>
-      <li><a href="#faccende"><b>10</b>Rifiuti e pulizie</a></li>
-      <li><a href="#altro"><b>11</b>Scorte e impostazioni</a></li>
-      <li><a href="#errori"><b>12</b>Se sbagli</a></li>
-      <li><a href="#problemi"><b>13</b>Backup e problemi</a></li>
-      <li><a href="#oro"><b>14</b>Le regole d'oro</a></li>
+      <li><a href="#quota"><b>7</b>Quota del locale</a></li>
+      <li><a href="#triage"><b>8</b>Triage</a></li>
+      <li><a href="#freccette"><b>9</b>Freccette e record</a></li>
+      <li><a href="#classifiche"><b>10</b>Classifiche e medaglie</a></li>
+      <li><a href="#muro"><b>11</b>Muroblio del pianto</a></li>
+      <li><a href="#faccende"><b>12</b>Rifiuti e pulizie</a></li>
+      <li><a href="#altro"><b>13</b>Scorte e spesa</a></li>
+      <li><a href="#admin"><b>14</b>PIN e Admin</a></li>
+      <li><a href="#salva"><b>15</b>Salva sempre</a></li>
+      <li><a href="#errori"><b>16</b>Se sbagli</a></li>
+      <li><a href="#problemi"><b>17</b>Backup e problemi</a></li>
+      <li><a href="#oro"><b>18</b>Le regole d'oro</a></li>
     </ul>
   </nav>
 
@@ -113,6 +117,10 @@ a{color:inherit}
       <li>Apri il link con <strong>Chrome</strong>.</li>
       <li>Menu <span class="t">⋮</span>, poi <span class="t">Installa app</span> (o «Aggiungi a schermata Home»).</li>
     </ol>
+    <h3>Poi</h3>
+    <ul>
+      <li>In <span class="t">Altro</span> › <span class="t">Questo telefono è di…</span> scegli il tuo nome: l'app lo propone da sola nel muro, nella quota e nei voti che segni.</li>
+    </ul>
     <p class="nota">La prima apertura va fatta con internet: l'app scarica i dati del locale. Poi si apre anche senza rete. Quando esce una versione nuova compare il pulsante <span class="t">Aggiorna</span>: toccalo.</p>
   </section>
 
@@ -129,11 +137,11 @@ a{color:inherit}
   <section class="cartella" id="reparto">
     <h2><span>3</span>Reparto, la schermata principale</h2>
     <ul>
-      <li><strong>Bollettino</strong>: cassa, ticket aperti, soldi del locale, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare. Tocca la cifra dei <strong>soldi del locale</strong> per il dettaglio (capitolo 6).</li>
-      <li><span class="t">Segna consumazione</span> porta in Farmacia; <span class="t">Cassa</span> apre la cassa.</li>
-      <li><strong>Faccende</strong>: i rifiuti di stasera e le pulizie (capitolo 10).</li>
-      <li><strong>Triage</strong>: il voto di chi sta peggio (capitolo 7).</li>
-      <li><strong>Ticket più salati</strong> e <strong>Ultime somministrazioni</strong>: chi deve di più e le ultime cose segnate.</li>
+      <li><strong>Bollettino</strong>: cassa, ticket aperti, graffi vecchi (in rosso), soldi del locale, fondo della quota, scorte, prossimo compleanno, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
+      <li><strong>Compleanno</strong>: il giorno del compleanno di uno di voi, in cima compare la festa.</li>
+      <li><strong>Conto in sospeso</strong>: se hai lasciato una consumazione in Farmacia senza registrarla, qui c'è il promemoria con <span class="t">Riprendi</span> o <span class="t">Scarta</span>.</li>
+      <li><strong>Quota del locale</strong>: dai 15 giorni prima della scadenza, quanto mettere a testa e chi manca (capitolo 7).</li>
+      <li><strong>Faccende</strong>, <strong>Triage</strong>, l'ultimo <strong>post-it</strong> del muro, i <strong>Ticket più salati</strong> e le <strong>Ultime somministrazioni</strong>.</li>
     </ul>
   </section>
 
@@ -146,65 +154,93 @@ a{color:inherit}
       <li>In basso scegli:
         <ul>
           <li><span class="t">Sul ticket</span>: va sul suo debito, la cassa non cambia.</li>
-          <li><span class="t">Paga subito</span>: i soldi entrano in cassa.</li>
-          <li><span class="t">Ha dato di più?</span> (sotto il totale): se dà più del conto, scrivi quanto ha dato. La differenza <strong>scala i suoi graffi</strong>, dai più vecchi; se li supera, resta in credito. C'è il tasto rapido «Conto + graffi» per chiudere tutto.</li>
+          <li><span class="t">Paga subito</span>: paga giusto, i soldi entrano in cassa.</li>
+          <li><span class="t">Resto o pagamento misto</span> (sotto il totale): scrivi quanto ti dà in contanti.
+            <ul>
+              <li>Se dà <strong>di più</strong>, l'app ti dice il <strong>resto</strong> da dargli. Se invece non vuole il resto, scegli <span class="t">Scala dai suoi graffi</span>: la differenza chiude i suoi graffi, dai più vecchi, e oltre resta in credito.</li>
+              <li>Se dà <strong>di meno</strong>, è un <strong>pagamento misto</strong>: quello che dà entra in cassa e il resto va sul suo ticket.</li>
+            </ul>
+          </li>
         </ul>
       </li>
     </ol>
-    <p class="nota">Si segna sempre a nome di <strong>chi consuma</strong>, anche se lo segna un altro. La <span class="t">X</span> svuota la selezione. Le scorte scendono da sole.</p>
+    <p class="nota">Si segna sempre a nome di <strong>chi consuma</strong>, anche se lo segna un altro. La <span class="t">X</span> svuota la selezione. Se cambi pagina senza registrare, il conto resta in sospeso (anche chiudendo l'app) finché non lo registri o lo scarti. Le scorte scendono da sole.</p>
   </section>
 
   <section class="cartella" id="ticket">
     <h2><span>5</span>Ticket: i debiti</h2>
     <p>Ogni nome ha il suo debito. Le <strong>tacche</strong> sono le consumazioni non ancora pagate. Tocca un nome per aprire la sua <strong>cartella</strong>:</p>
     <ul>
-      <li><span class="t">Incassa</span>: paga, tutto o in parte. I soldi entrano in cassa.</li>
-      <li><span class="t">+ Debito</span> / <span class="t">− Debito</span>: aggiunge o toglie un debito <strong>senza toccare la cassa</strong> (vecchi conti, scommesse perse, abbuoni).</li>
-      <li><span class="t">Segna consumazione</span>, <span class="t">Nome e faccia</span> e la <strong>Storia clinica</strong> con tutti i suoi movimenti.</li>
+      <li><span class="t">Incassa</span>: paga, tutto o in parte. Se ha anche la quota del locale da versare, scegli <strong>per cosa sono i soldi</strong>: le consumazioni vanno in cassa, la quota va nel fondo. Se porta soldi per tutte e due, fai due incassi.</li>
+      <li><span class="t">+ Debito</span> / <span class="t">− Debito</span>: aggiunge o toglie un debito <strong>senza toccare la cassa</strong> (vecchi conti, scommesse perse, abbuoni). Serve il PIN.</li>
+      <li><span class="t">Segna consumazione</span>, le sue <strong>medaglie</strong> e la <strong>Storia clinica</strong> con tutti i suoi movimenti.</li>
+    </ul>
+    <h3>Graffi vecchi e quota non pagata</h3>
+    <ul>
+      <li>I graffi aperti da <strong>più di 30 giorni</strong> diventano rossi: in cima ai Ticket, nel Bollettino e nella cartella. Contano dal più vecchio: chi paga chiude prima quelli.</li>
+      <li>La <strong>quota del locale</strong> non versata entro la scadenza si somma ai suoi graffi, come voce a parte («di cui quota locale»). Quei soldi vanno nel fondo, non in cassa.</li>
     </ul>
     <p class="nota">Chi paga più del dovuto risulta <strong>in credito</strong>: le prossime consumazioni si scalano da lì.</p>
   </section>
 
   <section class="cartella" id="cassa">
     <h2><span>6</span>Cassa, spese e soldi del locale</h2>
-    <p>Si apre dal Reparto (<span class="t">Cassa</span>) o da <span class="t">Altro</span> › <span class="t">Cassa e registro</span>.</p>
+    <p>Si apre dal Reparto (<span class="t">Cassa</span>) o da <span class="t">Altro</span> › <span class="t">Cassa e registro</span>. <span class="t">Entrata</span>, <span class="t">Spesa</span> e <span class="t">Conta cassa</span> chiedono il PIN.</p>
     <ul>
       <li><span class="t">Entrata</span>: soldi che entrano senza consumazioni (fondo iniziale, collette).</li>
       <li><span class="t">Spesa</span>: soldi spesi per il locale. Scegli <strong>chi ha pagato</strong>:
         <ul>
           <li><strong>La cassa</strong>: i soldi escono dalla cassa.</li>
-          <li><strong>Uno di voi</strong>, che ha anticipato. Poi scegli come rientra: <span class="t">Rimborso dalla cassa</span>, <span class="t">Scala dal suo ticket</span> oppure <span class="t">Dividi tra tutti</span>. Con l'ultima scegli tra chi: ognuno si trova la sua quota sul ticket e chi ha pagato va in credito.</li>
+          <li><strong>Uno di voi</strong>, che ha anticipato. Poi scegli come rientra: <span class="t">Rimborso dalla cassa</span>, <span class="t">Scala dal suo ticket</span> oppure <span class="t">Dividi tra tutti</span>. Con l'ultima scegli tra chi: ognuno si trova la sua parte sul ticket e chi ha pagato va in credito.</li>
         </ul>
       </li>
       <li><span class="t">Conta cassa</span>: conta i soldi veri e scrivi il totale. L'app si riallinea e la differenza resta nel registro.</li>
-      <li><strong>Registro</strong>: tutti i movimenti, con i filtri Tutto, Cassa, Ticket e Scorte.</li>
-      <li><strong>Soldi del locale</strong> (da <span class="t">Altro</span>, dal Bollettino o dalla Cassa), in due conti separati:
+      <li><strong>Registro</strong>: tutti i movimenti, con i filtri Tutto, Cassa, Ticket, Scorte e Fondo.</li>
+      <li><strong>Soldi del locale</strong>, in due conti separati:
         <ul>
-          <li><strong>Il locale adesso</strong> = cassa + scorte al prezzo di vendita. Se gli scontrini hanno insegnato all'app il costo d'acquisto, compare anche il valore a costo e il margine.</li>
-          <li><strong>Previsionale</strong>, a parte = il totale di adesso <strong>+ graffi</strong> da incassare <strong>− crediti</strong> da restituire.</li>
+          <li><strong>Il locale adesso</strong> = cassa + scorte al prezzo di vendita (e, se gli scontrini l'hanno insegnato, il valore a costo e il margine).</li>
+          <li><strong>Previsionale</strong>, a parte = il totale di adesso <strong>+ graffi</strong> da incassare <strong>− crediti</strong> da restituire. Il fondo della quota è fuori da questi conti.</li>
         </ul>
-        Sotto trovi quanto valgono le scorte prodotto per prodotto e chi deve cosa.</li>
+      </li>
     </ul>
-    <p class="nota">Sono stime: il previsionale conta i graffi come se li pagassero tutti, e le scorte valgono al prezzo di vendita, che è più di quanto le avete pagate. I prodotti mai contati restano fuori. Per numeri affidabili fate prima <span class="t">Conta cassa</span> e <span class="t">Inventario</span>.</p>
+    <h3>La verifica del mese</h3>
+    <ol>
+      <li>Alla festa del mese contate la cassa (<span class="t">Conta cassa</span>), fate l'<span class="t">Inventario</span> e controllate i graffi.</li>
+      <li>In <strong>Soldi del locale</strong> › <strong>Verifica del mese</strong> tocca <span class="t">Salva la foto di oggi</span>.</li>
+      <li>La volta dopo tocca la foto: l'app dice quanto è cambiato il previsionale e <strong>perché</strong>, voce per voce (merce arrivata, spese, entrate, prezzi cambiati…), e quanto è <strong>sfuggito</strong>: le differenze trovate contando la cassa e facendo l'inventario.</li>
+    </ol>
+    <p class="nota">Sono stime: il previsionale conta i graffi come se li pagassero tutti, e le scorte valgono al prezzo di vendita. I prodotti mai contati restano fuori. Per numeri affidabili fate prima <span class="t">Conta cassa</span> e <span class="t">Inventario</span>.</p>
+  </section>
+
+  <section class="cartella" id="quota">
+    <h2><span>7</span>Quota del locale e fondo</h2>
+    <p>L'affitto e le bollette li pagate voi sei, con una quota a testa. I soldi delle quote stanno in un <strong>fondo a parte</strong>, separato dalla cassa: si vede chi ha messo quanto e quando.</p>
+    <ol>
+      <li>Tra il <strong>20 e il 25</strong> del mese l'admin imposta la quota del mese dopo: quanto a testa, chi la paga, cosa comprende (affitto, luce, acqua…) e la scadenza, di solito il <strong>1° del mese</strong>.</li>
+      <li>Ognuno, quando porta la sua quota, la segna da sé: <span class="t">Altro</span> › <span class="t">Quota del locale</span> › <span class="t">Segna una quota</span>, oppure dal Reparto con <span class="t">Segna la mia quota</span>.</li>
+      <li>Dal giorno dopo la scadenza, chi non l'ha versata se la ritrova nei <strong>graffi</strong>, come voce a parte. Quando la porta, chi incassa sceglie «Quota» e i soldi vanno nel fondo.</li>
+      <li>Quando pagate il locale, l'admin tocca <span class="t">Pagato il locale</span>: i soldi escono dal fondo e resta lo <strong>storico</strong> con la data.</li>
+    </ol>
+    <p class="nota">Chi mette di più del dovuto si vede nella riga della quota. Per due mesi insieme si segnano due quote, una per mese.</p>
   </section>
 
   <section class="cartella" id="triage">
-    <h2><span>7</span>Triage: chi sta peggio</h2>
+    <h2><span>8</span>Triage: chi sta peggio</h2>
     <ol>
       <li>Nel Reparto tocca la <strong>faccia di chi sta peggio</strong>.</li>
       <li>Se vuoi scegli uno o più <strong>sintomi</strong> (silenzio assordante, urla strazianti…): toccali, si accendono.</li>
       <li>Tocca <strong>chi vota</strong>. Fatto.</li>
     </ol>
     <ul>
-      <li>Un voto a testa per serata, <strong>palese</strong>: con <span class="t">Vedi i voti</span> tutti vedono chi ha votato chi. Il voto si può cambiare o togliere.</li>
-      <li>La serata si chiude alle <strong>6:00</strong>. Il più votato è il <strong>codice rosso</strong>, e la sua diagnosi sono i sintomi più votati per lui.</li>
-      <li>Chi colleziona più codici rossi nel mese è il <strong>Re dell'oblio</strong>.</li>
-      <li>Votano, e si possono votare, anche i visitatori.</li>
+      <li>Ognuno può votare <strong>fino a 3 persone</strong> a serata (il numero lo decide l'admin): rifai i passi per ogni persona. Chi ha finito i voti, per cambiarne uno lo toglie da <span class="t">Vedi i voti</span>.</li>
+      <li>Votano <strong>tutti</strong>, anche chi non ha l'app: il voto lo segna uno di voi, dal suo telefono. Siete voi a decidere se un voto si segna.</li>
+      <li>Il voto è <strong>palese</strong>: con <span class="t">Vedi i voti</span> tutti vedono chi ha votato chi, e da quale telefono è stato segnato.</li>
+      <li>La serata si chiude alle <strong>6:00</strong>. Il più votato è il <strong>codice rosso</strong>, e la sua diagnosi sono i sintomi più votati per lui. Chi colleziona più codici rossi nel mese è il <strong>Re dell'oblio</strong>.</li>
     </ul>
   </section>
 
   <section class="cartella" id="freccette">
-    <h2><span>8</span>Freccette</h2>
+    <h2><span>9</span>Freccette e record</h2>
     <p><strong>Nuova partita</strong>: scegli il gioco, tocca i giocatori <strong>nell'ordine di tiro</strong> (<span class="t">Mescola</span> per sorteggiarlo) e poi <span class="t">Inizia la partita</span>.</p>
     <h3>501 e 301, chiusura libera</h3>
     <ul>
@@ -216,74 +252,104 @@ a{color:inherit}
     <ul>
       <li>Dall'1 al 20 in ordine. Tocca <span class="t">Mancato</span>, <span class="t">Preso</span>, <span class="t">Doppio</span> (avanzi di 2) o <span class="t">Triplo</span> (avanzi di 3). Vince chi supera il 20.</li>
     </ul>
-    <p class="nota">Dopo tre freccette il turno passa da solo. Se sbagli a segnare, <span class="t">↶ Indietro</span> toglie l'ultima freccetta. A fine partita: <span class="t">Rivincita</span> (comincia il secondo) o <span class="t">Nuova partita</span>. La partita si vede in diretta su tutti i telefoni.</p>
+    <h3>Record</h3>
+    <p>Sotto le ultime partite: turno migliore, chiusura più alta, media migliore, partite più veloci, vittorie di fila e chi ha fatto 180.</p>
+    <p class="nota">Dopo tre freccette il turno passa da solo. Se sbagli a segnare, <span class="t">↶ Indietro</span> toglie l'ultima freccetta. La partita si vede in diretta su tutti i telefoni.</p>
   </section>
 
   <section class="cartella" id="classifiche">
-    <h2><span>9</span>Classifiche</h2>
-    <p>Si aprono dal Reparto, dalle Freccette o da Altro. Il periodo si sceglie in alto: questo mese, mese scorso o da sempre.</p>
+    <h2><span>10</span>Classifiche, statistiche, medaglie e albo d'oro</h2>
     <ul>
-      <li><strong>Re dell'oblio</strong>: i codici rossi.</li>
-      <li><strong>Consumi</strong>: quanto ha preso ognuno.</li>
-      <li><strong>Freccette</strong>: vittorie, media e chiusura migliore.</li>
-      <li><strong>Debiti</strong>: i ticket aperti adesso.</li>
-      <li><strong>Migliori pagatori</strong>: in quanti giorni in media salda ognuno.</li>
-      <li><strong>Spazzatura</strong>: chi ha portato giù i rifiuti.</li>
+      <li><strong>Classifiche</strong> (questo mese, mese scorso o da sempre): Re dell'oblio, consumi, freccette, debiti, migliori pagatori, spazzatura.</li>
+      <li><strong>Statistiche del mese</strong> (in <span class="t">Altro</span>): il mese in numeri e la scheda di ognuno: quanto ha speso, cosa ha preso di più, serate, voti, freccette, faccende. Si possono rivedere i mesi passati.</li>
+      <li><strong>Medaglie</strong>: si guadagnano e restano. Cento pezzi, Re del graffio, Fedina pulita, Sempre puntuale, Re dell'oblio, Campione del mese, Cecchino (un 180), Spazzino. Quelle «del mese» arrivano quando il mese è finito. Si vedono anche nella cartella di ognuno.</li>
+      <li><strong>Albo d'oro</strong>: i campioni di ogni anno. Finché l'anno è in corso i nomi possono cambiare; dal 1° gennaio restano scritti.</li>
     </ul>
-    <p class="nota">Multe e penitenze: in arrivo.</p>
+  </section>
+
+  <section class="cartella" id="muro">
+    <h2><span>11</span>Muroblio del pianto</h2>
+    <p>Il muro dove ognuno attacca un <strong>post-it</strong>: come va, una richiesta d'aiuto, una lamentela. Resta lì come in bacheca.</p>
+    <ul>
+      <li><span class="t">Altro</span> › <span class="t">Muroblio del pianto</span> › <span class="t">+ Attacca un post-it</span>: scegli chi lo scrive, il testo (massimo 300 caratteri) e il colore.</li>
+      <li><strong>Niente anonimi</strong>: ogni post-it è firmato.</li>
+      <li>Lo può modificare o staccare solo <strong>il telefono che l'ha scritto</strong>, oppure l'admin.</li>
+      <li>L'ultimo post-it dei tre giorni passati compare anche nel Reparto.</li>
+    </ul>
   </section>
 
   <section class="cartella" id="faccende">
-    <h2><span>10</span>Faccende: rifiuti e pulizie</h2>
+    <h2><span>12</span>Faccende: rifiuti e pulizie</h2>
     <ul>
-      <li><strong>Rifiuti</strong>: la sera prima del ritiro il Reparto dice cosa va fuori (calendario del centro, si espone dalle 21:00), ma solo per quello che il locale butta: <strong>indifferenziata, plastica e metalli, vetro</strong>. Si cambia da <span class="t">Regole</span> › <span class="t">Cosa buttate</span>. Chi li porta giù tocca <span class="t">Portati giù</span> e sceglie il suo nome: vale per la classifica Spazzatura.</li>
+      <li><strong>Rifiuti</strong>: la sera prima del ritiro il Reparto dice cosa va fuori (calendario del centro, si espone dalle 21:00), ma solo per quello che il locale butta: <strong>indifferenziata, plastica e metalli, vetro</strong>. Chi li porta giù tocca <span class="t">Portati giù</span> e sceglie il suo nome: vale per la classifica Spazzatura.</li>
       <li><strong>Pulizie</strong>: dopo aver pulito tocca <span class="t">Pulizia fatta</span>; si può anche dire «ieri» o «3 giorni fa». Dopo 14 giorni senza pulizie compare l'avviso.</li>
     </ul>
   </section>
 
   <section class="cartella" id="altro">
-    <h2><span>11</span>Scorte e impostazioni, in Altro</h2>
+    <h2><span>13</span>Scorte e lista della spesa</h2>
     <ul>
-      <li><strong>Scorte e lista della spesa</strong>:
-        <ul>
-          <li><span class="t">Scontrino</span>: fai la foto allo scontrino della spesa (dritto, con buona luce, tutto dentro). Il telefono la legge da solo e propone riga per riga prodotto, pezzi e quanto è costato: tu correggi quello che serve e tocchi <span class="t">Registra lo scontrino</span>. Solo allora carica le scorte, salva il costo d'acquisto, crea i prodotti nuovi (il prezzo di vendita lo decidi tu) e registra la spesa in cassa, scegliendo chi ha pagato. Le righe in arancione sono da controllare; quelle che non c'entrano si segnano «Altra spesa» (va in cassa ma non in magazzino) o «Escludi». La volta dopo l'app ricorda come quel prodotto compare sullo scontrino.</li>
-          <li><span class="t">+ Nuovo prodotto</span>: un prodotto che non c'era, con prezzo, categoria, i pezzi che ci sono adesso e la soglia. C'è anche dentro <span class="t">Inventario</span> e <span class="t">Carico</span>: salvato il prodotto torni lì, con i numeri già scritti.</li>
-          <li><span class="t">Inventario</span>: conti i pezzi che ci sono davvero.</li>
-          <li><span class="t">Carico</span>: segni quello che arriva quando si fa la spesa.</li>
-          <li><span class="t">Soglie</span>: sotto quanti pezzi un prodotto va ricomprato.</li>
-          <li>La lista della spesa si riempie da sola e si possono aggiungere cose a mano; <span class="t">Preso</span> le toglie.</li>
-        </ul>
-      </li>
-      <li><strong>Listino</strong>: prodotti e prezzi; <span class="t">+ Prodotto</span> ne aggiunge uno. Un prezzo nuovo vale dalle consumazioni successive.</li>
-      <li><strong>Pazienti e visitatori</strong>: aggiungi un visitatore, cambia nome e faccia (caricatura o foto dal telefono). Togli la spunta «Ancora in reparto» per chi non viene più.</li>
-      <li><strong>Regole del reparto</strong>: ora di chiusura della serata, voto a se stessi, calendario dei rifiuti, giorni delle pulizie e sintomi dell'oblio.</li>
+      <li><span class="t">Scontrino</span>: fai la foto allo scontrino della spesa (dritto, con buona luce, tutto dentro). Il telefono la legge da solo e propone riga per riga prodotto, pezzi e quanto è costato: tu correggi quello che serve e tocchi <span class="t">Registra lo scontrino</span>. Solo allora carica le scorte, salva il costo d'acquisto, crea i prodotti nuovi (il prezzo di vendita lo decidi tu) e registra la spesa in cassa (con il PIN). Le righe in arancione sono da controllare. Se chiudi per sbaglio, l'app chiede prima di buttare lo scontrino letto.</li>
+      <li><span class="t">+ Nuovo prodotto</span>: un prodotto che non c'era, con prezzo, categoria, i pezzi che ci sono adesso e la soglia. C'è anche dentro <span class="t">Inventario</span> e <span class="t">Carico</span>: salvato il prodotto torni lì, con i numeri già scritti.</li>
+      <li><span class="t">Inventario</span> (con il PIN): conti i pezzi che ci sono davvero. <span class="t">Carico</span>: segni quello che arriva quando si fa la spesa.</li>
+      <li>La <strong>lista della spesa</strong> si riempie da sola quando un prodotto finisce o scende sotto la sua <strong>soglia</strong> (le soglie le mette l'admin); si possono aggiungere cose a mano e <span class="t">Preso</span> le toglie.</li>
     </ul>
-    <p class="nota">Tutto quello che cambi qui cambia per tutti i telefoni. Il lettore di scontrini, la prima volta, scarica circa 4,5 MB (serve internet); poi funziona anche senza rete e la foto non esce mai dal telefono.</p>
+    <p class="nota">Il lettore di scontrini, la prima volta, scarica circa 4,5 MB (serve internet); poi funziona anche senza rete e la foto non esce mai dal telefono.</p>
+  </section>
+
+  <section class="cartella" id="admin">
+    <h2><span>14</span>PIN, Admin e impostazioni</h2>
+    <h3>Il PIN del reparto</h3>
+    <ul>
+      <li>Le azioni delicate chiedono il <strong>PIN</strong>: conta cassa, entrate, spese, inventario, debiti aggiunti o tolti a mano, annullare o ripristinare un movimento, la foto della verifica. Il PIN lo sapete voi sei: chiedilo all'admin.</li>
+      <li>Dopo il PIN giusto, per <strong>10 minuti</strong> non te lo richiede.</li>
+    </ul>
+    <h3>La modalità admin</h3>
+    <ul>
+      <li>Le impostazioni stanno in <span class="t">Altro</span> › <strong>Admin</strong> e si aprono solo con il <strong>codice admin</strong>: quota del mese, listino e prezzi, pazienti e visitatori, regole del reparto, soglie, compleanni, codici, ripristino dei backup.</li>
+      <li>Il telefono resta admin finché non tocchi <span class="t">Esci dalla modalità admin</span>. Se il telefono dell'admin è scarico, con lo stesso codice si entra da un altro telefono (e poi si esce).</li>
+      <li>I <strong>prezzi</strong> cambiati valgono dalle consumazioni successive: quelle già segnate restano al prezzo di allora, e il prezzo di prima resta scritto nel listino.</li>
+      <li>Tutto quello che l'admin cambia, cambia per tutti i telefoni.</li>
+    </ul>
+    <p class="nota">PIN e codice admin servono contro sbagli e curiosi, non sono una cassaforte. L'admin li può cambiare da <span class="t">Codici</span>.</p>
+  </section>
+
+  <section class="cartella" id="salva">
+    <h2><span>15</span>Salva sempre</h2>
+    <ul>
+      <li>Ogni modulo ha il pulsante per salvare <strong>sempre in fondo, a portata di dito</strong>. Finché non lo tocchi, non cambia niente.</li>
+      <li>Se esci da un modulo senza salvare, l'app chiede: <span class="t">Salva</span>, <span class="t">Tieni la bozza</span> o <span class="t">Esci senza salvare</span>. La bozza la ritrovi la prossima volta che apri lo stesso modulo.</li>
+      <li>Se l'app si chiude a metà (telefono bloccato, chiamata), quello che stavi scrivendo resta come bozza; il conto della Farmacia resta in sospeso.</li>
+      <li>Nelle pagine con più moduli (le Regole), uscendo senza salvare l'app chiede se salvare.</li>
+    </ul>
   </section>
 
   <section class="cartella" id="errori">
-    <h2><span>12</span>Se sbagli</h2>
+    <h2><span>16</span>Se sbagli</h2>
     <ul>
       <li>Subito dopo aver segnato compare un messaggio in basso con <span class="t">Annulla</span>: toccalo.</li>
-      <li>Se te ne accorgi dopo, apri il movimento dal Registro o dalla Storia clinica e tocca <span class="t">Annulla movimento</span>. Resta visibile come annullato e, se serve, si rimette a posto con <span class="t">Ripristina</span>.</li>
-      <li>Un voto si toglie da <span class="t">Vedi i voti</span>; una partita da <strong>Ultime partite</strong> › <span class="t">Annulla partita</span>.</li>
+      <li>Se te ne accorgi dopo, apri il movimento dal Registro o dalla Storia clinica e tocca <span class="t">Annulla movimento</span> (con il PIN). Sopra i <strong>20 euro</strong> serve anche il <strong>motivo</strong>, che resta scritto. Il movimento resta visibile come annullato e si rimette a posto con <span class="t">Ripristina</span>.</li>
+      <li>Un pagamento misto o un resto lasciato sui graffi sono due movimenti collegati: annullandone uno si annulla anche l'altro.</li>
+      <li>Un voto si toglie da <span class="t">Vedi i voti</span>; una partita da <strong>Ultime partite</strong> › <span class="t">Annulla partita</span>; un post-it dal muro, con <span class="t">Stacca il post-it</span>.</li>
     </ul>
   </section>
 
   <section class="cartella" id="problemi">
-    <h2><span>13</span>Backup e problemi</h2>
+    <h2><span>17</span>Backup e problemi</h2>
     <ul>
-      <li>Ogni tanto fai <span class="t">Altro</span> › <span class="t">Backup</span>: è una copia in più, se qualcuno cancella per sbaglio.</li>
+      <li>Ogni tanto fai <span class="t">Altro</span> › <span class="t">Backup</span>: è una copia in più, se qualcuno cancella per sbaglio. Il ripristino lo fa solo l'admin.</li>
       <li>Se qualcosa non torna, apri <span class="t">Altro</span> › <span class="t">Telefoni collegati</span> e manda uno screenshot a chi gestisce l'app.</li>
-      <li>Non cancellare i dati del sito dalle impostazioni del telefono e non togliere l'icona senza motivo: alla riapertura i dati tornerebbero, ma solo con internet.</li>
+      <li>Non cancellare i dati del sito dalle impostazioni del telefono e non togliere l'icona senza motivo: alla riapertura i dati tornerebbero, ma solo con internet, e perderesti la modalità admin e il diritto di modificare i tuoi post-it.</li>
     </ul>
   </section>
 
   <section class="cartella oro" id="oro">
-    <h2><span>14</span>Le regole d'oro</h2>
+    <h2><span>18</span>Le regole d'oro</h2>
     <ol>
       <li>Segna subito, a nome di chi consuma.</li>
+      <li>Tocca sempre il pulsante per salvare.</li>
       <li>Un pagamento si registra con «Incassa», non con «− Debito».</li>
+      <li>La quota del locale entro il 1° del mese.</li>
       <li>Usa l'app sempre dall'icona.</li>
       <li>Pallino giallo? Tranquillo: invia tutto quando torna la rete.</li>
       <li>Quello che segni lo vedono tutti: niente furbate.</li>

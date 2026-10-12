@@ -146,6 +146,12 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.waitForTimeout(80);
   await page.click('.riga:has-text("CONTI")');
   await page.click('#foglio .pill:has-text("+ Debito")');
+  // azione sensibile: il PIN compare sopra la cartella; sbagliato → errore, giusto → si apre il modulo (e per 10 minuti basta)
+  if (!(await page.$('#foglio .pin-box'))) fail('«+ Debito» senza richiesta del PIN');
+  await page.fill('#pin-c', '1234'); await page.click('#foglio [data-k="pin-ok"]'); await page.waitForTimeout(60);
+  if (!/PIN sbagliato/.test(await text('#foglio .pin-box'))) fail('PIN sbagliato non segnalato');
+  await shot('06b-pin');
+  await page.fill('#pin-c', '1010'); await page.click('#foglio [data-k="pin-ok"]'); await page.waitForTimeout(80);
   await page.fill('#db-a', '5');
   await page.fill('#db-n', 'Scommessa persa');
   await page.click('#foglio button[type=submit]');
@@ -182,8 +188,15 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   // dettaglio e annullo di un movimento
   await page.click('.riga:has-text("Entrata")');
   await page.click('#foglio .pill:has-text("Annulla movimento")');
+  // 50 € è più di 20: senza motivo non si annulla
   await page.click('#foglio .pill:has-text("Sì, annulla")');
   await page.waitForTimeout(80);
+  if (await page.$('#foglio .pill:has-text("Ripristina")')) fail('annullato un movimento grande senza motivo');
+  if (!/motivo/i.test(await text('#toast'))) fail('manca l’avviso del motivo obbligatorio');
+  await page.fill('#mv-mot', 'Segnata per prova');
+  await page.click('#foglio .pill:has-text("Sì, annulla")');
+  await page.waitForTimeout(80);
+  if (!/Segnata per prova/.test(await text('#foglio'))) fail('il motivo dell’annullamento non si vede nel movimento');
   await shot('09-movimento-annullato');
   await page.click('#foglio .pill:has-text("Ripristina")');
   await page.click('#foglio-x');
@@ -198,6 +211,14 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   // Scorte: inventario, soglie, carico, lista spesa
   await tab('Altro');
   await shot('11-altro', true); await overflow('altro');
+  // Admin: senza codice le impostazioni non si vedono; con 0101 il telefono diventa admin
+  if (await page.$('.menu.admin')) fail('le voci admin si vedono senza modalità admin');
+  await page.click('.voce:has-text("Admin")');
+  await page.fill('#adm-c', '9999'); await page.click('#foglio button[type=submit]'); await page.waitForTimeout(60);
+  if (!/Codice sbagliato/.test(await text('#foglio'))) fail('codice admin sbagliato non segnalato');
+  await page.fill('#adm-c', '0101'); await page.click('#foglio button[type=submit]'); await page.waitForTimeout(100);
+  if (!(await page.$('.menu.admin .voce:has-text("Listino")'))) fail('dopo il codice admin il Listino non compare');
+  await shot('11b-altro-admin', true); await overflow('altro admin');
   await page.click('.voce:has-text("Scorte e lista")');
   await page.click('.pill:has-text("Inventario")');
   await page.fill('#iv-p2', '3');
@@ -318,6 +339,11 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
       if (/\[object|null|undefined|NaN/.test(await text('#foglio'))) fail('scontrino: nel foglio compare testo tecnico: ' + (await text('#foglio')).slice(0, 400));
       const larg = await page.$eval('#foglio-b', (b) => [b.scrollWidth, b.clientWidth]);
       if (larg[0] > larg[1] + 1) fail('scontrino: il foglio scorre di lato ' + larg.join(' > '));
+      // chiusura per sbaglio: chiede prima di buttare lo scontrino letto
+      await page.click('#foglio-x'); await page.waitForTimeout(60);
+      if (!/Esci senza registrare\?/.test(await text('#foglio .uscita'))) fail('scontrino: chiudendo non chiede niente e le righe lette vanno perse');
+      await page.click('[data-k="esci-resta"]'); await page.waitForTimeout(60);
+      if (!(await page.$('#foglio .sc-righe'))) fail('scontrino: dopo «Resto qui» lo scontrino non c’è più');
       // la birra la escludo (presa per casa), i sacchi sono una spesa del locale ma non vanno in magazzino
       await sceglie(2, 'Escludi: non è del locale');
       await sceglie(4, 'Altra spesa (non va in magazzino)');
@@ -459,27 +485,40 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('[data-k="tri-pesce"]'); await page.click('#foglio .chip:has-text("Gigi")'); await page.waitForTimeout(60);
   let tri = await text('.triage');
   if (!/In testa PESCE con 3 voti/.test(tri)) fail('triage: atteso PESCE in testa con 3 voti: ' + tri);
-  // PJ cambia idea: ora pari
+  // PJ vota anche CICCIO: è il suo secondo voto, il primo resta
   await page.click('[data-k="tri-ciccio"]');
   await page.waitForTimeout(60);
   if (!/ha votato PESCE/.test(await text('#foglio [data-k="vt-pj"]'))) fail('nel foglio non si vede chi ha già votato');
   await page.click('#foglio [data-k="vt-pj"]');
   await page.waitForTimeout(80);
+  if (!/PJ vota CICCIO \(2° voto\)/.test(await text('#toast'))) fail('secondo voto di PJ: ' + (await text('#toast')));
   tri = await text('.triage');
-  if (!/Pari: .*con 2 voti/.test(tri)) fail('triage: atteso pari con 2 voti: ' + tri);
+  if (!/In testa PESCE con 3 voti/.test(tri) || !/PJ → PESCE, CICCIO/.test(tri)) fail('dopo il secondo voto di PJ: ' + tri);
+  // terzo voto a CONTI; il quarto non si può
+  await page.click('[data-k="tri-conti"]'); await page.click('#foglio [data-k="vt-pj"]'); await page.waitForTimeout(80);
+  if (!/3° voto/.test(await text('#toast'))) fail('terzo voto di PJ: ' + (await text('#toast')));
+  await page.click('[data-k="tri-chicco"]'); await page.waitForTimeout(60);
+  if (!(await page.isDisabled('#foglio [data-k="vt-pj"]'))) fail('PJ può dare un quarto voto');
+  if (!/ha già 3 voti/.test(await text('#foglio [data-k="vt-pj"]'))) fail('non si vede che PJ ha finito i voti');
+  await shot('16c-voti-finiti');
+  await page.click('#foglio-x');
+  tri = await text('.triage');
+  if (!/6 voti/.test(tri)) fail('attesi 6 voti in tutto: ' + tri);
   await shot('17-triage', false);
   await page.locator('.triage').screenshot({ path: path.join(shots, '17b-triage-card.png') });
   await overflow('triage');
-  // Vedi i voti, poi tolgo quello di Gigi
+  // Vedi i voti: una riga per ogni voto; tolgo Gigi → PESCE e PJ → CONTI
   await page.click('.triage .pill:has-text("Vedi i voti")');
   await page.waitForTimeout(80);
   await shot('18-voti');
   if (!/CICCIO → PESCE\s*Silenzio assordante, Urla strazianti/.test(await text('#foglio'))) fail('in «Vedi i voti» mancano i due sintomi: ' + (await text('#foglio')).slice(0, 300));
   await page.click('#foglio li:has-text("Gigi → PESCE") button');
   await page.waitForTimeout(80);
+  await page.click('#foglio li:has-text("PJ → CONTI") button');
+  await page.waitForTimeout(80);
   await page.click('#foglio-x');
   tri = await text('.triage');
-  if (!/In testa CICCIO con 2 voti/.test(tri)) fail('dopo aver tolto il voto di Gigi: ' + tri);
+  if (!/Pari: .*con 2 voti/.test(tri) || /CONTI1|CONTI1 voto/.test(tri.replace(/\s/g, ''))) fail('dopo aver tolto due voti: ' + tri);
   // regola: niente voto a se stessi
   await tab('Altro');
   await page.click('.voce:has-text("Regole")');
@@ -584,7 +623,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await shot('28-reparto-pieno', true); await overflow('reparto pieno');
   const rep = await text('#view');
   if (!/Urgente|Stabile/.test(rep)) fail('bollettino senza timbro');
-  if (!/In testa CICCIO/.test(rep)) fail('i voti non restano dopo la ricarica');
+  if (!/Pari: .*con 2 voti/.test(rep)) fail('i voti non restano dopo la ricarica');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')).moves.length);
   if (saved !== bk.state.moves.length) fail('movimenti salvati ' + saved + ' diversi dal backup ' + bk.state.moves.length);
 
@@ -602,6 +641,169 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   }
   await ctx.setOffline(false);
 
+  // ---------- novità 0.7.0 ----------
+  const conti = async () => calc.derive(await statoDi(page));
+  const ymdPagina = (giorni) => page.evaluate((g) => { const d = new Date(); d.setDate(d.getDate() + g); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }, giorni);
+  // resto: Kinder Bueno 1,30 pagato con 5 euro
+  await tab('Farmacia');
+  await page.click('.chip:has-text("PEPPECARLO")');
+  await page.click('.prod-add:has-text("Kinder Bueno")');
+  let D0 = await conti();
+  await page.click('[data-k="ha-dato"]');
+  await page.fill('#hd-a', '5');
+  await page.waitForTimeout(60);
+  if (!/Resto: 3,70/.test(await text('#foglio .resto'))) fail('resto non calcolato: ' + (await text('#foglio .resto')));
+  await shot('42-resto');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  if (!/resto da dare 3,70/.test(await text('#toast'))) fail('toast del resto: ' + (await text('#toast')));
+  let D1 = await conti();
+  if (D1.cash - D0.cash !== 130 || (D1.debt.peppecarlo || 0) !== (D0.debt.peppecarlo || 0)) fail('resto: in cassa doveva entrare solo il conto');
+  // pagamento misto: 2,50 di conto, 1 euro in contanti, il resto sul ticket
+  await page.click('.chip:has-text("PEPPECARLO")');
+  await page.click('.prod-add:has-text("Kit Kat")'); await page.click('.prod-add:has-text("Mars")');
+  await page.click('[data-k="ha-dato"]');
+  await page.fill('#hd-a', '1');
+  await page.waitForTimeout(60);
+  if (!/Pagamento misto[\s\S]*1,00 € in contanti adesso, 1,50 € sul suo ticket/.test((await text('#foglio .resto')).replace(/\u00a0/g, ' '))) fail('pagamento misto non spiegato: ' + (await text('#foglio .resto')));
+  await shot('43-misto');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  D0 = D1; D1 = await conti();
+  if (D1.cash - D0.cash !== 100 || (D1.debt.peppecarlo || 0) - (D0.debt.peppecarlo || 0) !== 150) fail('pagamento misto: cassa +1,00 e ticket +1,50 attesi');
+  const stM = await statoDi(page);
+  const misti = stM.moves.slice(-2);
+  if (!misti[0].g || misti[0].g !== misti[1].g) fail('i due movimenti del pagamento misto non sono collegati');
+  // annullare uno dei due annulla anche l'altro
+  await cassa();
+  await page.click('.riga:has-text("Ticket incassato · PEPPECARLO")');
+  if (!/Va insieme a/.test(await text('#foglio'))) fail('nel movimento non si vede il collegamento del pagamento misto');
+  await page.click('#foglio .pill:has-text("Annulla movimento")'); await page.click('#foglio .pill:has-text("Sì, annulla")'); await page.waitForTimeout(80);
+  { const st = await statoDi(page); const g = st.moves.filter((m) => m.g === misti[0].g); if (!g.every((m) => m.x)) fail('annullando il pagamento misto l’altro movimento resta'); }
+  await page.click('#foglio .pill:has-text("Ripristina")'); await page.waitForTimeout(80); await page.click('#foglio-x');
+  // conto in sospeso: se lo lasci in Farmacia, il Reparto lo ricorda
+  await tab('Farmacia');
+  await page.click('.chip:has-text("CICCIO")'); await page.click('.prod-add:has-text("Birra")');
+  await tab('Reparto');
+  if (!/non è registrato/.test(await text('#toast'))) fail('uscendo dalla Farmacia con un conto aperto manca l’avviso');
+  if (!(await page.$('.cartella.sospeso'))) fail('il Reparto non mostra il conto in sospeso');
+  await page.click('[data-k="riprendi-conto"]'); await page.waitForTimeout(60);
+  if (!/CICCIO/.test(await text('.pos-who'))) fail('riprendendo il conto non torna CICCIO');
+  await page.click('.posbar .pill-x');
+  // bozza: un modulo lasciato a metà
+  await cassa();
+  await page.click('.pill:has-text("Entrata")');
+  await page.fill('#en-a', '7');
+  await page.click('#foglio-x'); await page.waitForTimeout(60);
+  if (!(await page.$('#foglio .uscita'))) fail('uscendo senza salvare non chiede cosa fare');
+  await shot('44-uscita-senza-salvare');
+  await page.click('[data-k="esci-bozza"]'); await page.waitForTimeout(60);
+  await page.click('.pill:has-text("Entrata")');
+  if ((await page.inputValue('#en-a')) !== '7' || !(await page.$('#foglio .bozza'))) fail('la bozza non torna');
+  await page.click('#foglio-x'); await page.click('[data-k="esci-no"]'); await page.waitForTimeout(60);
+  await page.click('.pill:has-text("Entrata")');
+  if ((await page.inputValue('#en-a')) !== '') fail('dopo «Esci senza salvare» la bozza resta');
+  await page.click('#foglio-x');
+  // quota del locale: l'admin la imposta (scaduta ieri, per provare il ritardo), ognuno la segna, chi è in ritardo la trova nei graffi
+  await tab('Altro');
+  await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")');
+  await page.click('[data-k="nuova-quota"]');
+  await page.fill('#qm-a', '20');
+  await page.fill('#qm-s', await ymdPagina(-1));
+  await shot('45-quota-imposta');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  const meseQ = (await statoDi(page)).quote.slice(-1)[0].mese;
+  await page.click('[data-k="qv-' + meseQ + '-pj"]');
+  if ((await page.inputValue('#vq-a')) !== '20,00') fail('versando la quota l’importo non è proposto');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  if (!/20,00/.test(await text('#fondo-tot'))) fail('il fondo non sale con la quota: ' + (await text('#fondo-tot')));
+  await shot('46-quota', true); await overflow('quota');
+  await tab('Ticket');
+  if (!/di cui quota locale 20,00/.test((await text('#view')).replace(/\u00a0/g, ' '))) fail('la quota non pagata non compare nei graffi');
+  D0 = await conti();
+  await page.click('.riga:has-text("PESCE")');
+  await page.click('#foglio .pill:has-text("Incassa")');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(60);
+  if (!/Scegli se sono/.test(await text('#foglio'))) fail('incassando non si obbliga a scegliere tra consumazioni e quota');
+  await page.click('#foglio .chip:has-text("Quota")');
+  if ((await page.inputValue('#py-a')) !== '20,00') fail('scegliendo la quota l’importo non diventa 20,00');
+  await shot('47-incassa-quota');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  D1 = await conti();
+  if (D1.cash !== D0.cash || D1.fondo - D0.fondo !== 2000) fail('la quota incassata deve andare nel fondo, non in cassa');
+  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")');
+  await page.click('[data-k="pagato-locale"]');
+  await page.fill('#pl-a', '30');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  if (!/10,00/.test(await text('#fondo-tot'))) fail('pagato il locale: il fondo doveva scendere a 10,00');
+  if (!/Pagato dal fondo/.test(await text('#view'))) fail('manca lo storico di quando avete pagato il locale');
+  // Muroblio del pianto
+  await tab('Altro'); await page.click('.voce:has-text("Muroblio")');
+  await page.click('[data-k="nuovo-postit"]');
+  await page.fill('#pi-t', 'Ho perso a freccette tre volte di fila');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(60);
+  if (!/niente anonimi/.test(await text('#foglio'))) fail('il post-it anonimo passa');
+  await page.click('#foglio .chip:has-text("CONTI")');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  if ((await page.$$('.postit')).length !== 1 || !/CONTI/.test(await text('.postit'))) fail('il post-it non è sul muro');
+  await page.click('.postit-mod'); await page.fill('#pi-t', 'Ho perso a freccette QUATTRO volte di fila');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  if (!/QUATTRO[\s\S]*modificato/.test(await text('.postit'))) fail('il post-it modificato non si aggiorna');
+  await shot('48-muro', true); await overflow('muro');
+  await tab('Reparto');
+  if (!/Dal Muroblio del pianto/.test(await text('#view'))) fail('il Reparto non mostra l’ultimo post-it');
+  // compleanno di PESCE oggi (admin)
+  await tab('Altro'); await page.click('.voce:has-text("Compleanni")');
+  { const oggi = await ymdPagina(0); await page.selectOption('select[aria-label="Giorno, PESCE"]', oggi.slice(8, 10)); await page.selectOption('select[aria-label="Mese, PESCE"]', oggi.slice(5, 7)); }
+  await page.click('button:has-text("Salva i compleanni")'); await page.waitForTimeout(80);
+  await tab('Reparto');
+  if (!/Oggi compie gli anni PESCE/.test(await text('.festa'))) fail('il Reparto non festeggia il compleanno');
+  await page.locator('.festa').screenshot({ path: path.join(shots, '49-compleanno.png') });
+  // storico dei prezzi
+  await tab('Altro'); await page.click('.voce:has-text("Listino")');
+  await page.click('.riga:has-text("Pinguì")');
+  await page.fill('#pr-a', '1,20');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  if (!/era 1,00 € fino al/.test((await text('.riga:has-text("Pinguì")')).replace(/\u00a0/g, ' '))) fail('il listino non mostra il prezzo di prima');
+  await page.click('.riga:has-text("Pinguì")');
+  if (!/Prezzi di prima: 1,00 €/.test((await text('#foglio')).replace(/\u00a0/g, ' '))) fail('il prodotto non mostra lo storico dei prezzi');
+  await page.click('#foglio-x');
+  // regole: un modulo cambiato e non salvato, uscendo dalla pagina
+  await tab('Altro'); await page.click('.voce:has-text("Regole")');
+  await page.fill('#rg-gv', '45');
+  await tab('Reparto'); await page.waitForTimeout(60);
+  if (!/Modifiche non salvate/.test(await text('#foglio-t'))) fail('uscendo dalle Regole senza salvare non chiede niente');
+  await page.click('[data-k="pg-salva"]'); await page.waitForTimeout(80);
+  if ((await statoDi(page)).cfg.graffiGiorni !== 45) fail('«Salva ed esci» non ha salvato le regole');
+  // verifica del mese: foto e confronto
+  await tab('Altro'); await page.click('.voce:has-text("Soldi del locale")');
+  await page.click('[data-k="salva-verifica"]');
+  await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
+  await page.click('.cartella:has(h3:text("Verifica del mese")) .riga'); await page.waitForTimeout(60);
+  if (!/Come si spiega/.test(await text('#foglio')) || !/Non è sfuggito niente/.test(await text('#foglio'))) fail('confronto della verifica non coerente: ' + (await text('#foglio')).slice(0, 300));
+  await shot('50-verifica');
+  await page.click('#foglio-x');
+  // statistiche, medaglie e albo, record
+  await tab('Altro'); await page.click('.voce:has-text("Statistiche del mese")');
+  if (!/Il mese in numeri/.test(await text('#view')) || !(await page.$('.scheda-mese'))) fail('statistiche del mese vuote');
+  await shot('51-statistiche', true); await overflow('statistiche');
+  await tab('Altro'); await page.click('.voce:has-text("Medaglie")');
+  if (!/Albo d’oro/.test(await text('#view')) || (await page.$$('.medaglia-riga')).length !== 8) fail('pagina medaglie e albo incompleta');
+  await shot('52-medaglie', true); await overflow('medaglie');
+  await tab('Freccette');
+  if (!/Record/.test(await text('#view'))) fail('manca la scheda dei record delle freccette');
+  // codici: l'admin cambia il PIN, poi lo rimette
+  await tab('Altro'); await page.click('.voce:has-text("Codici")');
+  { const pin = page.locator('.cartella:has(h3:text("PIN delle azioni sensibili")) input'); await pin.nth(0).fill('2468'); await pin.nth(1).fill('2468'); }
+  await page.click('button:has-text("Cambia il PIN")'); await page.waitForTimeout(80);
+  { const st = await statoDi(page); if (!st.cfg.pinH || /2468/.test(JSON.stringify(st.cfg))) fail('il PIN nuovo deve essere salvato solo come impronta'); }
+  await page.click('button:has-text("Torna a 1010")'); await page.waitForTimeout(80);
+  if ((await statoDi(page)).cfg.pinH) fail('il PIN non torna a 1010');
+  // esco dalla modalità admin: le voci admin spariscono
+  await tab('Altro'); await page.click('[data-k="esci-admin"]'); await page.waitForTimeout(80);
+  if (await page.$('.menu.admin')) fail('uscito dall’admin, le voci admin restano');
+  note('novità 0.7.0: resto, pagamento misto, conto in sospeso, bozze, quota e fondo, muro, compleanni, prezzi, verifica, statistiche, medaglie, codici');
+
   // schermo stretto e largo
   await page.setViewportSize({ width: 320, height: 640 });
   await tab('Farmacia'); await page.click('.chip:has-text("PJ")'); await page.click('.prod-add:has-text("Nutella")');
@@ -615,6 +817,10 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('.pill:has-text("Abbandona")'); await page.click('#foglio .pill:has-text("Sì, abbandona")');
   await tab('Altro'); await page.click('.voce:has-text("Classifiche")'); await overflow('classifiche 320'); await shot('33-classifiche-320', true);
   await tab('Altro'); await page.click('.voce:has-text("Soldi del locale")'); await overflow('soldi 320'); await shot('33b-soldi-320', true);
+  await tab('Altro'); await page.click('.voce:has-text("Muroblio")'); await overflow('muro 320'); await shot('33e-muro-320', true);
+  await tab('Altro'); await page.click('.voce:has-text("Statistiche del mese")'); await overflow('statistiche 320');
+  await tab('Altro'); await page.click('.voce:has-text("Medaglie")'); await overflow('medaglie 320');
+  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")'); await overflow('quota 320'); await shot('33f-quota-320', true);
   await tab('Farmacia'); await page.click('.chip:has-text("CONTI")'); await page.click('.prod-add:has-text("Mars")'); await overflow('farmacia con ha dato 320'); await shot('33d-posbar-320');
   await page.click('[data-k="ha-dato"]'); { const l = await page.$eval('#foglio-b', (b) => [b.scrollWidth, b.clientWidth]); if (l[0] > l[1] + 1) fail('ha dato 320: il foglio scorre di lato'); }
   await page.click('#foglio-x'); await page.click('.posbar .pill-x');
@@ -653,6 +859,16 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   if (!/Da fare|Urgente/.test(await p2.textContent('#view'))) fail('con le pulizie scadute il reparto non segnala nulla');
   await p2.locator('.cartella:has(h2:text("Faccende"))').screenshot({ path: path.join(shots, '36-pulizie-scadute.png') });
   note('pulizie: avviso dopo 14 giorni ok');
+  // graffi vecchi: una birra sul ticket, poi passano 31 giorni
+  await p2.click('.tab:has-text("Farmacia")'); await p2.click('.chip:has-text("PJ")'); await p2.click('.prod-add:has-text("Birra")');
+  await p2.click('.posbar .pill:has-text("Sul ticket")'); await p2.waitForTimeout(80);
+  { const ora = await p2.evaluate(() => Date.now()); await p2.clock.setSystemTime(ora + 31 * 864e5); }
+  await p2.click('.tab:has-text("Ticket")'); await p2.waitForTimeout(100);
+  if (!/Graffi vecchi/.test(await p2.textContent('#view'))) fail('dopo 31 giorni il graffio non risulta vecchio');
+  await p2.screenshot({ path: path.join(shots, '37-graffi-vecchi.png') });
+  await p2.click('.tab:has-text("Reparto")'); await p2.waitForTimeout(60);
+  if (!/Graffi vecchi/.test(await p2.textContent('.bollettino'))) fail('il bollettino non segnala i graffi vecchi');
+  note('graffi vecchi: dopo 30 giorni in rosso nei Ticket e nel bollettino');
   note('chiusura alle 6: verdetto e nuova serata ok');
   await ctx2.close();
 
@@ -662,7 +878,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await Promise.all([page.waitForNavigation(), page.click('.voce:has-text("Guida all’uso")')]);
   if (!/guida\.html$/.test(page.url())) fail('la voce Guida non apre guida.html: ' + page.url());
   if (!/Guida all'uso del reparto/.test(await page.textContent('h2.titolo'))) fail('guida senza titolo');
-  if ((await page.$$('section.cartella')).length !== 14) fail('la guida non ha 14 capitoli');
+  if ((await page.$$('section.cartella')).length !== 18) fail('la guida non ha 18 capitoli');
   await overflow('guida 390'); await shot('41-guida', true);
   await page.setViewportSize({ width: 320, height: 640 }); await overflow('guida 320');
   await ctx.setOffline(true);
@@ -708,13 +924,13 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await aspetta(A.p, () => /1 voto/.test(document.querySelector('.triage').textContent), null, 'A non vede il voto dato da B');
   // A cambia il prezzo della birra, B lo vede nel listino
   await A.tab('Altro');
+  await A.p.click('.voce:has-text("Admin")'); await A.p.fill('#adm-c', '0101'); await A.p.click('#foglio button[type=submit]'); await A.p.waitForTimeout(80);
   await A.p.click('.voce:has-text("Listino")');
   await A.p.click('.riga:has-text("Birra")');
   await A.p.fill('#pr-a', '1,50');
   await A.p.click('#foglio button[type=submit]');
-  await B.tab('Altro');
-  await B.p.click('.voce:has-text("Listino")');
-  await aspetta(B.p, () => /1,50/.test((document.querySelector('.riga') && [...document.querySelectorAll('.riga')].find((r) => /Birra/.test(r.textContent)) || {}).textContent || ''), null, 'B non vede il nuovo prezzo della birra');
+  await B.tab('Farmacia');   // B non è admin: il prezzo nuovo lo vede in Farmacia
+  await aspetta(B.p, () => [...document.querySelectorAll('.prod-add')].some((r) => /Birra/.test(r.textContent) && /1,50/.test(r.textContent)), null, 'B non vede il nuovo prezzo della birra');
   // B senza rete incassa da PESCE; quando torna la rete A vede il ticket chiuso
   await B.c.setOffline(true);
   await B.tab('Ticket');
@@ -743,9 +959,8 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await shot('40-sync-freccette-b', false, B.p);
   // un terzo telefono nuovo trova tutto uguale e non sovrascrive niente
   const C = await telefono('telefono C');
-  await C.tab('Altro');
-  await C.p.click('.voce:has-text("Listino")');
-  await aspetta(C.p, () => [...document.querySelectorAll('.riga')].some((r) => /Birra/.test(r.textContent) && /1,50/.test(r.textContent)), null, 'il telefono nuovo ha rimesso il prezzo di partenza');
+  await C.tab('Farmacia');
+  await aspetta(C.p, () => [...document.querySelectorAll('.prod-add')].some((r) => /Birra/.test(r.textContent) && /1,50/.test(r.textContent)), null, 'il telefono nuovo ha rimesso il prezzo di partenza');
   const totali = await Promise.all([A, B, C].map(async (t) => { await t.tab('Reparto'); return (await t.p.textContent('.bollettino')).replace(/\s+/g, ' ').replace(/Telefoni.*?Backup/, 'Backup'); }));
   if (totali[0] !== totali[1] || totali[1] !== totali[2]) fail('i bollettini dei tre telefoni non coincidono: ' + totali.join(' | '));
   note('sincronizzazione: 3 telefoni allineati (consumi, voti, prezzi, incasso senza rete, freccette)');

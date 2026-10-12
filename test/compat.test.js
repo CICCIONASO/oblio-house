@@ -16,7 +16,9 @@ const NUOVA = carica(pure(path.join(__dirname, '..', 'src', 'app.js')));
 const V044 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.4.4.js'), 'utf8'));
 const V050 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.0.js'), 'utf8'));
 const V051 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.1.js'), 'utf8'));
-assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1');
+const V060 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.6.0.js'), 'utf8'));
+assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1'); assert.strictEqual(V060.APP_V, '0.6.0');
+const N7 = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn {metiVoto,candidatiVoto,sintomiPer,cambiaPrezzo,impronta};')();
 const VOTI_DAL = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn VOTI_DAL;')();
 const sintomi = (v) => NUOVA.sintomiVoto(v);
 
@@ -167,4 +169,73 @@ uguali(A, P2);
   assert.strictEqual(N.push(srv2), 0);
 }
 
-console.log('compatibilità: tutto torna (0.4.4, 0.5.0, 0.5.1 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)');
+// 7. 0.6.0 e 0.7.0 insieme: voto a più persone, quota, muro, storico prezzi, codici. Il telefono vecchio non rovina niente.
+{
+  const srv3 = new Server();
+  clock = Date.parse('2026-11-02T21:00:00+01:00');
+  const Y = new Phone('Y', NUOVA, NUOVA.seedState(11));   // aggiornato
+  const X = new Phone('X', V060, V060.seedState(12));      // fermo alla 0.6.0
+  Y.giro(srv3); tick(); X.giro(srv3); Y.giro(srv3);
+  assert.strictEqual(quiete(X, Y), 0);
+  const k = '2026-11-02';
+  // Y: voto a tre persone con sintomi, quota, versamento, muro, verifica, prezzo cambiato, compleanno, codici
+  tick(); const v = { id: 'v' + k + '_pj', s: k, v: 'pj', t: clock };
+  N7.metiVoto(v, ['pesce', 'conti', 'chicco'], { pesce: ['Urla strazianti'], chicco: ['Dormire al locale'] }); Y.S.votes.push(v);
+  Y.S.quote.push({ id: 'q2026-12', mese: '2026-12', a: 5000, chi: ['pj', 'pesce'], t: clock, note: 'affitto' });
+  Y.S.moves.push({ id: 'qv1', t: clock, k: 'qin', p: 'pj', a: 5000, mese: '2026-12' });
+  Y.S.moves.push({ id: 'mx1', t: clock + 1, k: 'tab', p: 'conti', a: 300, items: [], g: 'gg1' });
+  Y.S.moves.push({ id: 'mx2', t: clock + 2, k: 'pay', p: 'conti', a: 100, g: 'gg1', note: 'pagamento misto' });
+  Y.S.muro.push({ id: 'w1', t: clock, p: 'pesce', testo: 'Chi ha finito il ghiaccio?', col: 2, dv: 'Y' });
+  Y.S.verifiche.push({ id: 'k1', t: clock, cassa: 1, scorte: 2, incassare: 3, restituire: 0, previsionale: 6, fondo: 5000 });
+  const birraY = Y.S.products.find((p) => p.name === 'Birra'); N7.cambiaPrezzo(birraY, 130, clock);
+  Y.S.people.find((p) => p.id === 'pesce').nato = '11-02';
+  Y.S.cfg.votiMax = 2; Y.S.cfg.pinH = N7.impronta('2468');
+  Y.giro(srv3); X.giro(srv3); Y.giro(srv3);
+  assert.strictEqual(quiete(X, Y), 0, 'il telefono vecchio non rimanda niente');
+  const vx = voto(X, 'v' + k + '_pj');
+  assert.strictEqual(vx.c, 'pesce', 'la 0.6.0 vede il primo votato');
+  assert.deepStrictEqual(V060.sintomiVoto(vx), ['Urla strazianti']);
+  assert.deepStrictEqual(vx.cs, ['pesce', 'conti', 'chicco'], 'e conserva gli altri senza toccarli');
+  assert.strictEqual(X.S.products.find((p) => p.name === 'Birra').price, 130);
+  assert.ok(Array.isArray(X.S.products.find((p) => p.name === 'Birra').ph), 'lo storico dei prezzi resta');
+  assert.strictEqual(X.S.cfg.votiMax, 2); assert.strictEqual(X.S.cfg.pinH, N7.impronta('2468'));
+  assert.strictEqual(X.S.people.find((p) => p.id === 'pesce').nato, '11-02');
+  const dX = V060.derive(X.S), dY = NUOVA.derive(Y.S);
+  assert.strictEqual(dX.cash, dY.cash, 'stessa cassa: la quota non entra in cassa nemmeno per la 0.6.0');
+  assert.deepStrictEqual(dX.debt, dY.debt);
+  assert.strictEqual(dY.fondo, 5000);
+  ['qv1', 'mx1', 'mx2'].forEach((id) => assert.ok(X.S.moves.some((m) => m.id === id), id + ' arriva anche alla 0.6.0'));
+  // X (0.6.0) cambia il voto di PJ come faceva prima: tocca solo «c» e i sintomi
+  tick(); vx.c = 'ciccio'; vx.t = clock; V060.metiSintomi(vx, ['Grida silenziose']);
+  X.giro(srv3); Y.giro(srv3); X.giro(srv3);
+  const vy = voto(Y, 'v' + k + '_pj');
+  assert.deepStrictEqual(N7.candidatiVoto(vy), ['ciccio', 'conti', 'chicco'], 'il voto cambiato dal vecchio va primo, gli altri restano');
+  assert.deepStrictEqual(N7.sintomiPer(vy, 'ciccio'), ['Grida silenziose']);
+  assert.deepStrictEqual(N7.sintomiPer(vy, 'chicco'), ['Dormire al locale']);
+  assert.strictEqual(quiete(X, Y), 0);
+  // X cambia un prezzo (senza storico): Y lo riceve e lo storico di prima resta
+  tick(); const bx = X.S.products.find((p) => p.name === 'Birra'); bx.price = 140;
+  X.giro(srv3); Y.giro(srv3);
+  const by = Y.S.products.find((p) => p.name === 'Birra');
+  assert.strictEqual(by.price, 140); assert.strictEqual(by.ph.length, 1);
+  // X annulla il pagamento misto da sé (la 0.6.0 non sa dei gruppi): resta annullato solo quello
+  tick(); X.S.moves.find((m) => m.id === 'mx2').x = { t: clock };
+  X.giro(srv3); Y.giro(srv3);
+  assert.ok(Y.S.moves.find((m) => m.id === 'mx2').x && !Y.S.moves.find((m) => m.id === 'mx1').x);
+  // X si aggiorna: niente da rimandare, poi uguale a Y, con muro, quota e verifiche
+  const X2 = X.aggiorna(NUOVA);
+  assert.strictEqual(X2.push(srv3), 0, 'aggiornato non rimanda le copie vecchie');
+  X2.pull(srv3); Y.giro(srv3);
+  assert.strictEqual(X2.S.muro.length, 1); assert.strictEqual(X2.S.quote.length, 1); assert.strictEqual(X2.S.verifiche.length, 1);
+  uguali(X2, Y, 'dalla 0.6.0 alla 0.7.0: identici');
+  assert.strictEqual(quiete(X2, Y), 0);
+  // un telefono nuovo trova tutto
+  const Z = new Phone('Z', NUOVA, NUOVA.seedState(13)); Z.giro(srv3);
+  uguali(Y, Z); assert.strictEqual(Z.push(srv3), 0);
+  // cancellare un post-it dal telefono aggiornato: sparisce ovunque, e la 0.6.0 non lo rimette
+  tick(); Y.S.muro = []; Y.giro(srv3); Z.giro(srv3); X.giro(srv3);
+  assert.strictEqual(Z.S.muro.length, 0);
+  assert.strictEqual(quiete(X, Y, Z), 0);
+}
+
+console.log('compatibilità: tutto torna (0.4.4, 0.5.0, 0.5.1, 0.6.0 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)');
