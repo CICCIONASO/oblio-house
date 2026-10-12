@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.5.0';
+var APP_V='0.5.1';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
@@ -108,8 +108,10 @@ function inPer(key,per,openKey){
   return String(key).slice(0,7)===ym;
 }
 /* voto palese: un voto per votante, vale l'ultimo; pari merito = più vincitori */
-/* sintomi di un voto: lista (i voti vecchi avevano un solo sintomo come testo) */
-function sintomiVoto(v){return Array.isArray(v.y)?v.y:(v.y?[v.y]:[]);}
+/* sintomi di un voto. Formato: «y» è il primo sintomo, come testo (così lo leggono anche i telefoni non aggiornati);
+   «ys» è la lista completa, solo se i sintomi sono più di uno. La 0.5.0 per poco ha salvato «y» come lista. */
+function sintomiVoto(v){return Array.isArray(v.ys)&&v.ys.length?v.ys:(Array.isArray(v.y)?v.y:(v.y?[v.y]:[]));}
+function metiSintomi(v,ys){if(ys.length)v.y=ys[0];else delete v.y;if(ys.length>1)v.ys=ys.slice();else delete v.ys;}
 function voteSummary(list){
   var last={},by={},tally={},sint={},max=0;
   list.forEach(function(v){last[v.v]=v;});
@@ -397,8 +399,8 @@ function normState(raw){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!chi||!per)return;
     var o={id:str(v.id,40)||('v'+vv.length),s:s,v:chi,c:per,t:toInt(v.t)};
     var ys=[];
-    (Array.isArray(v.y)?v.y:(v.y?[v.y]:[])).slice(0,12).forEach(function(x){x=str(x,40).trim();if(x&&ys.indexOf(x)<0)ys.push(x);});
-    if(ys.length)o.y=ys;
+    sintomiVoto(v).slice(0,12).forEach(function(x){x=str(x,40).trim();if(x&&ys.indexOf(x)<0)ys.push(x);});
+    metiSintomi(o,ys);
     vv.push(o);
   });
   vv.sort(function(a,b){return a.t-b.t;});
@@ -475,14 +477,30 @@ function normEnt(c,e){
   return st&&st[c]&&st[c][0]||null;
 }
 function perT(a,b){return (a.t||0)-(b.t||0);}
+/* app aggiornata: le copie già confermate che cambiano solo di forma (normalizzazione nuova) NON si rimandano,
+   perché una copia impoverita da una versione vecchia cancellerebbe dati veri sugli altri telefoni.
+   Si segnano «da rileggere» e si rilegge tutto il locale: per la stessa scrittura vince il server. */
+function syncNuovaVersione(S,SY,ver){
+  if(SY.ver===ver)return false;
+  var h={};entita(S).forEach(function(x){h[x.k]=hashStr(canon(x.e));});
+  Object.keys(SY.ent).forEach(function(k){
+    var e=SY.ent[k];
+    if(!e||!e[2]||!(k in h))return;   // in coda: si manda come sempre; tolta qui: lapide come sempre
+    e[1]=h[k];e[3]='r';
+  });
+  SY.ver=ver;
+  if(SY.init)SY.cursor=0;
+  return true;
+}
 /* applica le modifiche arrivate dagli altri telefoni, sul posto. Alla prima unione (init) vince il locale condiviso. */
 function syncApply(S,changes,SY,init){
   var changed=false;
   changes.forEach(function(ch){
     if(!ch||typeof ch.key!=='string')return;
-    var key=ch.key,loc=SY.ent[key],hr=ch.j==null?'-':hashStr(ch.j);
-    if(loc&&loc[0]===ch.u&&loc[1]===hr){loc[2]=1;return;}
-    if(!init&&loc&&(loc[0]>ch.u||(loc[0]===ch.u&&loc[1]>hr)))return;
+    var key=ch.key,loc=SY.ent[key],hr=ch.j==null?'-':hashStr(ch.j),rilegge=!!(loc&&loc[3]==='r');
+    if(loc&&loc[0]===ch.u&&loc[1]===hr){loc[2]=1;if(rilegge)loc.length=3;return;}
+    // da rileggere (nuova versione): per la stessa scrittura vale la copia del server
+    if(!init&&loc&&(loc[0]>ch.u||(!rilegge&&loc[0]===ch.u&&loc[1]>hr)))return;
     var c=ch.c,id=ch.i,hn=hr;
     if(c==='cfg'){
       if(ch.j==null)return;
@@ -632,7 +650,7 @@ var SST={stato:'spento',errore:'',ultimo:0,attesa:0};   // spento · collego · 
 var SDK='https://www.gstatic.com/firebasejs/10.12.2/';
 function syncCarica(){
   try{SY=JSON.parse(lsGet(KEY+'.sync')||'null');}catch(e){SY=null;}
-  if(!SY||typeof SY!=='object'||!SY.ent||typeof SY.ent!=='object')SY={cursor:0,init:false,ent:{}};
+  if(!SY||typeof SY!=='object'||!SY.ent||typeof SY.ent!=='object')SY={cursor:0,init:false,ent:{},ver:APP_V};
   DEV=lsGet(KEY+'.dev');
   if(!DEV){DEV='d'+rid();lsSet(KEY+'.dev',DEV);}
 }
@@ -1114,11 +1132,11 @@ function vota(chi,per,ys){
   ys=(ys||[]).slice();
   var k=openKey(),v=S.votes.find(function(x){return x.s===k&&x.v===chi;}),prima=v?{c:v.c,t:v.t,y:sintomiVoto(v).slice()}:null;
   if(prima&&prima.c===per&&prima.y.slice().sort().join('|')===ys.slice().sort().join('|')){toast(pName(chi)+' aveva già votato così.');return;}
-  if(v){v.c=per;v.t=Date.now();if(ys.length)v.y=ys;else delete v.y;}
-  else{v={id:'v'+k+'_'+chi,s:k,v:chi,c:per,t:Date.now()};if(ys.length)v.y=ys;S.votes.push(v);}   // stesso voto = stesso documento su tutti i telefoni
+  if(v){v.c=per;v.t=Date.now();metiSintomi(v,ys);}
+  else{v={id:'v'+k+'_'+chi,s:k,v:chi,c:per,t:Date.now()};metiSintomi(v,ys);S.votes.push(v);}   // stesso voto = stesso documento su tutti i telefoni
   commit();
   toast(pName(chi)+(prima?' cambia voto: ':' vota ')+pName(per)+(ys.length?' · '+ys.join(', ').toLowerCase():''),function(){
-    if(prima){v.c=prima.c;v.t=prima.t;if(prima.y.length)v.y=prima.y;else delete v.y;}
+    if(prima){v.c=prima.c;v.t=prima.t;metiSintomi(v,prima.y);}
     else{var i=S.votes.indexOf(v);if(i>=0)S.votes.splice(i,1);}
     commit();toast('Voto annullato.');
   });
@@ -2142,6 +2160,7 @@ function start(){
   foglio.addEventListener('click',function(e){if(e.target===foglio)closeSheet();});
   var st=loadState();
   S=st||seedState(Date.now());
+  if(st&&lsGet(KEY+'.sync')){syncCarica();if(syncNuovaVersione(S,SY,APP_V))syncSalva();}
   var cambiato=applyImg0(S);
   if(applyCal0(S))cambiato=true;
   if(applySintomi0(S))cambiato=true;

@@ -18,4 +18,4 @@ giallo se ci sono modifiche da inviare. Le regole del database sono in `firestor
 ## Com'è fatta
 - `src/`: sorgenti (`app.js`, `app.css`, `body.html`, `sw.js`, icona, caricature in `img/`).
 - `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`); se c'è `src/sync-config.json` accende la sincronizzazione.
-- `test/`: prova dei calcoli (`node test/pure.test.js`), della sincronizzazione (`node test/sync.test.js`) e prova a schermo (`node test/e2e.js`).
+- `test/`: prova dei calcoli (`node test/pure.test.js`), della sincronizzazione (`node test/sync.test.js`), della compatibilità tra versioni dell'app sullo stesso locale (`node test/compat.test.js`, con le versioni vecchie in `test/fixtures/`) e prova a schermo (`node test/e2e.js`).

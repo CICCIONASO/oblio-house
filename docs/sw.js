@@ -1,5 +1,5 @@
 /* The Oblio House: funziona senza rete dopo la prima apertura. */
-const VERSIONE = '0.5.0-mv5mckbd';
+const VERSIONE = '0.5.1-mv5mplzv';
 const CACHE = 'oblio-' + VERSIONE;
 const FONT_CSS = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Shrikhand&display=swap';
 const FILES = ['./', './index.html', './guida.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'].concat(["./img/c1-viso.jpg","./img/c1.jpg","./img/c2-viso.jpg","./img/c2.jpg","./img/c3-viso.jpg","./img/c3.jpg","./img/c4-viso.jpg","./img/c4.jpg","./img/c5-viso.jpg","./img/c5.jpg","./img/c6-viso.jpg","./img/c6.jpg"]);

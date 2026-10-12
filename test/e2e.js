@@ -7,7 +7,7 @@ const path = require('path');
 
 const dist = path.join(__dirname, '..', 'docs');
 const PURE = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8'))[1];
-const calc = new Function(PURE + '\nreturn {derive,previsione,normState};')();
+const calc = new Function(PURE + '\nreturn {derive,previsione,normState,canon,hashStr};')();
 // «1.234,56 €» → 123456 centesimi
 const centesimi = (s) => { const m = /([-−])?\s*([\d.]+),(\d{2})/.exec(s || ''); return m ? (m[1] ? -1 : 1) * (parseInt(m[2].replace(/\./g, ''), 10) * 100 + parseInt(m[3], 10)) : NaN; };
 const shots = path.join(__dirname, 'shots');
@@ -651,6 +651,36 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   const totali = await Promise.all([A, B, C].map(async (t) => { await t.tab('Reparto'); return (await t.p.textContent('.bollettino')).replace(/\s+/g, ' ').replace(/Telefoni.*?Backup/, 'Backup'); }));
   if (totali[0] !== totali[1] || totali[1] !== totali[2]) fail('i bollettini dei tre telefoni non coincidono: ' + totali.join(' | '));
   note('sincronizzazione: 3 telefoni allineati (consumi, voti, prezzi, incasso senza rete, freccette)');
+
+  // B si aggiorna: sul server c'è un voto con due sintomi scritto dalla 0.5.0, ma la copia di B era rimasta ridotta
+  // (come la tiene una versione vecchia). Al riavvio con la versione nuova B rilegge il locale, si ripara e non scrive niente.
+  {
+    const st = stanze.prova, key = 'votes~vprova_conti', u = Date.now();
+    const voto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: 1, y: ['Dormire al locale', 'Giocare alle slot'] };
+    st[key] = { key, c: 'votes', i: voto.id, j: calc.canon(voto), u, by: 'P', s: ++orologio };
+    await aspetta(B.p, () => (JSON.parse(localStorage.getItem('oblio.v1')).votes || []).some((v) => v.id === 'vprova_conti'), null, 'B non riceve il voto scritto dalla 0.5.0');
+    await B.p.waitForTimeout(400);
+    const ridotto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: 1, y: 'Dormire al locale' };
+    await B.p.goto(base + 'guida.html');   // pagina senza app: posso toccare i dati salvati senza che l'app li riscriva
+    await B.p.evaluate(([rid, h, u]) => {
+      const S = JSON.parse(localStorage.getItem('oblio.v1'));
+      S.votes = S.votes.map((v) => (v.id === rid.id ? rid : v));
+      localStorage.setItem('oblio.v1', JSON.stringify(S));
+      const SY = JSON.parse(localStorage.getItem('oblio.v1.sync'));
+      SY.ent['votes~' + rid.id] = [u, h, 1]; SY.ver = '0.5.0';
+      localStorage.setItem('oblio.v1.sync', JSON.stringify(SY));
+    }, [ridotto, calc.hashStr(calc.canon(ridotto)), u]);
+    const scritture = () => Object.values(st).map((d) => d.key + ':' + d.s).sort().join('|');
+    const prima = scritture();
+    await B.p.goto(base); await B.p.waitForSelector('.tab');
+    await aspetta(B.p, () => { const v = JSON.parse(localStorage.getItem('oblio.v1')).votes.find((x) => x.id === 'vprova_conti'); return !!v && Array.isArray(v.ys) && v.ys.length === 2; }, null, 'B aggiornato non ha riparato la copia ridotta del voto');
+    await aspetta(B.p, () => document.querySelector('#sync').classList.contains('ok'), null, 'B aggiornato non torna sincronizzato');
+    await B.p.waitForTimeout(600);
+    if (scritture() !== prima) fail('B aggiornato ha riscritto qualcosa sul server');
+    const ver = await B.p.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1.sync')).ver);
+    if (ver === '0.5.0' || !ver) fail('dopo l’aggiornamento la sincronizzazione non segna la versione nuova: ' + ver);
+    note('aggiornamento: B rilegge il locale, ripara il voto ridotto e non rimanda niente');
+  }
   for (const t of [A, B, C]) await t.c.close();
 
   const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });

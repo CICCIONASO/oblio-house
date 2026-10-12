@@ -10,7 +10,7 @@ const api = new Function(m[1] + '\nreturn {parseEur,splitShares,derive,seedState
 const { parseEur, splitShares, derive, seedState, normState } = api;
 const { serata, prevMonth, inPer, voteSummary, serateChiuse, dartVal, playDarts, statRe, statConsumi, statFreccette, statPagatori, applyImg0, normImg, IMG0 } = api;
 const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
-const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,sintomiDi,applySintomi0,previsione};')();
+const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,metiSintomi,sintomiDi,applySintomi0,previsione};')();
 
 // importi
 assert.strictEqual(parseEur('12,50'), 1250);
@@ -367,7 +367,8 @@ const sy = voteSummary([{ v: 'pj', c: 'pesce', y: 'Urla strazianti' }, { v: 'con
 assert.strictEqual(topSintomo(sy.sint.pesce), 'Urla strazianti');
 assert.strictEqual(topSintomo(sy.sint.ciccio), null);
 const nyv = normState({ people: [], products: [], moves: [], votes: [{ s: '2026-10-12', v: 'pj', c: 'pesce', y: '  Silenzio assordante ', t: 1 }, { s: '2026-10-12', v: 'conti', c: 'pesce', y: '', t: 2 }] });
-assert.deepStrictEqual(nyv.votes[0].y, ['Silenzio assordante'], 'voto vecchio con un sintomo solo: diventa una lista');
+assert.strictEqual(nyv.votes[0].y, 'Silenzio assordante', 'un sintomo solo: resta testo, come lo leggono i telefoni non aggiornati');
+assert.ok(!('ys' in nyv.votes[0]));
 assert.ok(!('y' in nyv.votes[1]));
 assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 
@@ -383,16 +384,20 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 }
 // ---------- più sintomi nello stesso voto ----------
 {
-  const { topSintomi, sintomiVoto } = extra;
+  const { topSintomi, sintomiVoto, metiSintomi } = extra;
   assert.deepStrictEqual(sintomiVoto({ y: 'Urla' }), ['Urla']);
   assert.deepStrictEqual(sintomiVoto({}), []);
-  assert.deepStrictEqual(sintomiVoto({ y: ['A', 'B'] }), ['A', 'B']);
+  assert.deepStrictEqual(sintomiVoto({ y: 'A', ys: ['A', 'B'] }), ['A', 'B']);
+  assert.deepStrictEqual(sintomiVoto({ y: ['A', 'B'] }), ['A', 'B'], 'formato della 0.5.0');
+  const v1 = {}; metiSintomi(v1, ['A', 'B']); assert.deepStrictEqual(v1, { y: 'A', ys: ['A', 'B'] });
+  metiSintomi(v1, ['C']); assert.deepStrictEqual(v1, { y: 'C' });
+  metiSintomi(v1, []); assert.deepStrictEqual(v1, {});
   const mm = voteSummary([
-    { v: 'pj', c: 'pesce', y: ['Urla strazianti', 'Silenzio assordante'] },
-    { v: 'conti', c: 'pesce', y: ['Silenzio assordante'] },
-    { v: 'chicco', c: 'pesce', y: 'Urla strazianti' },                 // voto salvato da una versione vecchia
-    { v: 'ciccio', c: 'pesce', y: ['Giocare alle slot'] },
-    { v: 'ciccio', c: 'conti', y: ['Dormire al locale'] },             // ciccio cambia voto: contano solo i sintomi dell'ultimo
+    { v: 'pj', c: 'pesce', y: 'Urla strazianti', ys: ['Urla strazianti', 'Silenzio assordante'] },
+    { v: 'conti', c: 'pesce', y: ['Silenzio assordante'] },            // salvato dalla 0.5.0
+    { v: 'chicco', c: 'pesce', y: 'Urla strazianti' },                 // salvato da una versione vecchia
+    { v: 'ciccio', c: 'pesce', y: 'Giocare alle slot' },
+    { v: 'ciccio', c: 'conti', y: 'Dormire al locale' },               // ciccio cambia voto: contano solo i sintomi dell'ultimo
   ]);
   assert.strictEqual(mm.tally.pesce, 3);
   assert.deepStrictEqual(mm.sint.pesce, { 'Urla strazianti': 2, 'Silenzio assordante': 2 });
@@ -403,15 +408,20 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   assert.deepStrictEqual(topSintomi(undefined, 3), []);
   assert.strictEqual(topSintomi({ a: 1, b: 1, c: 1, d: 1 }, 3).length, 3, 'al massimo tre a pari merito');
   assert.strictEqual(topSintomo(mm.sint.pesce), 'Urla strazianti');
-  // salvataggio: lista pulita, senza doppioni, al massimo 12 sintomi da 40 caratteri
+  // salvataggio: primo sintomo in «y» (testo), lista pulita in «ys» se sono più di uno; al massimo 12 da 40 caratteri
   const ny = normState({ people: [], products: [], moves: [], votes: [
-    { s: '2026-10-12', v: 'pj', c: 'pesce', y: [' Urla ', 'Urla', '', null, 'x'.repeat(50)], t: 1 },
+    { s: '2026-10-12', v: 'pj', c: 'pesce', y: 'Urla', ys: [' Urla ', 'Urla', '', null, 'x'.repeat(50)], t: 1 },
     { s: '2026-10-12', v: 'conti', c: 'pesce', y: [], t: 2 },
-    { s: '2026-10-12', v: 'chicco', c: 'pesce', y: Array.from({ length: 20 }, (_, i) => 'S' + i), t: 3 },
+    { s: '2026-10-12', v: 'chicco', c: 'pesce', y: 'S0', ys: Array.from({ length: 20 }, (_, i) => 'S' + i), t: 3 },
+    { s: '2026-10-12', v: 'ciccio', c: 'pesce', y: ['Dormire al locale', 'Giocare alle slot'], t: 4 },   // 0.5.0
+    { s: '2026-10-12', v: 'conti2', c: 'pesce', y: ['Stato depressivo'], t: 5 },                          // 0.5.0, uno solo
   ] });
-  assert.deepStrictEqual(ny.votes[0].y, ['Urla', 'x'.repeat(40)]);
-  assert.ok(!('y' in ny.votes[1]), 'lista vuota: niente campo');
-  assert.strictEqual(ny.votes[2].y.length, 12);
+  assert.strictEqual(ny.votes[0].y, 'Urla'); assert.deepStrictEqual(ny.votes[0].ys, ['Urla', 'x'.repeat(40)]);
+  assert.ok(!('y' in ny.votes[1]) && !('ys' in ny.votes[1]), 'lista vuota: niente campi');
+  assert.strictEqual(ny.votes[2].ys.length, 12); assert.strictEqual(ny.votes[2].y, 'S0');
+  assert.strictEqual(ny.votes[3].y, 'Dormire al locale'); assert.deepStrictEqual(ny.votes[3].ys, ['Dormire al locale', 'Giocare alle slot']);
+  assert.strictEqual(ny.votes[4].y, 'Stato depressivo'); assert.ok(!('ys' in ny.votes[4]));
+  assert.ok(ny.votes.every((v) => v.y == null || typeof v.y === 'string'), '«y» resta sempre testo');
   assert.deepStrictEqual(sintomiDi(ny, 'pesce').Urla, 1);
   assert.strictEqual(sintomiDi(ny, 'pesce').S0, 1);
   // il salvataggio non cambia un voto già pulito (niente rimbalzi tra telefoni)
