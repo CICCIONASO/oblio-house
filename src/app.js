@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.4.0';
+var APP_V='0.4.1';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */

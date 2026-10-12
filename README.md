@@ -10,7 +10,12 @@ Pensata per un solo telefono lasciato al locale: funziona anche senza rete e i d
 2. Tocca Condividi, poi «Aggiungi alla schermata Home».
 3. Da lì in poi usa sempre l'icona: l'app installata non vede i dati segnati in Safari.
 
+## Più telefoni
+I dati sono sincronizzati tra i telefoni tramite Cloud Firestore (progetto `oblio-house-39fd6`, piano gratuito).
+Ogni telefono tiene la sua copia e funziona anche senza rete; il pallino in alto a destra è verde quando è tutto allineato,
+giallo se ci sono modifiche da inviare. Le regole del database sono in `firestore.rules`.
+
 ## Com'è fatta
 - `src/`: sorgenti (`app.js`, `app.css`, `body.html`, `sw.js`, icona, caricature in `img/`).
-- `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`).
-- `test/`: prova dei calcoli (`node test/pure.test.js`) e prova a schermo (`node test/e2e.js`).
+- `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`); se c'è `src/sync-config.json` accende la sincronizzazione.
+- `test/`: prova dei calcoli (`node test/pure.test.js`), della sincronizzazione (`node test/sync.test.js`) e prova a schermo (`node test/e2e.js`).

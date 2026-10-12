@@ -1,0 +1,11 @@
+{
+  "room": "oblio-0awwk6pqgkvr8o1x",
+  "firebase": {
+    "apiKey": "AIzaSyCdt5gj91xuvVnkx3SPExlrkv6wzg2sP_I",
+    "authDomain": "oblio-house-39fd6.firebaseapp.com",
+    "projectId": "oblio-house-39fd6",
+    "storageBucket": "oblio-house-39fd6.firebasestorage.app",
+    "messagingSenderId": "108306425959",
+    "appId": "1:108306425959:web:ea9ee34a6bf4102f0b0cc2"
+  }
+}
