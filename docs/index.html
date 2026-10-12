@@ -648,7 +648,7 @@ function seedState(now){
     products:LISTINO0.map(function(p,i){return {id:'p'+(i+1),name:p[1],cat:p[0],price:p[2],min:null,on:true};}),
     moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],
     cfg:normCfg(null),
-    meta:{created:now,rev:0,saved:0,exported:0,img0:'',cal0:''}
+    meta:{created:now,rev:0,saved:0,exported:0,img0:'',cal0:'',sint0:''}
   };
 }
 function normCfg(c){
@@ -664,6 +664,13 @@ function normCfg(c){
   }
   return {voteCut:cut>=0&&cut<=12?cut:CFG0.voteCut,selfVote:c.selfVote!==false,
     puliziaGiorni:pg>=1&&pg<=90?pg:CFG0.puliziaGiorni,rifiuti:rif,sintomi:sint};
+}
+/* sintomi: chi aveva la lista di partenza precedente riceve quelli aggiunti dopo, una volta sola */
+function applySintomi0(S){
+  var sig=SINTOMI0.join('|');
+  if(S.meta.sint0===sig)return false;
+  if(!S.meta.sint0&&S.cfg.sintomi.join('|')===SINTOMI0.slice(0,10).join('|'))S.cfg.sintomi=SINTOMI0.slice();
+  S.meta.sint0=sig;return true;
 }
 /* calendario dei rifiuti precompilato una volta sola, senza toccare un calendario già compilato a mano */
 function applyCal0(S){
@@ -750,7 +757,7 @@ function normState(raw){
   });
   S.cleanings.sort(function(a,b){return a.t-b.t;});
   var me=raw.meta&&typeof raw.meta==='object'?raw.meta:{};
-  S.meta={created:toInt(me.created),rev:toInt(me.rev),saved:toInt(me.saved),exported:toInt(me.exported),img0:str(me.img0,200),cal0:str(me.cal0,200)};
+  S.meta={created:toInt(me.created),rev:toInt(me.rev),saved:toInt(me.saved),exported:toInt(me.exported),img0:str(me.img0,200),cal0:str(me.cal0,200),sint0:str(me.sint0,2000)};
   return S;
 }
 /* =================== END PURE =================== */
@@ -2130,6 +2137,7 @@ function start(){
   S=st||seedState(Date.now());
   var cambiato=applyImg0(S);
   if(applyCal0(S))cambiato=true;
+  if(applySintomi0(S))cambiato=true;
   if(cambiato||!st)persist();
   D=derive(S);
   var hs=(location.hash||'').replace('#','').split('/');

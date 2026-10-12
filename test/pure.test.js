@@ -10,7 +10,7 @@ const api = new Function(m[1] + '\nreturn {parseEur,splitShares,derive,seedState
 const { parseEur, splitShares, derive, seedState, normState } = api;
 const { serata, prevMonth, inPer, voteSummary, serateChiuse, dartVal, playDarts, statRe, statConsumi, statFreccette, statPagatori, applyImg0, normImg, IMG0 } = api;
 const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
-const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,sintomiDi};')();
+const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,sintomiDi,applySintomi0};')();
 
 // importi
 assert.strictEqual(parseEur('12,50'), 1250);
@@ -371,4 +371,14 @@ assert.strictEqual(nyv.votes[0].y, 'Silenzio assordante');
 assert.ok(!('y' in nyv.votes[1]));
 assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 
+// sintomi aggiunti dopo: arrivano a chi aveva la lista di partenza, non a chi l'ha cambiata
+{
+  const { applySintomi0 } = extra;
+  const A = seedState(1); A.cfg.sintomi = SINTOMI0.slice(0, 10);
+  assert.strictEqual(applySintomi0(A), true); assert.deepStrictEqual(A.cfg.sintomi, SINTOMI0);
+  assert.strictEqual(applySintomi0(A), false);
+  const B = seedState(1); B.cfg.sintomi = ['Solo questo'];
+  applySintomi0(B); assert.deepStrictEqual(B.cfg.sintomi, ['Solo questo']);
+  const C = seedState(1); applySintomi0(C); assert.deepStrictEqual(C.cfg.sintomi, SINTOMI0);
+}
 console.log('calcoli: tutto torna (' + S.moves.length + ' movimenti di prova, più voto, freccette, classifiche, rifiuti e pulizie)');
