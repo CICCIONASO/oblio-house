@@ -16,6 +16,14 @@ if (js.includes('</script')) throw new Error('lo script contiene </script');
 
 const corpo = fontLink + '\n<style>\n' + css + '</style>\n' + body + '<script>\n' + js + '</script>\n';
 
+// sincronizzazione tra telefoni: solo nel pacchetto pubblicato, se c'è src/sync-config.json
+const syncFile = path.join(root, 'src', 'sync-config.json');
+const syncCfg = fs.existsSync(syncFile) ? JSON.parse(fs.readFileSync(syncFile, 'utf8')) : null;
+if (syncCfg && (!syncCfg.room || !syncCfg.firebase || !syncCfg.firebase.projectId)) throw new Error('sync-config.json incompleto');
+const SDK = (/var SDK='([^']+)'/.exec(js) || [])[1];
+const esterni = syncCfg ? [SDK + 'firebase-app.js', SDK + 'firebase-firestore.js'] : [];
+const syncScript = syncCfg ? '<script>window.OBLIO_SYNC=window.OBLIO_SYNC||' + JSON.stringify({ room: syncCfg.room, firebase: syncCfg.firebase }) + ';</script>\n' : '';
+
 // 1) Anteprima dentro Claude
 fs.writeFileSync(path.join(root, 'preview.html'), '<title>The Oblio House</title>\n' + corpo);
 
@@ -35,7 +43,7 @@ const index = '<!doctype html>\n<html lang="it">\n<head>\n<meta charset="utf-8">
   '<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">\n' +
   '<link rel="apple-touch-icon" href="apple-touch-icon.png">\n' +
   '<style>html{padding-top:env(safe-area-inset-top,0px)}img{max-width:100%}</style>\n' +
-  '</head>\n<body>\n' + corpo + '</body>\n</html>\n';
+  '</head>\n<body>\n' + syncScript + corpo + '</body>\n</html>\n';
 fs.writeFileSync(path.join(dist, 'index.html'), index);
 
 // caricature: stessi percorsi relativi (img/…) nell'anteprima e nel pacchetto
@@ -49,7 +57,8 @@ fs.writeFileSync(path.join(root, 'preview-files.json'), JSON.stringify(Object.fr
 fs.writeFileSync(path.join(dist, 'sw.js'), src('sw.js')
   .replace('__VERSIONE__', VERSIONE + '-' + Date.now().toString(36))
   .replace('__FONT_CSS__', FONT_CSS)
-  .replace('__IMMAGINI__', JSON.stringify(immagini.map((f) => './img/' + f))));
+  .replace('__IMMAGINI__', JSON.stringify(immagini.map((f) => './img/' + f)))
+  .replace('__ESTERNI__', JSON.stringify(esterni)));
 fs.writeFileSync(path.join(dist, 'manifest.webmanifest'), JSON.stringify({
   name: 'The Oblio House', short_name: 'Oblio House',
   description: 'Reparto fattoni e obliosi: bar, ticket, cassa, triage, freccette e classifiche.',
@@ -72,7 +81,7 @@ Promise.all([
   png(8.2, 180, 'apple-touch-icon.png'),
 ]).then(() => {
   const kb = (f) => (fs.statSync(f).size / 1024).toFixed(1) + ' KB';
-  console.log('versione', VERSIONE);
+  console.log('versione', VERSIONE, syncCfg ? '· sincronizzazione attiva (' + syncCfg.firebase.projectId + ')' : '· senza sincronizzazione');
   console.log('preview.html', kb(path.join(root, 'preview.html')));
   fs.readdirSync(dist).forEach((f) => { const p = path.join(dist, f); if (fs.statSync(p).isFile()) console.log('docs/' + f, kb(p)); });
   console.log('docs/img', immagini.length + ' immagini', (immagini.reduce((s, f) => s + fs.statSync(path.join(dist, 'img', f)).size, 0) / 1024).toFixed(1) + ' KB');

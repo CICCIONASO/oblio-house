@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Solo il «locale» dell'app: un documento per ogni cosa segnata (movimenti, voti, partite, …).
+    // Niente cancellazioni: l'app scrive una «lapide» (j = null) e gli altri telefoni la tolgono.
+    match /locali/{room}/e/{key} {
+      allow get, list: if room == 'oblio-0awwk6pqgkvr8o1x';
+      allow create, update: if room == 'oblio-0awwk6pqgkvr8o1x'
+        && request.resource.data.keys().hasOnly(['c', 'i', 'j', 'u', 'by', 's'])
+        && request.resource.data.c is string && request.resource.data.c.size() <= 20
+        && request.resource.data.i is string && request.resource.data.i.size() <= 40
+        && (request.resource.data.j == null
+            || (request.resource.data.j is string && request.resource.data.j.size() <= 200000))
+        && request.resource.data.u is int
+        && request.resource.data.by is string && request.resource.data.by.size() <= 40
+        && request.resource.data.s == request.time;
+    }
+  }
+}

@@ -10,8 +10,34 @@ const shots = path.join(__dirname, 'shots');
 fs.mkdirSync(shots, { recursive: true });
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
 // servito sotto /app/ per provare i percorsi relativi come su un sito con sottocartella
+// finto server di sincronizzazione (al posto di Firebase): l'ultimo che scrive vince, «s» è l'ora del server
+const stanze = {};
+let orologio = 0;
+function mock(req, res) {
+  const u = new URL(req.url, 'http://x');
+  if (req.method === 'POST' && u.pathname === '/mock/w') {
+    let b = '';
+    req.on('data', (c) => { b += c; });
+    req.on('end', () => {
+      const d = JSON.parse(b);
+      const st = (stanze[d.room] = stanze[d.room] || {});
+      st[d.key] = { key: d.key, c: d.c, i: d.i, j: d.j, u: d.u, by: d.by, s: ++orologio };
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{}');
+    });
+    return;
+  }
+  if (u.pathname === '/mock/r') {
+    const since = +u.searchParams.get('since') || 0;
+    const st = stanze[u.searchParams.get('room')] || {};
+    const out = Object.values(st).filter((d) => d.s > since).sort((a, b) => a.s - b.s);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(out));
+    return;
+  }
+  res.writeHead(404); res.end('no');
+}
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
+  if (p.startsWith('/mock/')) { mock(req, res); return; }
   if (!p.startsWith('/app/')) { res.writeHead(404); res.end('no'); return; }
   p = p.slice(4);
   if (p.endsWith('/')) p += 'index.html';
@@ -451,6 +477,84 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   note('pulizie: avviso dopo 14 giorni ok');
   note('chiusura alle 6: verdetto e nuova serata ok');
   await ctx2.close();
+
+  // ---------- più telefoni, stessi dati (finto server al posto di Firebase) ----------
+  const telefono = async (nome) => {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
+    await c.addInitScript(() => { window.OBLIO_SYNC = { room: 'prova', mock: location.origin + '/mock/' }; });
+    const p = await c.newPage();
+    ascolta(p);
+    await p.goto(base);
+    await p.waitForSelector('.tab');
+    const ok = await p.waitForFunction(() => { const d = document.querySelector('#sync'); return d && !d.hidden && d.classList.contains('ok'); }, null, { timeout: 10000 }).then(() => true, () => false);
+    if (!ok) fail(nome + ': non risulta sincronizzato');
+    return { c, p, tab: async (n) => { await p.click('.tab:has-text("' + n + '")'); await p.waitForTimeout(60); } };
+  };
+  const aspetta = async (pg, fn, arg, cosa) => {
+    const ok = await pg.waitForFunction(fn, arg, { timeout: 15000 }).then(() => true, () => false);
+    if (!ok) fail(cosa);
+    return ok;
+  };
+  const A = await telefono('telefono A');
+  await A.tab('Farmacia');
+  await A.p.click('.chip:has-text("PESCE")');
+  await A.p.click('.prod-add:has-text("Birra")');
+  await A.p.click('.posbar .pill:has-text("Sul ticket")');
+  await A.p.waitForTimeout(400);
+  const B = await telefono('telefono B');
+  await B.tab('Ticket');
+  await aspetta(B.p, () => /1,00/.test(document.querySelector('#view').textContent), null, 'B non vede il ticket di PESCE segnato da A');
+  await shot('38-sync-b-ticket', false, B.p);
+  // B vota, A vede il voto
+  await B.tab('Reparto');
+  await B.p.click('[data-k="tri-pesce"]');
+  await B.p.click('#foglio [data-k="vt-pj"]');
+  await A.tab('Reparto');
+  await aspetta(A.p, () => /1 voto/.test(document.querySelector('.triage').textContent), null, 'A non vede il voto dato da B');
+  // A cambia il prezzo della birra, B lo vede nel listino
+  await A.tab('Altro');
+  await A.p.click('.voce:has-text("Listino")');
+  await A.p.click('.riga:has-text("Birra")');
+  await A.p.fill('#pr-a', '1,50');
+  await A.p.click('#foglio button[type=submit]');
+  await B.tab('Altro');
+  await B.p.click('.voce:has-text("Listino")');
+  await aspetta(B.p, () => /1,50/.test((document.querySelector('.riga') && [...document.querySelectorAll('.riga')].find((r) => /Birra/.test(r.textContent)) || {}).textContent || ''), null, 'B non vede il nuovo prezzo della birra');
+  // B senza rete incassa da PESCE; quando torna la rete A vede il ticket chiuso
+  await B.c.setOffline(true);
+  await B.tab('Ticket');
+  await B.p.click('.riga:has-text("PESCE")');
+  await B.p.click('#foglio .pill:has-text("Incassa")');
+  await B.p.fill('#py-a', '1,00');
+  await B.p.click('#foglio button[type=submit]');
+  await aspetta(B.p, () => { const d = document.querySelector('#sync'); return d && (d.classList.contains('attesa') || d.classList.contains('errore')); }, null, 'senza rete B non segnala le modifiche in attesa');
+  await shot('39-sync-b-senza-rete', false, B.p);
+  await A.tab('Ticket');
+  await A.p.waitForTimeout(800);
+  if (!/1,00/.test(await A.p.textContent('#view'))) fail('A ha perso il ticket di PESCE prima che B tornasse online');
+  await B.c.setOffline(false);
+  await aspetta(A.p, () => /Ticket non pagati\s*0,00/.test(document.querySelector('#view').textContent.replace(/\u00a0/g, ' ')), null, 'tornata la rete, A non vede l’incasso fatto da B');
+  await aspetta(B.p, () => document.querySelector('#sync').classList.contains('ok'), null, 'B non torna sincronizzato');
+  // freccette dal vivo: A tira, B vede la partita
+  await A.tab('Freccette');
+  await A.p.click('[data-k="modo-301"]');
+  await A.p.click('[data-k="gioc-pj"]');
+  await A.p.click('[data-k="gioc-pesce"]');
+  await A.p.click('[data-k="inizia"]');
+  await A.p.click('[data-k="mol-3"]');
+  await A.p.click('[data-k="n-20"]');
+  await B.tab('Freccette');
+  await aspetta(B.p, () => [...document.querySelectorAll('.gioc-p')].some((e) => e.textContent === '241'), null, 'B non vede la partita di A');
+  await shot('40-sync-freccette-b', false, B.p);
+  // un terzo telefono nuovo trova tutto uguale e non sovrascrive niente
+  const C = await telefono('telefono C');
+  await C.tab('Altro');
+  await C.p.click('.voce:has-text("Listino")');
+  await aspetta(C.p, () => [...document.querySelectorAll('.riga')].some((r) => /Birra/.test(r.textContent) && /1,50/.test(r.textContent)), null, 'il telefono nuovo ha rimesso il prezzo di partenza');
+  const totali = await Promise.all([A, B, C].map(async (t) => { await t.tab('Reparto'); return (await t.p.textContent('.bollettino')).replace(/\s+/g, ' ').replace(/Telefoni.*?Backup/, 'Backup'); }));
+  if (totali[0] !== totali[1] || totali[1] !== totali[2]) fail('i bollettini dei tre telefoni non coincidono: ' + totali.join(' | '));
+  note('sincronizzazione: 3 telefoni allineati (consumi, voti, prezzi, incasso senza rete, freccette)');
+  for (const t of [A, B, C]) await t.c.close();
 
   const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
   const p3 = await ctx3.newPage();

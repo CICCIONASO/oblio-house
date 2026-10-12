@@ -3,6 +3,8 @@ const VERSIONE = '__VERSIONE__';
 const CACHE = 'oblio-' + VERSIONE;
 const FONT_CSS = '__FONT_CSS__';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'].concat(__IMMAGINI__);
+const ESTERNI = __ESTERNI__; // libreria di sincronizzazione, se attiva
+const PROPRI = new Set(FILES.map((f) => new URL(f, self.registration.scope).pathname));
 
 async function caricaFont(cache) {
   try {
@@ -14,9 +16,12 @@ async function caricaFont(cache) {
     await Promise.all(urls.map((u) => fetch(u, { mode: 'cors' }).then((x) => (x.ok ? cache.put(u, x) : null)).catch(() => null)));
   } catch (e) { /* senza rete: i caratteri arriveranno alla prossima apertura online */ }
 }
+async function caricaEsterni(cache) {
+  await Promise.all(ESTERNI.map((u) => fetch(u, { mode: 'cors' }).then((x) => (x.ok ? cache.put(u, x) : null)).catch(() => null)));
+}
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES).then(() => caricaFont(c))).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES).then(() => Promise.all([caricaFont(c), caricaEsterni(c)]))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -28,8 +33,11 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   const font = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
-  if (url.origin !== self.location.origin && !font) return;
-  e.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: !font, ignoreVary: true }).then((hit) => {
+  const sdk = url.hostname === 'www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
+  const proprio = url.origin === self.location.origin && (req.mode === 'navigate' || PROPRI.has(url.pathname));
+  // tutto il resto (database, prove) passa diretto in rete
+  if (!font && !sdk && !proprio) return;
+  e.respondWith(caches.open(CACHE).then((c) => c.match(req, { ignoreSearch: proprio, ignoreVary: true }).then((hit) => {
     const net = fetch(req).then((r) => {
       if (r && r.ok) c.put(req, r.clone());
       return r;

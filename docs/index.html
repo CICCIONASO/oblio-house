@@ -300,6 +300,12 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .faccenda .pill{flex:none}
 .faccenda.accesa{margin-inline:-8px;padding:8px;border-radius:14px;background:#FFE3EE;box-shadow:inset 0 0 0 2px var(--rosa)}
 .chip.sm{min-height:38px;padding:0 11px;font-size:12.5px;border-width:2px}
+
+/* sincronizzazione: pallino nell'intestazione */
+.sync-dot{flex:none;width:14px;height:14px;border-radius:50%;border:2px solid var(--notte);background:var(--grigio);box-shadow:0 0 0 2px var(--lilla-2)}
+.sync-dot.ok{background:var(--acido)}
+.sync-dot.attesa,.sync-dot.collego{background:var(--giallo)}
+.sync-dot.errore{background:var(--rosa)}
 </style>
 <div class="app" id="app">
   <div class="decor" aria-hidden="true"><div class="spirale"></div></div>
@@ -321,6 +327,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
       <h1>The Oblio House</h1>
       <p>Reparto fattoni e obliosi</p>
     </div>
+    <span class="sync-dot" id="sync" role="img" aria-label="Telefoni" hidden></span>
   </header>
   <div class="avviso" id="avviso" hidden></div>
   <main id="view" tabindex="-1">
@@ -345,7 +352,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.3.0';
+var APP_V='0.4.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
@@ -688,22 +695,22 @@ function normState(raw){
   var S={v:1,people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],cfg:normCfg(raw.cfg),meta:{}};
   raw.people.forEach(function(p){
     if(p&&typeof p.id==='string'&&p.id){
-      var id=str(p.id,24);
+      var id=str(p.id,40);
       S.people.push({id:id,name:str(p.name,24).trim()||'Senza nome',kind:p.kind==='amico'?'amico':'paziente',on:p.on!==false,
         img:normImg(p.img)});
     }
   });
   raw.products.forEach(function(p){
-    if(p&&typeof p.id==='string'&&p.id)S.products.push({id:str(p.id,24),name:str(p.name,40).trim()||'Prodotto',cat:str(p.cat,20).trim()||'Altro',price:Math.max(0,toInt(p.price)),min:(p.min==null||p.min==='')?null:Math.max(0,toInt(p.min)),on:p.on!==false});
+    if(p&&typeof p.id==='string'&&p.id)S.products.push({id:str(p.id,40),name:str(p.name,40).trim()||'Prodotto',cat:str(p.cat,20).trim()||'Altro',price:Math.max(0,toInt(p.price)),min:(p.min==null||p.min==='')?null:Math.max(0,toInt(p.min)),on:p.on!==false});
   });
   raw.moves.forEach(function(m){
     if(!m||typeof m.k!=='string')return;
-    var o={id:str(m.id,24)||('m'+S.moves.length),t:toInt(m.t),k:str(m.k,10),a:toInt(m.a)};
+    var o={id:str(m.id,40)||('m'+S.moves.length),t:toInt(m.t),k:str(m.k,10),a:toInt(m.a)};
     if(m.p)o.p=str(m.p,24);
     if(m.note)o.note=str(m.note,120);
     if(m.cat)o.cat=str(m.cat,30);
     if(Array.isArray(m.items))o.items=m.items.filter(function(it){return it&&typeof it==='object';}).slice(0,80).map(function(it){
-      var x={n:str(it.n,40),q:Math.max(0,toInt(it.q)),pr:Math.max(0,toInt(it.pr))};if(it.id)x.id=str(it.id,24);return x;});
+      var x={n:str(it.n,40),q:Math.max(0,toInt(it.q)),pr:Math.max(0,toInt(it.pr))};if(it.id)x.id=str(it.id,40);return x;});
     if(m.paidBy)o.paidBy=str(m.paidBy,24);
     if(m.settle)o.settle=str(m.settle,10);
     if(m.shares&&typeof m.shares==='object'){o.shares={};Object.keys(m.shares).slice(0,40).forEach(function(k){o.shares[str(k,24)]=Math.max(0,toInt(m.shares[k]));});}
@@ -713,13 +720,13 @@ function normState(raw){
     S.moves.push(o);
   });
   S.moves.sort(function(a,b){return a.t-b.t;});
-  (Array.isArray(raw.shop)?raw.shop:[]).forEach(function(s){if(s&&s.text)S.shop.push({id:str(s.id,24)||('s'+S.shop.length),text:str(s.text,60),t:toInt(s.t)});});
+  (Array.isArray(raw.shop)?raw.shop:[]).forEach(function(s){if(s&&s.text)S.shop.push({id:str(s.id,40)||('s'+S.shop.length),text:str(s.text,60),t:toInt(s.t)});});
   var vv=[],ultimo={};
   (Array.isArray(raw.votes)?raw.votes:[]).forEach(function(v){
     if(!v||typeof v!=='object')return;
     var s=str(v.s,10),chi=str(v.v,24),per=str(v.c,24);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!chi||!per)return;
-    var o={id:str(v.id,24)||('v'+vv.length),s:s,v:chi,c:per,t:toInt(v.t)};
+    var o={id:str(v.id,40)||('v'+vv.length),s:s,v:chi,c:per,t:toInt(v.t)};
     if(v.y)o.y=str(v.y,40).trim();
     if(!o.y)delete o.y;
     vv.push(o);
@@ -732,7 +739,7 @@ function normState(raw){
     var pl=[];
     (Array.isArray(g.players)?g.players:[]).slice(0,8).forEach(function(p){p=str(p,24);if(p&&pl.indexOf(p)<0)pl.push(p);});
     if(!pl.length)return;
-    var o={id:str(g.id,24)||('g'+S.games.length),t:toInt(g.t),mode:g.mode,players:pl,
+    var o={id:str(g.id,40)||('g'+S.games.length),t:toInt(g.t),mode:g.mode,players:pl,
       d:(Array.isArray(g.d)?g.d:[]).slice(0,1200).map(function(c){return str(c,4);}).filter(function(c){return DART_RE.test(c);}),end:0};
     var st=playDarts(o);
     if(st.used<o.d.length)o.d=o.d.slice(0,st.used);
@@ -747,18 +754,88 @@ function normState(raw){
     if(!r||typeof r!=='object')return;
     var s=str(r.s,10),ps=normIds(r.p);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!ps.length)return;
-    var o={id:str(r.id,24)||('r'+s),s:s,p:ps,f:(Array.isArray(r.f)?r.f:[]).filter(function(f){return FRAZ_ID.indexOf(f)>=0;}),t:toInt(r.t)};
+    var o={id:str(r.id,40)||('r'+s),s:s,p:ps,f:(Array.isArray(r.f)?r.f:[]).filter(function(f){return FRAZ_ID.indexOf(f)>=0;}),t:toInt(r.t)};
     if(!perSerata[s]||perSerata[s].t<=o.t)perSerata[s]=o;   // una sola uscita dei rifiuti per serata
   });
   S.trash=Object.keys(perSerata).sort().map(function(k){return perSerata[k];});
   (Array.isArray(raw.cleanings)?raw.cleanings:[]).forEach(function(c){
     if(!c||typeof c!=='object'||!(toInt(c.t)>0))return;
-    S.cleanings.push({id:str(c.id,24)||('c'+S.cleanings.length),t:toInt(c.t),p:normIds(c.p)});
+    S.cleanings.push({id:str(c.id,40)||('c'+S.cleanings.length),t:toInt(c.t),p:normIds(c.p)});
   });
   S.cleanings.sort(function(a,b){return a.t-b.t;});
   var me=raw.meta&&typeof raw.meta==='object'?raw.meta:{};
   S.meta={created:toInt(me.created),rev:toInt(me.rev),saved:toInt(me.saved),exported:toInt(me.exported),img0:str(me.img0,200),cal0:str(me.cal0,200),sint0:str(me.sint0,2000)};
   return S;
+}
+/* ---------- sincronizzazione tra telefoni (parte pura) ----------
+   Ogni cosa segnata è un'«entità» con chiave «raccolta~id». SY.ent[chiave] = [u, impronta, confermata]:
+   u = ora della modifica (vince la più recente), impronta = hash del JSON canonico ('-' = cancellata). */
+var COLS=['people','products','moves','shop','votes','games','trash','cleanings'];
+function canon(v){
+  if(Array.isArray(v))return '['+v.map(canon).join(',')+']';
+  if(v&&typeof v==='object')return '{'+Object.keys(v).sort().filter(function(k){return v[k]!==undefined;}).map(function(k){return JSON.stringify(k)+':'+canon(v[k]);}).join(',')+'}';
+  return JSON.stringify(v===undefined?null:v);
+}
+function hashStr(s){var h=0x811c9dc5;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193);}return (h>>>0).toString(36)+'.'+s.length.toString(36);}
+function entita(S){
+  var out=[];
+  COLS.forEach(function(c){(S[c]||[]).forEach(function(e){if(e&&e.id)out.push({k:c+'~'+e.id,c:c,i:e.id,e:e});});});
+  out.push({k:'cfg~main',c:'cfg',i:'main',e:S.cfg});
+  return out;
+}
+/* cosa va mandato: entità nuove, cambiate o non ancora confermate, e lapidi per quelle tolte */
+function syncDiff(S,SY){
+  var w=[],vivi={};
+  entita(S).forEach(function(x){
+    var j=canon(x.e),h=hashStr(j),loc=SY.ent[x.k];vivi[x.k]=1;
+    if(!loc||loc[1]!==h||!loc[2])w.push({key:x.k,c:x.c,i:x.i,j:j,h:h});
+  });
+  Object.keys(SY.ent).forEach(function(k){
+    if(vivi[k])return;
+    var loc=SY.ent[k],p=k.split('~');
+    if(loc[1]!=='-'||!loc[2])w.push({key:k,c:p[0],i:p.slice(1).join('~'),j:null,h:'-'});
+  });
+  return w;
+}
+function normEnt(c,e){
+  if(c==='cfg')return normCfg(e);
+  var raw={people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[]};
+  raw[c]=[e];
+  var st=normState(raw);
+  return st&&st[c]&&st[c][0]||null;
+}
+function perT(a,b){return (a.t||0)-(b.t||0);}
+/* applica le modifiche arrivate dagli altri telefoni, sul posto. Alla prima unione (init) vince il locale condiviso. */
+function syncApply(S,changes,SY,init){
+  var changed=false;
+  changes.forEach(function(ch){
+    if(!ch||typeof ch.key!=='string')return;
+    var key=ch.key,loc=SY.ent[key],hr=ch.j==null?'-':hashStr(ch.j);
+    if(loc&&loc[0]===ch.u&&loc[1]===hr){loc[2]=1;return;}
+    if(!init&&loc&&(loc[0]>ch.u||(loc[0]===ch.u&&loc[1]>hr)))return;
+    var c=ch.c,id=ch.i,hn=hr;
+    if(c==='cfg'){
+      if(ch.j==null)return;
+      var cf;try{cf=normCfg(JSON.parse(ch.j));}catch(x){return;}
+      S.cfg=cf;hn=hashStr(canon(cf));changed=true;
+    }else if(COLS.indexOf(c)>=0&&typeof id==='string'){
+      var arr=S[c],pos=-1;
+      for(var i=0;i<arr.length;i++)if(arr[i].id===id){pos=i;break;}
+      if(ch.j==null){if(pos>=0){arr.splice(pos,1);changed=true;}}
+      else{
+        var e=null;try{e=normEnt(c,JSON.parse(ch.j));}catch(x){e=null;}
+        if(!e||e.id!==id)return;
+        if(pos>=0)arr[pos]=e;else arr.push(e);
+        hn=hashStr(canon(e));changed=true;
+      }
+    }else return;
+    SY.ent[key]=[ch.u,hn,1];
+  });
+  if(changed){
+    S.moves.sort(perT);S.votes.sort(perT);S.games.sort(perT);S.cleanings.sort(perT);
+    S.trash.sort(function(a,b){return a.s<b.s?-1:a.s>b.s?1:0;});
+  }
+  return changed;
 }
 /* =================== END PURE =================== */
 
@@ -877,7 +954,148 @@ function persist(){
   if(Date.now()-last>20*3600*1000){var cur=lsGet(KEY);if(cur){lsSet(KEY+'.snap',cur);lsSet(KEY+'.snapT',String(Date.now()));}}
   storageOk=lsSet(KEY,JSON.stringify(S));
 }
-function commit(){persist();D=derive(S);render();}
+function commit(){persist();D=derive(S);render();syncSpingi();}
+
+/* ---------- sincronizzazione tra telefoni ---------- */
+var SYNC=null,SY=null,remote=null,DEV='',syncTimer=0,inVolo={};
+var SST={stato:'spento',errore:'',ultimo:0,attesa:0};   // spento · collego · ok · attesa · errore
+var SDK='https://www.gstatic.com/firebasejs/10.12.2/';
+function syncCarica(){
+  try{SY=JSON.parse(lsGet(KEY+'.sync')||'null');}catch(e){SY=null;}
+  if(!SY||typeof SY!=='object'||!SY.ent||typeof SY.ent!=='object')SY={cursor:0,init:false,ent:{}};
+  DEV=lsGet(KEY+'.dev');
+  if(!DEV){DEV='d'+rid();lsSet(KEY+'.dev',DEV);}
+}
+function syncSalva(){lsSet(KEY+'.sync',JSON.stringify(SY));}
+function remoteFirestore(cfg){
+  return Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-firestore.js')]).then(function(m){
+    var A=m[0],F=m[1];
+    var app=A.initializeApp(cfg.firebase);
+    var db=F.getFirestore(app);
+    var col=F.collection(db,'locali',cfg.room,'e');
+    return {
+      write:function(key,d){return F.setDoc(F.doc(col,key),{c:d.c,i:d.i,j:d.j,u:d.u,by:d.by,s:F.serverTimestamp()});},
+      subscribe:function(since,onCh,onErr){
+        var q=F.query(col,F.where('s','>',F.Timestamp.fromMillis(Math.max(0,since-120000))));
+        return F.onSnapshot(q,function(snap){
+          var out=[];
+          snap.docChanges().forEach(function(ch){
+            // le mie scritture non ancora confermate dal server non contano: la conferma arriva da setDoc
+            if(ch.type==='removed'||ch.doc.metadata.hasPendingWrites)return;
+            var d=ch.doc.data({serverTimestamps:'none'});
+            out.push({key:ch.doc.id,c:d.c,i:d.i,j:d.j==null?null:d.j,u:d.u,by:d.by,s:d.s&&d.s.toMillis?d.s.toMillis():0});
+          });
+          onCh(out,snap.metadata.fromCache);
+        },onErr);
+      }
+    };
+  });
+}
+/* solo per le prove automatiche: un finto server locale al posto di Firebase */
+function remoteMock(cfg){
+  var url=cfg.mock;
+  return Promise.resolve({
+    write:function(key,d){
+      return fetch(url+'w',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({room:cfg.room,key:key,c:d.c,i:d.i,j:d.j,u:d.u,by:d.by})})
+        .then(function(r){if(!r.ok)throw new Error('scrittura rifiutata');});
+    },
+    subscribe:function(since,onCh,onErr){
+      var stop=false,cur=since,primo=true;
+      (function giro(){
+        if(stop)return;
+        fetch(url+'r?room='+encodeURIComponent(cfg.room)+'&since='+cur).then(function(r){return r.json();}).then(function(list){
+          list.forEach(function(x){if(x.s>cur)cur=x.s;});
+          if(list.length||primo){primo=false;onCh(list,false);}
+        }).catch(function(e){onErr(e);}).then(function(){setTimeout(giro,250);});
+      })();
+      return function(){stop=true;};
+    }
+  });
+}
+function syncAvvia(){
+  SYNC=window.OBLIO_SYNC||null;
+  if(!SYNC||!SYNC.room||IN_CLAUDE||(!SYNC.firebase&&!SYNC.mock))return;
+  syncCarica();SST.stato='collego';
+  // se qualcosa è rimasto in coda (rete caduta), riprovo ogni tanto
+  setInterval(function(){
+    if(!remote||!SY||!SY.init)return;
+    for(var k in SY.ent)if(!SY.ent[k][2]&&!inVolo[k]){syncSpingi(true);return;}
+  },10000);
+  (SYNC.mock?remoteMock(SYNC):remoteFirestore(SYNC)).then(function(r){
+    remote=r;
+    r.subscribe(SY.init?SY.cursor:0,ricevi,function(e){SST.errore=String(e&&e.message||e);SST.stato=SY.init?'attesa':'errore';statoSync();});
+  },function(e){SST.stato='errore';SST.errore='Non riesco a caricare la sincronizzazione ('+(e&&e.message||e)+'). Riprovo alla prossima apertura con internet.';statoSync();});
+}
+function ricevi(changes,fromCache){
+  if(fromCache&&!SY.init)return;   // prima di fondere aspetto i dati veri del locale
+  var init=!SY.init;
+  var cambiato=syncApply(S,changes,SY,init);
+  changes.forEach(function(ch){if(ch.s>SY.cursor)SY.cursor=ch.s;});
+  if(init)SY.init=true;
+  SST.errore='';SST.ultimo=Date.now();
+  if(cambiato){storageOk=lsSet(KEY,JSON.stringify(S));D=derive(S);renderSoon();}
+  syncSalva();
+  syncSpingi(true);
+}
+function syncSpingi(subito){
+  if(!remote||!SY||!SY.init){statoSync();return;}
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(function(){
+    var w=syncDiff(S,SY);
+    w.forEach(function(x){
+      if(inVolo[x.key]===x.h)return;
+      inVolo[x.key]=x.h;
+      var prima=SY.ent[x.key],u=Math.max(Date.now(),prima?prima[0]+1:0);
+      SY.ent[x.key]=[u,x.h,0];
+      remote.write(x.key,{c:x.c,i:x.i,j:x.j,u:u,by:DEV}).then(function(){
+        var e=SY.ent[x.key];if(e&&e[0]===u)e[2]=1;
+        if(inVolo[x.key]===x.h)delete inVolo[x.key];
+        SST.errore='';syncSalva();statoSync();
+      },function(err){
+        if(inVolo[x.key]===x.h)delete inVolo[x.key];
+        SST.errore=String(err&&err.message||err);statoSync();
+      });
+    });
+    syncSalva();statoSync();
+  },subito?0:250);
+}
+function statoSync(){
+  if(!SYNC||!remote&&SST.stato==='spento'){paintSync();return;}
+  var att=0;Object.keys(SY.ent).forEach(function(k){if(!SY.ent[k][2])att++;});
+  SST.attesa=att;
+  if(!SY.init)SST.stato=SST.errore?'errore':'collego';
+  else SST.stato=att?'attesa':'ok';
+  paintSync();
+}
+function syncTesto(){
+  switch(SST.stato){
+    case 'ok':return 'sincronizzati';
+    case 'attesa':return SST.attesa+(SST.attesa===1?' modifica da inviare':' modifiche da inviare')+(navigator.onLine===false?' (senza rete)':'');
+    case 'collego':return 'mi collego al locale…';
+    case 'errore':return 'non collegati';
+    default:return '';
+  }
+}
+function paintSync(){
+  var el=$('#sync');if(!el)return;
+  var on=!!SYNC&&SST.stato!=='spento';
+  el.hidden=!on;
+  if(!on)return;
+  el.className='sync-dot '+SST.stato;
+  el.setAttribute('aria-label','Telefoni: '+syncTesto());
+  el.title='Telefoni: '+syncTesto()+(SST.errore?' · '+SST.errore:'');
+  var r=$('#sync-riga');if(r)r.textContent=syncTesto();
+}
+/* se arriva una modifica mentre si sta scrivendo in un campo, ridisegno dopo */
+var renderRinviato=false;
+function renderSoon(){
+  var a=document.activeElement;
+  if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox'&&a.type!=='file'){
+    if(!renderRinviato){renderRinviato=true;a.addEventListener('blur',function(){renderRinviato=false;setTimeout(render,0);},{once:true});}
+    return;
+  }
+  render();
+}
 function people(all){return S.people.filter(function(p){return all||p.on;});}
 function person(id){return S.people.find(function(x){return x.id===id;});}
 function pName(id){var p=person(id);return p?p.name:'Ex paziente';}
@@ -1042,6 +1260,7 @@ function render(){
   $('#view').replaceChildren(frag(vista()));
   if(key){var el=document.querySelector('[data-k="'+key+'"]');if(el){try{el.focus({preventScroll:true});}catch(e){}}}
   refreshSheet();
+  paintSync();
 }
 
 /* ---------- righe e descrizioni ---------- */
@@ -1110,6 +1329,7 @@ function vReparto(){
       rigaB('Ticket aperti',tot?eur(tot)+' · '+deb.length+(deb.length===1?' paziente':' pazienti'):'nessuno',tot?'rosso':null),
       rigaB('Scorte',scorte,low.length?'rosso':null),
       partitaAttiva()?rigaB('Freccette','partita in corso: '+nomeModo(partitaAttiva().mode)):null,
+      SYNC&&SST.stato!=='spento'?rigaB('Telefoni',h('span',{id:'sync-riga'},syncTesto()),SST.stato==='errore'?'rosso':null):null,
       rigaB('Backup',backupLine(),backupOld()?'rosso':null)),
     h('div',{class:'azioni'},
       h('button',{class:'pill duo-rosa',type:'button',onclick:function(){go('farmacia');}},'Segna consumazione'),
@@ -1174,7 +1394,7 @@ function openRifiuti(){
     gruppo('Chi li ha portati giù',chi)],function(){
     var ids=chi.get();
     if(!ids.length)return 'Scegli chi li ha portati giù.';
-    var rec={id:'r'+rid(),s:k,p:ids,f:fr.slice(),t:Date.now()};
+    var rec={id:'r'+k,s:k,p:ids,f:fr.slice(),t:Date.now()};   // una sola uscita per serata, anche da due telefoni
     S.trash=S.trash.filter(function(r){return r.s!==k;});S.trash.push(rec);commit();
     toast('Rifiuti fuori: grazie '+nomiLista(ids)+'.',function(){S.trash=S.trash.filter(function(r){return r!==rec;});commit();toast('Annullato.');});
   },'Segna');
@@ -1204,7 +1424,7 @@ function vota(chi,per,y){
   var k=openKey(),v=S.votes.find(function(x){return x.s===k&&x.v===chi;}),prima=v?{c:v.c,t:v.t,y:v.y||''}:null;
   if(prima&&prima.c===per&&prima.y===y){toast(pName(chi)+' aveva già votato così.');return;}
   if(v){v.c=per;v.t=Date.now();if(y)v.y=y;else delete v.y;}
-  else{v={id:'v'+rid(),s:k,v:chi,c:per,t:Date.now()};if(y)v.y=y;S.votes.push(v);}
+  else{v={id:'v'+k+'_'+chi,s:k,v:chi,c:per,t:Date.now()};if(y)v.y=y;S.votes.push(v);}   // stesso voto = stesso documento su tutti i telefoni
   commit();
   toast(pName(chi)+(prima?' cambia voto: ':' vota ')+pName(per)+(y?' · '+y.toLowerCase():''),function(){
     if(prima){v.c=prima.c;v.t=prima.t;if(prima.y)v.y=prima.y;else delete v.y;}
@@ -1759,7 +1979,7 @@ function chiediImport(b){
     h('dl',{class:'scheda'},
       h('dt',null,'Salvato il'),h('dd',null,b.exported?b.exported.slice(0,10).split('-').reverse().join('/'):'data non indicata'),
       h('dt',null,'Contiene'),h('dd',null,st.people.length+' persone, '+st.products.length+' prodotti, '+st.moves.length+' movimenti, '+st.votes.length+' voti, '+st.games.length+' partite')),
-    h('p',{class:'errore'},'I dati che ci sono adesso su questo telefono vengono sostituiti.'),
+    h('p',{class:'errore'},SYNC&&remote?'I dati attuali vengono sostituiti su tutti i telefoni collegati, non solo su questo.':'I dati che ci sono adesso su questo telefono vengono sostituiti.'),
     h('div',{class:'azioni'},
       h('button',{class:'pill pericolo',type:'button',onclick:function(){S=st;closeSheet();commit();toast('Backup ripristinato.');}},'Sostituisci i dati'),
       h('button',{class:'pill',type:'button',onclick:closeSheet},'Lascia stare'))]);
@@ -2151,6 +2371,9 @@ function start(){
   setInterval(controlla,60000);
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
   render();
+  syncAvvia();
+  window.addEventListener('online',function(){statoSync();syncSpingi(true);});
+  window.addEventListener('offline',statoSync);
   if(!IN_CLAUDE&&'serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
     try{
       // quando arriva una versione nuova dell'app lo dico, senza ricaricare da solo a metà di un conto
