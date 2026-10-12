@@ -353,7 +353,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.4.3';
+var APP_V='0.4.4';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
@@ -1272,7 +1272,7 @@ function render(){
   var av=$('#avviso'),msg='';
   if(!storageOk)msg='Questo dispositivo non sta salvando i dati: quello che segni resta solo finché la pagina è aperta.';
   else if(IN_CLAUDE)msg='Anteprima dentro Claude: i dati restano su questo dispositivo e possono azzerarsi. L’app vera si installa dal suo indirizzo web.';
-  else if(IOS&&!installata())msg='Su iPhone installa l’app prima di usarla: Condividi, poi «Aggiungi alla schermata Home». Quello che segni qui in Safari non passa all’app installata.';
+  else if(IOS&&!installata())msg='Su iPhone installa l’app prima di usarla: Condividi, poi «Aggiungi alla schermata Home»'+(SYNC?', e da lì usa sempre l’icona.':'. Quello che segni qui in Safari non passa all’app installata.');
   av.textContent=msg;av.hidden=!msg;
   var posOn=UI.tab==='farmacia'&&!UI.sub&&(UI.pos.p||posTotal().n>0);
   document.body.classList.toggle('con-pos',!!posOn);
@@ -1674,7 +1674,7 @@ function openPerson(id,after){
     campo('Nome',n,'pe-n'),
     gruppo('Tipo',kind),
     h('div',{class:'campo'},h('span',{class:'lab'},'Faccia'),faccia,
-      h('p',{class:'aiuto'},'Ogni caricatura va a una persona sola: se la scegli qui, la togli a chi l’aveva. «Dal telefono» prende una foto dalla galleria e la tiene solo su questo dispositivo.')),
+      h('p',{class:'aiuto'},'Ogni caricatura va a una persona sola: se la scegli qui, la togli a chi l’aveva. «Dal telefono» prende una foto dalla galleria'+(SYNC&&remote?' e la manda anche agli altri telefoni.':' e la tiene solo su questo dispositivo.'))),
     p?h('label',{class:'spunta',for:'pe-on'},on,'Ancora in reparto'):null,
     p?null:h('p',{class:'aiuto'},'Il visitatore entra nell’elenco dei ticket: a segnare a suo nome sarà sempre uno di voi.')],function(){
     var nome=n.value.trim();
@@ -1807,6 +1807,7 @@ function vAltro(){
   return [h('h2',{class:'titolo'},'Altro'),
     h('ul',{class:'menu'},
       voce('Classifiche','Re dell’oblio, consumi, freccette, debiti, pagatori, spazzatura',function(){go('altro','classifiche');}),
+      voce('Guida all’uso','Come funziona ogni sezione, per chi è appena entrato in reparto',function(){var u=IN_CLAUDE?'https://ciccionaso.github.io/oblio-house/guida.html':'guida.html';if(IN_CLAUDE)window.open(u,'_blank');else location.href=u;}),
       SYNC?voce('Telefoni collegati',syncTesto()+(SST.errore?' · '+SST.errore:''),openSync):null,
       voce('Cassa e registro',eur(D.cash)+' in cassa',function(){go('altro','cassa');}),
       voce('Scorte e lista della spesa',da?da+(da===1?' cosa da comprare':' cose da comprare'):'Niente da comprare',function(){go('altro','scorte');}),
@@ -2043,7 +2044,7 @@ function vInstalla(){
     h('dl',{class:'scheda'},
       h('dt',null,'iPhone'),h('dd',null,'Apri il link con Safari, tocca Condividi, poi «Aggiungi alla schermata Home» e conferma con «Aggiungi».'),
       h('dt',null,'Android'),h('dd',null,'Menu del browser (tre puntini), poi «Aggiungi a schermata Home» o «Installa app».')),
-    h('p',{class:'aiuto'},'Fallo una volta con internet attivo. Da quel momento l’app si apre dall’icona anche senza rete e i dati restano sul telefono.'),
+    h('p',{class:'aiuto'},'Fallo una volta con internet attivo. Da quel momento l’app si apre dall’icona anche senza rete'+(SYNC?'; quando c’è internet si allinea con gli altri telefoni.':' e i dati restano sul telefono.')),
     h('p',{class:'errore'},'Su iPhone l’app sulla Home tiene i dati separati da Safari: installala prima di segnare qualcosa e poi usa sempre l’icona.')];
   return [indietro(),h('h2',{class:'titolo'},'Installa'),h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Sul telefono del garage'),h('span',{class:'timbro'+(standalone?' ok':'')},standalone?'Installata':'Da fare')),h('div',{class:'riga-tratt'}),corpo)];
 }

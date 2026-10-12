@@ -478,6 +478,23 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   note('chiusura alle 6: verdetto e nuova serata ok');
   await ctx2.close();
 
+  // ---------- guida all'uso: si apre da Altro, si legge bene sul telefono, funziona senza rete ----------
+  await page.setViewportSize({ width: 390, height: 844 });
+  await tab('Altro');
+  await Promise.all([page.waitForNavigation(), page.click('.voce:has-text("Guida all’uso")')]);
+  if (!/guida\.html$/.test(page.url())) fail('la voce Guida non apre guida.html: ' + page.url());
+  if (!/Guida all'uso del reparto/.test(await page.textContent('h2.titolo'))) fail('guida senza titolo');
+  if ((await page.$$('section.cartella')).length !== 14) fail('la guida non ha 14 capitoli');
+  await overflow('guida 390'); await shot('41-guida', true);
+  await page.setViewportSize({ width: 320, height: 640 }); await overflow('guida 320');
+  await ctx.setOffline(true);
+  const guidaOff = await page.reload().then(() => page.textContent('h2.titolo'), () => '');
+  if (!/Guida/.test(guidaOff || '')) fail('la guida non si apre senza rete');
+  await ctx.setOffline(false);
+  await page.click('.piede .pill');
+  await page.waitForSelector('.tab');
+  note('guida: aperta da Altro, leggibile a 320 px, disponibile senza rete');
+
   // ---------- più telefoni, stessi dati (finto server al posto di Firebase) ----------
   const telefono = async (nome) => {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });

@@ -45,6 +45,8 @@ const index = '<!doctype html>\n<html lang="it">\n<head>\n<meta charset="utf-8">
   '<style>html{padding-top:env(safe-area-inset-top,0px)}img{max-width:100%}</style>\n' +
   '</head>\n<body>\n' + syncScript + corpo + '</body>\n</html>\n';
 fs.writeFileSync(path.join(dist, 'index.html'), index);
+// guida all'uso: pagina a sé, stessa grafica, raggiungibile da Altro e con un link da girare agli altri
+fs.writeFileSync(path.join(dist, 'guida.html'), src('guida.html').replace(/__VERSIONE_APP__/g, VERSIONE));
 
 // caricature: stessi percorsi relativi (img/…) nell'anteprima e nel pacchetto
 const imgSrc = path.join(root, 'src', 'img');

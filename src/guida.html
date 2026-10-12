@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Guida all'uso · The Oblio House</title>
+<meta name="description" content="Come si usa l'app del reparto: installazione, farmacia, ticket, cassa, triage, freccette, classifiche, rifiuti e pulizie.">
+<meta name="theme-color" content="#2A0E4F">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@600;700&amp;family=Shrikhand&amp;display=swap">
+<style>
+/* Stessa grafica dell'app: fondo viola, «cartelle» di carta, titoli da insegna, testo da modulo clinico. */
+:root{
+  --viola:#2A0E4F; --viola-2:#35155F; --viola-3:#3B1A6B; --viola-bordo:#6B3FB0; --notte:#160633;
+  --carta:#F4F7F2; --inchiostro:#1B1036; --grigio:#5B4F7A; --riga:#8FB3A4;
+  --panna:#FFF4DC; --lilla:#D9C8FF; --lilla-2:#C9B6F0;
+  --giallo:#FFD23F; --acido:#9BE22D; --rosa:#FF4D97; --arancio:#FF7A1A; --rosso:#C81E1E;
+  --f-titolo:"Shrikhand",Georgia,"Times New Roman",serif;
+  --f-testo:"IBM Plex Mono","Courier New",ui-monospace,monospace;
+  --f-etichetta:"IBM Plex Sans Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--viola);color:var(--panna);font:500 15px/1.5 var(--f-testo)}
+h1,h2,h3,p,ul,ol{margin:0}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--rosa);outline-offset:2px}
+.pagina{position:relative;max-width:640px;margin-inline:auto;padding:0 16px calc(40px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+.decor{position:absolute;inset:0 0 auto 0;height:300px;overflow:hidden;pointer-events:none}
+.spirale{position:absolute;right:-170px;top:-190px;width:460px;height:460px;border-radius:50%;background:repeating-radial-gradient(circle at center,var(--viola-2) 0,var(--viola-2) 12px,var(--viola) 12px,var(--viola) 24px)}
+.testa{position:relative;display:flex;align-items:center;gap:10px;padding-top:18px}
+.testa svg{flex:none;width:46px;height:46px}
+.testa h1{font:400 clamp(22px,6.6vw,30px)/1.05 var(--f-titolo);color:var(--giallo)}
+.testa p{font-size:12px;color:var(--lilla)}
+.titolo{position:relative;font:400 clamp(28px,8vw,38px)/1.05 var(--f-titolo);color:var(--giallo);text-wrap:balance}
+.intro{position:relative;font-size:14px;line-height:1.55;color:var(--lilla)}
+.pill{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px;border:3px solid var(--notte);border-radius:99px;background:linear-gradient(90deg,var(--acido) 0,var(--acido) 50%,var(--giallo) 50%,var(--giallo) 100%);color:var(--notte);font:700 15px/1 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;text-decoration:none;align-self:flex-start}
+.sommario{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0;list-style:none}
+.sommario a{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;border:2px solid var(--viola-bordo);border-radius:14px;background:var(--viola-3);text-decoration:none;font:700 14px/1.15 var(--f-etichetta);letter-spacing:.03em}
+.sommario b{flex:none;color:var(--giallo);font-family:var(--f-titolo);font-weight:400;font-size:17px}
+.cartella{background:var(--carta);color:var(--inchiostro);border:3px solid var(--notte);border-radius:22px 16px 24px 14px;padding:16px;box-shadow:6px 6px 0 var(--notte);display:flex;flex-direction:column;gap:10px;scroll-margin-top:12px}
+.cartella h2{font:400 clamp(21px,6vw,26px)/1.1 var(--f-titolo);display:flex;gap:10px;align-items:baseline}
+.cartella h2 span{flex:none;color:var(--rosa)}
+.cartella h3{font:700 13px/1.2 var(--f-etichetta);letter-spacing:.1em;text-transform:uppercase;color:var(--grigio);margin-top:4px}
+.cartella p,.cartella li{font-size:14px;line-height:1.55}
+.cartella ul,.cartella ol{padding-left:1.25em;display:flex;flex-direction:column;gap:6px}
+.cartella li::marker{color:var(--rosa);font-weight:700}
+.nota{border-top:1px dashed var(--riga);padding-top:10px;font-size:13px;color:var(--grigio)}
+.t{display:inline-block;padding:1px 7px;border:1.5px solid var(--notte);border-radius:99px;background:var(--panna);font:700 12.5px/1.35 var(--f-etichetta);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.pallino{display:inline-block;width:13px;height:13px;border-radius:50%;border:2px solid var(--notte);vertical-align:-1px;margin-right:4px}
+.p-verde{background:var(--acido)}.p-giallo{background:var(--giallo)}.p-rosa{background:var(--rosa)}
+.oro{background:var(--acido)}
+.oro ol li{font-weight:600}
+.piede{text-align:center;font-size:12px;color:var(--lilla-2);display:flex;flex-direction:column;align-items:center;gap:12px}
+.piede .pill{align-self:center}
+@media (max-width:360px){.sommario{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <div class="decor" aria-hidden="true"><div class="spirale"></div></div>
+  <header class="testa">
+    <svg viewBox="0 0 44 44" aria-hidden="true">
+      <path d="M15 2h14v13h13v14H29v13H15V29H2V15h13z" fill="#9BE22D" stroke="#160633" stroke-width="2.5" stroke-linejoin="round"/>
+      <g transform="translate(22 27) scale(0.2)" fill="#160633">
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(34) scale(0.86)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-34) scale(0.86)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(66) scale(0.66)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-66) scale(0.66)"/>
+        <path d="M-1.5 0h3v16h-3z"/>
+      </g>
+    </svg>
+    <div><h1>The Oblio House</h1><p>Reparto fattoni e obliosi</p></div>
+  </header>
+
+  <h2 class="titolo">Guida all'uso del reparto</h2>
+  <p class="intro">Benvenuto, paziente. Questa è l'app del locale: bar, debiti, cassa, rifiuti, pulizie, il voto di chi sta peggio, freccette e classifiche. Ognuno la usa dal suo telefono e i dati sono gli stessi per tutti. Leggi questa pagina una volta; poi ti basta l'app.</p>
+  <a class="pill" href="./">Apri l'app</a>
+
+  <nav aria-label="Sommario">
+    <ul class="sommario">
+      <li><a href="#installa"><b>1</b>Installarla</a></li>
+      <li><a href="#pallino"><b>2</b>Il pallino e la rete</a></li>
+      <li><a href="#reparto"><b>3</b>Reparto</a></li>
+      <li><a href="#farmacia"><b>4</b>Farmacia</a></li>
+      <li><a href="#ticket"><b>5</b>Ticket e debiti</a></li>
+      <li><a href="#cassa"><b>6</b>Cassa e spese</a></li>
+      <li><a href="#triage"><b>7</b>Triage</a></li>
+      <li><a href="#freccette"><b>8</b>Freccette</a></li>
+      <li><a href="#classifiche"><b>9</b>Classifiche</a></li>
+      <li><a href="#faccende"><b>10</b>Rifiuti e pulizie</a></li>
+      <li><a href="#altro"><b>11</b>Scorte e impostazioni</a></li>
+      <li><a href="#errori"><b>12</b>Se sbagli</a></li>
+      <li><a href="#problemi"><b>13</b>Backup e problemi</a></li>
+      <li><a href="#oro"><b>14</b>Le regole d'oro</a></li>
+    </ul>
+  </nav>
+
+  <section class="cartella" id="installa">
+    <h2><span>1</span>Installarla, una volta sola</h2>
+    <h3>iPhone</h3>
+    <ol>
+      <li>Apri il link dell'app con <strong>Safari</strong>.</li>
+      <li>Tocca <span class="t">Condividi</span> (il quadrato con la freccia), poi <span class="t">Aggiungi alla schermata Home</span> e <span class="t">Aggiungi</span>.</li>
+      <li>Da quel momento apri l'app <strong>solo dall'icona</strong>.</li>
+    </ol>
+    <h3>Android</h3>
+    <ol>
+      <li>Apri il link con <strong>Chrome</strong>.</li>
+      <li>Menu <span class="t">⋮</span>, poi <span class="t">Installa app</span> (o «Aggiungi a schermata Home»).</li>
+    </ol>
+    <p class="nota">La prima apertura va fatta con internet: l'app scarica i dati del locale. Poi si apre anche senza rete. Quando esce una versione nuova compare il pulsante <span class="t">Aggiorna</span>: toccalo.</p>
+  </section>
+
+  <section class="cartella" id="pallino">
+    <h2><span>2</span>Il pallino in alto a destra</h2>
+    <ul>
+      <li><span class="pallino p-verde" aria-hidden="true"></span><strong>Verde</strong>: il tuo telefono è allineato con gli altri.</li>
+      <li><span class="pallino p-giallo" aria-hidden="true"></span><strong>Giallo</strong>: ci sono modifiche da inviare, di solito perché manca la rete. Non si perde niente: partono da sole appena torna internet.</li>
+      <li><span class="pallino p-rosa" aria-hidden="true"></span><strong>Rosa</strong>: non collegato. Apri <span class="t">Altro</span> › <span class="t">Telefoni collegati</span> e manda uno screenshot a chi gestisce l'app.</li>
+    </ul>
+    <p class="nota">Senza rete puoi segnare tutto come sempre: quello che fai resta sul telefono e si allinea dopo.</p>
+  </section>
+
+  <section class="cartella" id="reparto">
+    <h2><span>3</span>Reparto, la schermata principale</h2>
+    <ul>
+      <li><strong>Bollettino</strong>: cassa, ticket aperti, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
+      <li><span class="t">Segna consumazione</span> porta in Farmacia; <span class="t">Cassa</span> apre la cassa.</li>
+      <li><strong>Faccende</strong>: i rifiuti di stasera e le pulizie (capitolo 10).</li>
+      <li><strong>Triage</strong>: il voto di chi sta peggio (capitolo 7).</li>
+      <li><strong>Ticket più salati</strong> e <strong>Ultime somministrazioni</strong>: chi deve di più e le ultime cose segnate.</li>
+    </ul>
+  </section>
+
+  <section class="cartella" id="farmacia">
+    <h2><span>4</span>Farmacia: segnare cosa prendi</h2>
+    <ol>
+      <li>In alto tocca <strong>chi prende</strong>. Un amico di passaggio si aggiunge con <span class="t">+ Visitatore</span>.</li>
+      <li>Tocca i prodotti: ogni tocco è un pezzo, <span class="t">−</span> ne toglie uno.</li>
+      <li>Roba fuori listino (un panino, un giro offerto): <span class="t">Altro importo</span>.</li>
+      <li>In basso scegli:
+        <ul>
+          <li><span class="t">Sul ticket</span>: va sul suo debito, la cassa non cambia.</li>
+          <li><span class="t">Paga subito</span>: i soldi entrano in cassa.</li>
+        </ul>
+      </li>
+    </ol>
+    <p class="nota">Si segna sempre a nome di <strong>chi consuma</strong>, anche se lo segna un altro. La <span class="t">X</span> svuota la selezione. Le scorte scendono da sole.</p>
+  </section>
+
+  <section class="cartella" id="ticket">
+    <h2><span>5</span>Ticket: i debiti</h2>
+    <p>Ogni nome ha il suo debito. Le <strong>tacche</strong> sono le consumazioni non ancora pagate. Tocca un nome per aprire la sua <strong>cartella</strong>:</p>
+    <ul>
+      <li><span class="t">Incassa</span>: paga, tutto o in parte. I soldi entrano in cassa.</li>
+      <li><span class="t">+ Debito</span> / <span class="t">− Debito</span>: aggiunge o toglie un debito <strong>senza toccare la cassa</strong> (vecchi conti, scommesse perse, abbuoni).</li>
+      <li><span class="t">Segna consumazione</span>, <span class="t">Nome e faccia</span> e la <strong>Storia clinica</strong> con tutti i suoi movimenti.</li>
+    </ul>
+    <p class="nota">Chi paga più del dovuto risulta <strong>in credito</strong>: le prossime consumazioni si scalano da lì.</p>
+  </section>
+
+  <section class="cartella" id="cassa">
+    <h2><span>6</span>Cassa e spese</h2>
+    <p>Si apre dal Reparto (<span class="t">Cassa</span>) o da <span class="t">Altro</span> › <span class="t">Cassa e registro</span>.</p>
+    <ul>
+      <li><span class="t">Entrata</span>: soldi che entrano senza consumazioni (fondo iniziale, collette).</li>
+      <li><span class="t">Spesa</span>: soldi spesi per il locale. Scegli <strong>chi ha pagato</strong>:
+        <ul>
+          <li><strong>La cassa</strong>: i soldi escono dalla cassa.</li>
+          <li><strong>Uno di voi</strong>, che ha anticipato. Poi scegli come rientra: <span class="t">Rimborso dalla cassa</span>, <span class="t">Scala dal suo ticket</span> oppure <span class="t">Dividi tra tutti</span>. Con l'ultima scegli tra chi: ognuno si trova la sua quota sul ticket e chi ha pagato va in credito.</li>
+        </ul>
+      </li>
+      <li><span class="t">Conta cassa</span>: conta i soldi veri e scrivi il totale. L'app si riallinea e la differenza resta nel registro.</li>
+      <li><strong>Registro</strong>: tutti i movimenti, con i filtri Tutto, Cassa, Ticket e Scorte.</li>
+    </ul>
+  </section>
+
+  <section class="cartella" id="triage">
+    <h2><span>7</span>Triage: chi sta peggio</h2>
+    <ol>
+      <li>Nel Reparto tocca la <strong>faccia di chi sta peggio</strong>.</li>
+      <li>Se vuoi scegli il <strong>sintomo</strong> (silenzio assordante, urla strazianti…).</li>
+      <li>Tocca <strong>chi vota</strong>. Fatto.</li>
+    </ol>
+    <ul>
+      <li>Un voto a testa per serata, <strong>palese</strong>: con <span class="t">Vedi i voti</span> tutti vedono chi ha votato chi. Il voto si può cambiare o togliere.</li>
+      <li>La serata si chiude alle <strong>6:00</strong>. Il più votato è il <strong>codice rosso</strong>, e la sua diagnosi è il sintomo più votato.</li>
+      <li>Chi colleziona più codici rossi nel mese è il <strong>Re dell'oblio</strong>.</li>
+      <li>Votano, e si possono votare, anche i visitatori.</li>
+    </ul>
+  </section>
+
+  <section class="cartella" id="freccette">
+    <h2><span>8</span>Freccette</h2>
+    <p><strong>Nuova partita</strong>: scegli il gioco, tocca i giocatori <strong>nell'ordine di tiro</strong> (<span class="t">Mescola</span> per sorteggiarlo) e poi <span class="t">Inizia la partita</span>.</p>
+    <h3>501 e 301, chiusura libera</h3>
+    <ul>
+      <li>Si scala fino a <strong>zero preciso</strong>, con qualsiasi settore.</li>
+      <li>Per ogni freccetta: se serve tocca <span class="t">Doppio</span> o <span class="t">Triplo</span>, poi il numero. Ci sono anche <span class="t">25</span>, <span class="t">Centro 50</span> e <span class="t">Fuori</span> se la manchi.</li>
+      <li>Chi va sotto zero è <strong>sballato</strong>: il turno non conta e torna al punteggio di prima.</li>
+    </ul>
+    <h3>Giro dell'orologio</h3>
+    <ul>
+      <li>Dall'1 al 20 in ordine. Tocca <span class="t">Mancato</span>, <span class="t">Preso</span>, <span class="t">Doppio</span> (avanzi di 2) o <span class="t">Triplo</span> (avanzi di 3). Vince chi supera il 20.</li>
+    </ul>
+    <p class="nota">Dopo tre freccette il turno passa da solo. Se sbagli a segnare, <span class="t">↶ Indietro</span> toglie l'ultima freccetta. A fine partita: <span class="t">Rivincita</span> (comincia il secondo) o <span class="t">Nuova partita</span>. La partita si vede in diretta su tutti i telefoni.</p>
+  </section>
+
+  <section class="cartella" id="classifiche">
+    <h2><span>9</span>Classifiche</h2>
+    <p>Si aprono dal Reparto, dalle Freccette o da Altro. Il periodo si sceglie in alto: questo mese, mese scorso o da sempre.</p>
+    <ul>
+      <li><strong>Re dell'oblio</strong>: i codici rossi.</li>
+      <li><strong>Consumi</strong>: quanto ha preso ognuno.</li>
+      <li><strong>Freccette</strong>: vittorie, media e chiusura migliore.</li>
+      <li><strong>Debiti</strong>: i ticket aperti adesso.</li>
+      <li><strong>Migliori pagatori</strong>: in quanti giorni in media salda ognuno.</li>
+      <li><strong>Spazzatura</strong>: chi ha portato giù i rifiuti.</li>
+    </ul>
+    <p class="nota">Multe e penitenze: in arrivo.</p>
+  </section>
+
+  <section class="cartella" id="faccende">
+    <h2><span>10</span>Faccende: rifiuti e pulizie</h2>
+    <ul>
+      <li><strong>Rifiuti</strong>: la sera prima del ritiro il Reparto dice cosa va fuori (calendario del centro, si espone dalle 21:00). Chi li porta giù tocca <span class="t">Portati giù</span> e sceglie il suo nome: vale per la classifica Spazzatura.</li>
+      <li><strong>Pulizie</strong>: dopo aver pulito tocca <span class="t">Pulizia fatta</span>; si può anche dire «ieri» o «3 giorni fa». Dopo 14 giorni senza pulizie compare l'avviso.</li>
+    </ul>
+  </section>
+
+  <section class="cartella" id="altro">
+    <h2><span>11</span>Scorte e impostazioni, in Altro</h2>
+    <ul>
+      <li><strong>Scorte e lista della spesa</strong>:
+        <ul>
+          <li><span class="t">Inventario</span>: conti i pezzi che ci sono davvero.</li>
+          <li><span class="t">Carico</span>: segni quello che arriva quando si fa la spesa.</li>
+          <li><span class="t">Soglie</span>: sotto quanti pezzi un prodotto va ricomprato.</li>
+          <li>La lista della spesa si riempie da sola e si possono aggiungere cose a mano; <span class="t">Preso</span> le toglie.</li>
+        </ul>
+      </li>
+      <li><strong>Listino</strong>: prodotti e prezzi. Un prezzo nuovo vale dalle consumazioni successive.</li>
+      <li><strong>Pazienti e visitatori</strong>: aggiungi un visitatore, cambia nome e faccia (caricatura o foto dal telefono). Togli la spunta «Ancora in reparto» per chi non viene più.</li>
+      <li><strong>Regole del reparto</strong>: ora di chiusura della serata, voto a se stessi, calendario dei rifiuti, giorni delle pulizie e sintomi dell'oblio.</li>
+    </ul>
+    <p class="nota">Tutto quello che cambi qui cambia per tutti i telefoni.</p>
+  </section>
+
+  <section class="cartella" id="errori">
+    <h2><span>12</span>Se sbagli</h2>
+    <ul>
+      <li>Subito dopo aver segnato compare un messaggio in basso con <span class="t">Annulla</span>: toccalo.</li>
+      <li>Se te ne accorgi dopo, apri il movimento dal Registro o dalla Storia clinica e tocca <span class="t">Annulla movimento</span>. Resta visibile come annullato e, se serve, si rimette a posto con <span class="t">Ripristina</span>.</li>
+      <li>Un voto si toglie da <span class="t">Vedi i voti</span>; una partita da <strong>Ultime partite</strong> › <span class="t">Annulla partita</span>.</li>
+    </ul>
+  </section>
+
+  <section class="cartella" id="problemi">
+    <h2><span>13</span>Backup e problemi</h2>
+    <ul>
+      <li>Ogni tanto fai <span class="t">Altro</span> › <span class="t">Backup</span>: è una copia in più, se qualcuno cancella per sbaglio.</li>
+      <li>Se qualcosa non torna, apri <span class="t">Altro</span> › <span class="t">Telefoni collegati</span> e manda uno screenshot a chi gestisce l'app.</li>
+      <li>Non cancellare i dati del sito dalle impostazioni del telefono e non togliere l'icona senza motivo: alla riapertura i dati tornerebbero, ma solo con internet.</li>
+    </ul>
+  </section>
+
+  <section class="cartella oro" id="oro">
+    <h2><span>14</span>Le regole d'oro</h2>
+    <ol>
+      <li>Segna subito, a nome di chi consuma.</li>
+      <li>Un pagamento si registra con «Incassa», non con «− Debito».</li>
+      <li>Usa l'app sempre dall'icona.</li>
+      <li>Pallino giallo? Tranquillo: invia tutto quando torna la rete.</li>
+      <li>Quello che segni lo vedono tutti: niente furbate.</li>
+    </ol>
+  </section>
+
+  <footer class="piede">
+    <a class="pill" href="./">Apri l'app</a>
+    <p>The Oblio House · guida per la versione __VERSIONE_APP__</p>
+  </footer>
+</div>
+</body>
+</html>
