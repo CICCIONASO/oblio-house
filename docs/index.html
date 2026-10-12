@@ -353,7 +353,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.4.2';
+var APP_V='0.4.3';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
@@ -1813,7 +1813,7 @@ function vAltro(){
       voce('Listino',S.products.filter(function(p){return p.on;}).length+' prodotti',function(){go('altro','listino');}),
       voce('Pazienti e visitatori',people().length+' in reparto'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),function(){go('altro','persone');}),
       voce('Regole del reparto','Voto, calendario dei rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie ogni '+S.cfg.puliziaGiorni+' giorni',function(){go('altro','regole');}),
-      voce('Backup',backupLine()==='mai fatto'?'Mai fatto: i dati stanno solo su questo telefono':'Ultimo: '+backupLine(),function(){go('altro','backup');}),
+      voce('Backup',backupLine()==='mai fatto'?(SYNC&&remote?'Mai fatto: i dati sono anche sul database del locale':'Mai fatto: i dati stanno solo su questo telefono'):'Ultimo: '+backupLine(),function(){go('altro','backup');}),
       voce('Installa sul telefono','Icona sulla schermata Home, funziona senza rete',function(){go('altro','installa');})),
     h('p',{class:'piede'},'The Oblio House · versione '+APP_V+' · su questo dispositivo: '+S.moves.length+' movimenti, '+S.votes.length+' voti, '+S.games.length+' partite.')];
 }
@@ -2019,7 +2019,7 @@ function vBackup(){
   return [indietro(),h('h2',{class:'titolo'},'Backup'),
     h('section',{class:'cartella'},
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Metti al sicuro i dati'),h('span',{class:'timbro'+(backupOld()?'':' ok')},backupOld()?'Da fare':'A posto')),
-      h('p',{class:'aiuto'},'Tutto quello che segni vive solo su questo dispositivo. Se si rompe o si azzera il browser, senza backup si perde. Ultimo backup: '+backupLine()+'.'),
+      h('p',{class:'aiuto'},(SYNC&&remote?'I dati sono condivisi tra i telefoni e sul database del locale; il backup è una copia in più, utile se qualcuno cancella per sbaglio. ':'Tutto quello che segni vive solo su questo dispositivo. Se si rompe o si azzera il browser, senza backup si perde. ')+'Ultimo backup: '+backupLine()+'.'),
       h('div',{class:'azioni'},
         puoCondividere()?h('button',{class:'pill duo-verde',type:'button',onclick:condividiBackup},'Condividi backup'):null,
         h('button',{class:'pill'+(puoCondividere()?'':' duo-verde'),type:'button',onclick:scaricaBackup},'Scarica backup'))),
