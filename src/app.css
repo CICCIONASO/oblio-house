@@ -286,3 +286,22 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .sync-dot.ok{background:var(--acido)}
 .sync-dot.attesa,.sync-dot.collego{background:var(--giallo)}
 .sync-dot.errore{background:var(--rosa)}
+
+/* soldi del locale: previsione */
+.link{display:inline;padding:2px 0;margin:-2px 0;border:0;background:none;color:var(--viola-forte);font:inherit;font-weight:700;text-align:left;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px;cursor:pointer}
+.soldi-barra{display:flex;height:18px;border:2px solid var(--notte);border-radius:99px;overflow:hidden;background:var(--bianco)}
+.soldi-barra>i{display:block;min-width:6px}
+.soldi-barra>i+i{border-left:2px solid var(--notte)}
+.s-cassa{background:var(--acido)}
+.s-graffi{background:var(--rosa)}
+.s-scorte{background:var(--giallo)}
+.soldi-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--grigio)}
+.soldi-leg li{display:flex;align-items:center;gap:6px}
+.soldi-leg i{flex:none;width:12px;height:12px;border:2px solid var(--notte);border-radius:3px}
+.righe.conto>li.tot{border-top:2px solid var(--inchiostro);margin-top:-1px}
+.righe.conto>li.tot .nome{font-size:16px}
+.righe.conto>li.tot .importo{font-weight:700;font-size:16px}
+.avvisi{padding-left:1.15em;list-style:disc;font-size:13px;line-height:1.4;color:var(--grigio)}
+.avvisi li+li{margin-top:6px}
+.avvisi li.rosso{color:var(--rosso);font-weight:600}
+.cartella h4.giorno{margin:0}

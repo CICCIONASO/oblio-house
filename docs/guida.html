@@ -88,7 +88,7 @@ a{color:inherit}
       <li><a href="#reparto"><b>3</b>Reparto</a></li>
       <li><a href="#farmacia"><b>4</b>Farmacia</a></li>
       <li><a href="#ticket"><b>5</b>Ticket e debiti</a></li>
-      <li><a href="#cassa"><b>6</b>Cassa e spese</a></li>
+      <li><a href="#cassa"><b>6</b>Cassa e soldi</a></li>
       <li><a href="#triage"><b>7</b>Triage</a></li>
       <li><a href="#freccette"><b>8</b>Freccette</a></li>
       <li><a href="#classifiche"><b>9</b>Classifiche</a></li>
@@ -129,7 +129,7 @@ a{color:inherit}
   <section class="cartella" id="reparto">
     <h2><span>3</span>Reparto, la schermata principale</h2>
     <ul>
-      <li><strong>Bollettino</strong>: cassa, ticket aperti, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
+      <li><strong>Bollettino</strong>: cassa, ticket aperti, soldi previsti, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare. Tocca la cifra dei <strong>soldi previsti</strong> per il dettaglio (capitolo 6).</li>
       <li><span class="t">Segna consumazione</span> porta in Farmacia; <span class="t">Cassa</span> apre la cassa.</li>
       <li><strong>Faccende</strong>: i rifiuti di stasera e le pulizie (capitolo 10).</li>
       <li><strong>Triage</strong>: il voto di chi sta peggio (capitolo 7).</li>
@@ -165,7 +165,7 @@ a{color:inherit}
   </section>
 
   <section class="cartella" id="cassa">
-    <h2><span>6</span>Cassa e spese</h2>
+    <h2><span>6</span>Cassa, spese e soldi del locale</h2>
     <p>Si apre dal Reparto (<span class="t">Cassa</span>) o da <span class="t">Altro</span> › <span class="t">Cassa e registro</span>.</p>
     <ul>
       <li><span class="t">Entrata</span>: soldi che entrano senza consumazioni (fondo iniziale, collette).</li>
@@ -177,19 +177,21 @@ a{color:inherit}
       </li>
       <li><span class="t">Conta cassa</span>: conta i soldi veri e scrivi il totale. L'app si riallinea e la differenza resta nel registro.</li>
       <li><strong>Registro</strong>: tutti i movimenti, con i filtri Tutto, Cassa, Ticket e Scorte.</li>
+      <li><strong>Soldi del locale</strong> (da <span class="t">Altro</span>, dal Bollettino o dalla Cassa): la previsione di quanti soldi ha il locale, cioè <strong>cassa + graffi da incassare + scorte</strong> al prezzo di vendita, meno gli eventuali crediti da restituire. Sotto trovi quanto valgono le scorte prodotto per prodotto e chi deve cosa.</li>
     </ul>
+    <p class="nota">È una stima: conta i graffi come se li pagassero tutti e le scorte al prezzo di vendita, che è più di quanto le avete pagate. I prodotti mai contati restano fuori. Per un numero affidabile fate prima <span class="t">Conta cassa</span> e <span class="t">Inventario</span>.</p>
   </section>
 
   <section class="cartella" id="triage">
     <h2><span>7</span>Triage: chi sta peggio</h2>
     <ol>
       <li>Nel Reparto tocca la <strong>faccia di chi sta peggio</strong>.</li>
-      <li>Se vuoi scegli il <strong>sintomo</strong> (silenzio assordante, urla strazianti…).</li>
+      <li>Se vuoi scegli uno o più <strong>sintomi</strong> (silenzio assordante, urla strazianti…): toccali, si accendono.</li>
       <li>Tocca <strong>chi vota</strong>. Fatto.</li>
     </ol>
     <ul>
       <li>Un voto a testa per serata, <strong>palese</strong>: con <span class="t">Vedi i voti</span> tutti vedono chi ha votato chi. Il voto si può cambiare o togliere.</li>
-      <li>La serata si chiude alle <strong>6:00</strong>. Il più votato è il <strong>codice rosso</strong>, e la sua diagnosi è il sintomo più votato.</li>
+      <li>La serata si chiude alle <strong>6:00</strong>. Il più votato è il <strong>codice rosso</strong>, e la sua diagnosi sono i sintomi più votati per lui.</li>
       <li>Chi colleziona più codici rossi nel mese è il <strong>Re dell'oblio</strong>.</li>
       <li>Votano, e si possono votare, anche i visitatori.</li>
     </ul>
@@ -238,13 +240,14 @@ a{color:inherit}
     <ul>
       <li><strong>Scorte e lista della spesa</strong>:
         <ul>
+          <li><span class="t">+ Nuovo prodotto</span>: un prodotto che non c'era, con prezzo, categoria, i pezzi che ci sono adesso e la soglia. C'è anche dentro <span class="t">Inventario</span> e <span class="t">Carico</span>: salvato il prodotto torni lì, con i numeri già scritti.</li>
           <li><span class="t">Inventario</span>: conti i pezzi che ci sono davvero.</li>
           <li><span class="t">Carico</span>: segni quello che arriva quando si fa la spesa.</li>
           <li><span class="t">Soglie</span>: sotto quanti pezzi un prodotto va ricomprato.</li>
           <li>La lista della spesa si riempie da sola e si possono aggiungere cose a mano; <span class="t">Preso</span> le toglie.</li>
         </ul>
       </li>
-      <li><strong>Listino</strong>: prodotti e prezzi. Un prezzo nuovo vale dalle consumazioni successive.</li>
+      <li><strong>Listino</strong>: prodotti e prezzi; <span class="t">+ Prodotto</span> ne aggiunge uno. Un prezzo nuovo vale dalle consumazioni successive.</li>
       <li><strong>Pazienti e visitatori</strong>: aggiungi un visitatore, cambia nome e faccia (caricatura o foto dal telefono). Togli la spunta «Ancora in reparto» per chi non viene più.</li>
       <li><strong>Regole del reparto</strong>: ora di chiusura della serata, voto a se stessi, calendario dei rifiuti, giorni delle pulizie e sintomi dell'oblio.</li>
     </ul>
@@ -282,7 +285,7 @@ a{color:inherit}
 
   <footer class="piede">
     <a class="pill" href="./">Apri l'app</a>
-    <p>The Oblio House · guida per la versione 0.4.4</p>
+    <p>The Oblio House · guida per la versione 0.5.0</p>
   </footer>
 </div>
 </body>

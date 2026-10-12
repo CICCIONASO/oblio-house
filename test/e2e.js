@@ -6,6 +6,10 @@ const fs = require('fs');
 const path = require('path');
 
 const dist = path.join(__dirname, '..', 'docs');
+const PURE = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8'))[1];
+const calc = new Function(PURE + '\nreturn {derive,previsione,normState};')();
+// «1.234,56 €» → 123456 centesimi
+const centesimi = (s) => { const m = /([-−])?\s*([\d.]+),(\d{2})/.exec(s || ''); return m ? (m[1] ? -1 : 1) * (parseInt(m[2].replace(/\./g, ''), 10) * 100 + parseInt(m[3], 10)) : NaN; };
 const shots = path.join(__dirname, 'shots');
 fs.mkdirSync(shots, { recursive: true });
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
@@ -192,7 +196,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   // Scorte: inventario, soglie, carico, lista spesa
   await tab('Altro');
   await shot('11-altro', true); await overflow('altro');
-  await page.click('.voce:has-text("Scorte")');
+  await page.click('.voce:has-text("Scorte e lista")');
   await page.click('.pill:has-text("Inventario")');
   await page.fill('#iv-p2', '3');
   await page.fill('#iv-p3', '12');
@@ -214,6 +218,74 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   if (!/27 pz/.test(await text('#view'))) fail('carico birra: attesi 27 pz');
+
+  // prodotto nuovo dal magazzino, con i pezzi che ci sono già e la soglia
+  await page.click('[data-k="nuovo-prodotto"]');
+  await page.fill('#pr-n', 'Gin tonic');
+  await page.fill('#pr-a', '5');
+  await page.fill('#pr-pz', '6');
+  await page.fill('#pr-so', '2');
+  await shot('13b-nuovo-prodotto');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  if (!/6 pz/.test(await text('.riga:has-text("Gin tonic")'))) fail('prodotto nuovo non entrato in magazzino con 6 pezzi');
+  if (!/soglia 2/.test(await text('.riga:has-text("Gin tonic")'))) fail('prodotto nuovo senza soglia');
+  // dall'inventario: aggiungo un prodotto a metà conta, i numeri già scritti restano
+  await page.click('.pill:has-text("Inventario")');
+  await page.fill('#iv-p4', '7');
+  await page.click('#foglio [data-k="iv-nuovo"]');
+  if (!(await page.$('#pr-pz'))) fail('dall’inventario il prodotto nuovo deve chiedere i pezzi');
+  await page.fill('#pr-n', 'Taralli');
+  await page.fill('#pr-a', '1');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(150);
+  if ((await page.inputValue('#iv-p4').catch(() => '')) !== '7') fail('tornando all’inventario il numero scritto prima si è perso');
+  await page.fill('#foglio li:has(label:text-is("Taralli")) input', '5');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  if (!/5 pz/.test(await text('.riga:has-text("Taralli")'))) fail('inventario del prodotto nuovo non salvato');
+  // dal carico: niente «pezzi adesso», si scrivono come arrivati (una volta sola)
+  await page.click('.pill:has-text("Carico")');
+  await page.fill('#ca-p4', '2');
+  await page.click('#foglio [data-k="ca-nuovo"]');
+  if (await page.$('#pr-pz')) fail('dal carico il prodotto nuovo non deve chiedere i pezzi presenti');
+  await page.fill('#pr-n', 'Patatine');
+  await page.fill('#pr-a', '0,80');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(150);
+  if ((await page.inputValue('#ca-p4').catch(() => '')) !== '2') fail('tornando al carico il numero scritto prima si è perso');
+  await page.fill('#foglio li:has(label:text-is("Patatine")) input', '10');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  if (!/10 pz/.test(await text('.riga:has-text("Patatine")'))) fail('carico del prodotto nuovo non salvato');
+  if (!/9 pz/.test(await text('.riga:has-text("Estath")'))) fail('Estathé: attesi 7 + 2 = 9 pezzi');
+  await shot('13c-scorte-prodotti-nuovi', true); await overflow('scorte con prodotti nuovi');
+
+  // Soldi del locale: stessa cifra in pagina, nel bollettino e nella cassa; il conto lo rifà la prova
+  await tab('Altro');
+  await page.click('.voce:has-text("Soldi del locale")');
+  await page.waitForTimeout(80);
+  await shot('13d-soldi', true); await overflow('soldi');
+  {
+    const st = calc.normState(await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1'))));
+    const P = calc.previsione(st, calc.derive(st));
+    if (P.totale !== P.cassa + P.incassare - P.restituire + P.scorte) fail('soldi: il totale non è la somma delle voci');
+    const mostrato = centesimi(await text('#soldi-tot'));
+    if (mostrato !== P.totale) fail('soldi: in pagina ' + mostrato + ' centesimi, attesi ' + P.totale);
+    const gin = P.righe.find((r) => r.n === 'Gin tonic');
+    if (!gin || gin.v !== 3000) fail('soldi: Gin tonic deve valere 30,00 € (6 × 5,00)');
+    if (!/Gin tonic6 pz × 5,00\s€30,00\s€/.test(await text('.cartella:has(h3:text("Scorte in magazzino"))'))) fail('soldi: riga del Gin tonic sbagliata: ' + (await text('.cartella:has(h3:text("Scorte in magazzino"))')).slice(0, 200));
+    if (!/Prima di fidarvi/.test(await text('#view')) || !/prezzo di vendita/.test(await text('#view'))) fail('soldi: mancano le avvertenze');
+    await tab('Reparto');
+    if (centesimi(await text('[data-k="apri-soldi"]')) !== P.totale) fail('bollettino: soldi previsti diversi dalla pagina');
+    await page.click('[data-k="apri-soldi"]'); await page.waitForTimeout(80);
+    if (!/Soldi del locale/.test(await text('h2.titolo'))) fail('dal bollettino non si apre la pagina dei soldi');
+    if (!/Reparto/.test(await text('.indietro'))) fail('dai soldi il tasto indietro non torna al Reparto');
+    await cassa();
+    if (centesimi(await text('[data-k="cassa-soldi"]')) !== P.totale) fail('cassa: collegamento ai soldi previsti sbagliato');
+    note('soldi del locale: ' + (P.totale / 100).toFixed(2) + ' € (cassa ' + P.cassa / 100 + ', graffi ' + P.incassare / 100 + ', crediti ' + P.restituire / 100 + ', scorte ' + P.scorte / 100 + ')');
+  }
+  await tab('Altro'); await page.click('.voce:has-text("Scorte e lista")');
 
   // la Farmacia mostra le scorte e scala
   await tab('Farmacia');
@@ -283,8 +355,11 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('#foglio [data-k="vt-pj"]');
   await page.waitForTimeout(80);
   if (!/PJ vota PESCE/.test(await text('#toast'))) fail('toast del voto mancante: ' + (await text('#toast')));
-  await page.click('[data-k="tri-pesce"]'); await page.click('#foglio .chip:has-text("Urla strazianti")'); await page.click('#foglio [data-k="vt-ciccio"]'); await page.waitForTimeout(60);
-  if (!/urla strazianti/.test(await text('#toast'))) fail('il sintomo non arriva nel voto: ' + (await text('#toast')));
+  await page.click('[data-k="tri-pesce"]'); await page.click('#foglio .chip:has-text("Urla strazianti")'); await page.click('#foglio .chip:has-text("Silenzio assordante")');
+  if ((await page.$$('#foglio .chip.sm[aria-pressed="true"]')).length !== 2) fail('nel voto non restano accesi due sintomi');
+  await shot('16b-voto-due-sintomi');
+  await page.click('#foglio [data-k="vt-ciccio"]'); await page.waitForTimeout(60);
+  if (!/silenzio assordante, urla strazianti/.test(await text('#toast'))) fail('i due sintomi non arrivano nel voto: ' + (await text('#toast')));
   await page.click('[data-k="tri-ciccio"]'); await page.click('#foglio [data-k="vt-pesce"]'); await page.waitForTimeout(60);
   await page.click('[data-k="tri-pesce"]'); await page.click('#foglio .chip:has-text("Gigi")'); await page.waitForTimeout(60);
   let tri = await text('.triage');
@@ -304,6 +379,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('.triage .pill:has-text("Vedi i voti")');
   await page.waitForTimeout(80);
   await shot('18-voti');
+  if (!/CICCIO → PESCE\s*Silenzio assordante, Urla strazianti/.test(await text('#foglio'))) fail('in «Vedi i voti» mancano i due sintomi: ' + (await text('#foglio')).slice(0, 300));
   await page.click('#foglio li:has-text("Gigi → PESCE") button');
   await page.waitForTimeout(80);
   await page.click('#foglio-x');
@@ -443,6 +519,8 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await overflow('freccette 320'); await shot('32-freccette-320');
   await page.click('.pill:has-text("Abbandona")'); await page.click('#foglio .pill:has-text("Sì, abbandona")');
   await tab('Altro'); await page.click('.voce:has-text("Classifiche")'); await overflow('classifiche 320'); await shot('33-classifiche-320', true);
+  await tab('Altro'); await page.click('.voce:has-text("Soldi del locale")'); await overflow('soldi 320'); await shot('33b-soldi-320', true);
+  await page.click('.indietro'); await page.click('.voce:has-text("Scorte e lista")'); await page.click('[data-k="nuovo-prodotto"]'); await overflow('nuovo prodotto 320'); await shot('33c-nuovo-prodotto-320'); await page.click('#foglio-x');
   await page.setViewportSize({ width: 1100, height: 800 });
   await cassa(); await shot('34-cassa-desktop'); await overflow('cassa desktop');
 
@@ -454,6 +532,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await p2.goto(base);
   await p2.waitForSelector('.tab');
   await p2.click('[data-k="tri-ciccio"]');
+  await p2.click('#foglio .chip:has-text("Dormire al locale")'); await p2.click('#foglio .chip:has-text("Giocare alle slot")');
   await p2.click('#foglio [data-k="vt-pj"]');
   await p2.waitForTimeout(80);
   if (!/1 voto/.test(await p2.textContent('.triage'))) fail('alle 5:58 il voto deve contare nella serata in corso');
@@ -461,6 +540,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await p2.waitForTimeout(150);
   const dopo = await p2.textContent('.triage');
   if (!/Codice rosso di ieri sera: CICCIO/.test(dopo)) fail('alle 6:01 manca il verdetto della serata: ' + dopo);
+  if (!/Diagnosi: dormire al locale, giocare alle slot\./.test(dopo)) fail('alle 6:01 la diagnosi non ha i due sintomi: ' + dopo);
   if (!/0 voti/.test(dopo)) fail('alle 6:01 il triage deve ripartire da zero: ' + dopo);
   if (!/Re dell’oblio di ottobre: CICCIO/.test(dopo)) fail('re dell’oblio del mese non aggiornato: ' + dopo);
   await p2.locator('.triage').screenshot({ path: path.join(shots, '35-triage-dopo-le-6.png') });

@@ -10,7 +10,7 @@ const api = new Function(m[1] + '\nreturn {parseEur,splitShares,derive,seedState
 const { parseEur, splitShares, derive, seedState, normState } = api;
 const { serata, prevMonth, inPer, voteSummary, serateChiuse, dartVal, playDarts, statRe, statConsumi, statFreccette, statPagatori, applyImg0, normImg, IMG0 } = api;
 const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
-const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,sintomiDi,applySintomi0};')();
+const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,sintomiDi,applySintomi0,previsione};')();
 
 // importi
 assert.strictEqual(parseEur('12,50'), 1250);
@@ -367,7 +367,7 @@ const sy = voteSummary([{ v: 'pj', c: 'pesce', y: 'Urla strazianti' }, { v: 'con
 assert.strictEqual(topSintomo(sy.sint.pesce), 'Urla strazianti');
 assert.strictEqual(topSintomo(sy.sint.ciccio), null);
 const nyv = normState({ people: [], products: [], moves: [], votes: [{ s: '2026-10-12', v: 'pj', c: 'pesce', y: '  Silenzio assordante ', t: 1 }, { s: '2026-10-12', v: 'conti', c: 'pesce', y: '', t: 2 }] });
-assert.strictEqual(nyv.votes[0].y, 'Silenzio assordante');
+assert.deepStrictEqual(nyv.votes[0].y, ['Silenzio assordante'], 'voto vecchio con un sintomo solo: diventa una lista');
 assert.ok(!('y' in nyv.votes[1]));
 assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 
@@ -381,4 +381,93 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   applySintomi0(B); assert.deepStrictEqual(B.cfg.sintomi, ['Solo questo']);
   const C = seedState(1); applySintomi0(C); assert.deepStrictEqual(C.cfg.sintomi, SINTOMI0);
 }
+// ---------- più sintomi nello stesso voto ----------
+{
+  const { topSintomi, sintomiVoto } = extra;
+  assert.deepStrictEqual(sintomiVoto({ y: 'Urla' }), ['Urla']);
+  assert.deepStrictEqual(sintomiVoto({}), []);
+  assert.deepStrictEqual(sintomiVoto({ y: ['A', 'B'] }), ['A', 'B']);
+  const mm = voteSummary([
+    { v: 'pj', c: 'pesce', y: ['Urla strazianti', 'Silenzio assordante'] },
+    { v: 'conti', c: 'pesce', y: ['Silenzio assordante'] },
+    { v: 'chicco', c: 'pesce', y: 'Urla strazianti' },                 // voto salvato da una versione vecchia
+    { v: 'ciccio', c: 'pesce', y: ['Giocare alle slot'] },
+    { v: 'ciccio', c: 'conti', y: ['Dormire al locale'] },             // ciccio cambia voto: contano solo i sintomi dell'ultimo
+  ]);
+  assert.strictEqual(mm.tally.pesce, 3);
+  assert.deepStrictEqual(mm.sint.pesce, { 'Urla strazianti': 2, 'Silenzio assordante': 2 });
+  assert.deepStrictEqual(topSintomi(mm.sint.pesce, 3), ['Urla strazianti', 'Silenzio assordante'], 'pari merito: tutti e due');
+  assert.deepStrictEqual(topSintomi(mm.sint.conti, 3), ['Dormire al locale']);
+  assert.deepStrictEqual(topSintomi({ a: 3, b: 1 }, 3), ['a']);
+  assert.deepStrictEqual(topSintomi({}, 3), []);
+  assert.deepStrictEqual(topSintomi(undefined, 3), []);
+  assert.strictEqual(topSintomi({ a: 1, b: 1, c: 1, d: 1 }, 3).length, 3, 'al massimo tre a pari merito');
+  assert.strictEqual(topSintomo(mm.sint.pesce), 'Urla strazianti');
+  // salvataggio: lista pulita, senza doppioni, al massimo 12 sintomi da 40 caratteri
+  const ny = normState({ people: [], products: [], moves: [], votes: [
+    { s: '2026-10-12', v: 'pj', c: 'pesce', y: [' Urla ', 'Urla', '', null, 'x'.repeat(50)], t: 1 },
+    { s: '2026-10-12', v: 'conti', c: 'pesce', y: [], t: 2 },
+    { s: '2026-10-12', v: 'chicco', c: 'pesce', y: Array.from({ length: 20 }, (_, i) => 'S' + i), t: 3 },
+  ] });
+  assert.deepStrictEqual(ny.votes[0].y, ['Urla', 'x'.repeat(40)]);
+  assert.ok(!('y' in ny.votes[1]), 'lista vuota: niente campo');
+  assert.strictEqual(ny.votes[2].y.length, 12);
+  assert.deepStrictEqual(sintomiDi(ny, 'pesce').Urla, 1);
+  assert.strictEqual(sintomiDi(ny, 'pesce').S0, 1);
+  // il salvataggio non cambia un voto già pulito (niente rimbalzi tra telefoni)
+  assert.deepStrictEqual(normState(JSON.parse(JSON.stringify(ny))).votes, ny.votes);
+}
+
+// ---------- previsione dei soldi del locale ----------
+{
+  const { previsione } = extra;
+  const P0 = seedState(1);
+  const id = (n) => P0.products.find((p) => p.name === n).id;
+  const b = id('Birra'), k = id('Kit Kat'), c = id('Coca Cola lattina');
+  let tt = 10;
+  const add = (o) => { const x = Object.assign({ id: 'q' + tt, t: tt++ }, o); P0.moves.push(x); return x; };
+  const vuota = previsione(P0, derive(P0));
+  assert.strictEqual(vuota.totale, 0); assert.strictEqual(vuota.righe.length, 0);
+  assert.strictEqual(vuota.nonContati, P0.products.length, 'all’inizio nessun prodotto è contato');
+  add({ k: 'in', a: 5000 });
+  add({ k: 'inv', a: 0, items: [{ id: b, n: 'Birra', q: 10, pr: 100 }, { id: k, n: 'Kit Kat', q: 4, pr: 150 }, { id: c, n: 'Coca Cola lattina', q: 1, pr: 120 }] });
+  const graffio = add({ k: 'tab', p: 'pesce', a: 300, items: [{ id: b, n: 'Birra', q: 3, pr: 100 }] });   // birre 7, PESCE deve 3 €
+  add({ k: 'sale', p: 'conti', a: 240, items: [{ id: c, n: 'Coca Cola lattina', q: 2, pr: 120 }] });   // coca a −1
+  add({ k: 'exp', a: 900, paidBy: 'chicco', settle: 'debito' });                                         // CHICCO in credito di 9 €
+  const pr = previsione(P0, derive(P0));
+  assert.strictEqual(pr.cassa, 5240);
+  assert.strictEqual(pr.incassare, 300); assert.strictEqual(pr.nInc, 1);
+  assert.strictEqual(pr.restituire, 900); assert.strictEqual(pr.nRes, 1);
+  assert.strictEqual(pr.scorte, 7 * 100 + 4 * 150, 'la coca sotto zero vale zero, non meno');
+  assert.deepStrictEqual(pr.righe.map((r) => [r.n, r.q, r.v]), [['Birra', 7, 700], ['Kit Kat', 4, 600]], 'ordinate per valore');
+  assert.strictEqual(pr.negativi, 1);
+  assert.strictEqual(pr.nonContati, P0.products.length - 3);
+  assert.strictEqual(pr.liquidi, 5240 + 300 - 900);
+  assert.strictEqual(pr.totale, 4640 + 1300);
+  // un prodotto fuori listino ma ancora in magazzino conta; uno fuori listino mai contato non è «da contare»
+  P0.products.find((p) => p.id === k).on = false;
+  const prOff = previsione(P0, derive(P0));
+  assert.strictEqual(prOff.scorte, 1300);
+  P0.products.find((p) => p.id === id('Mars')).on = false;
+  assert.strictEqual(previsione(P0, derive(P0)).nonContati, P0.products.length - 3 - 1);
+  // annullare il graffio: niente da incassare, le birre tornano in magazzino
+  graffio.x = { t: 99 };
+  const pr2 = previsione(P0, derive(P0));
+  assert.strictEqual(pr2.incassare, 0); assert.strictEqual(pr2.nInc, 0);
+  assert.strictEqual(pr2.scorte, 10 * 100 + 4 * 150);
+  // prodotto nuovo con i pezzi iniziali (come lo crea l'app): entra subito nel valore delle scorte
+  P0.products.push({ id: 'pgin', name: 'Gin tonic', cat: 'Bevande', price: 500, min: 2, on: true });
+  add({ k: 'inv', a: 0, items: [{ id: 'pgin', n: 'Gin tonic', q: 3, pr: 500 }] });
+  const pr3 = previsione(P0, derive(P0));
+  assert.strictEqual(pr3.scorte, 1600 + 1500);
+  assert.strictEqual(pr3.righe[0].n, 'Gin tonic');
+  assert.strictEqual(normState(JSON.parse(JSON.stringify(P0))).products.find((p) => p.id === 'pgin').min, 2, 'il prodotto nuovo sopravvive al salvataggio');
+  // cassa in rosso: il totale può essere negativo, nessuna somma nascosta
+  add({ k: 'exp', a: 20000, paidBy: 'cassa' });
+  const pr4 = previsione(P0, derive(P0));
+  assert.strictEqual(pr4.cassa, 5240 - 20000);
+  assert.strictEqual(pr4.totale, pr4.cassa + pr4.incassare - pr4.restituire + pr4.scorte);
+  assert.ok(pr4.totale < 0);
+}
+
 console.log('calcoli: tutto torna (' + S.moves.length + ' movimenti di prova, più voto, freccette, classifiche, rifiuti e pulizie)');
