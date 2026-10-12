@@ -1,0 +1,39 @@
+<div class="app" id="app">
+  <div class="decor" aria-hidden="true"><div class="spirale"></div></div>
+  <header class="testa">
+    <svg class="logo" viewBox="0 0 44 44" aria-hidden="true">
+      <path d="M15 2h14v13h13v14H29v13H15V29H2V15h13z" fill="#9BE22D" stroke="#160633" stroke-width="2.5" stroke-linejoin="round"/>
+      <g transform="translate(22 27) scale(0.2)" fill="#160633">
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(34) scale(0.86)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-34) scale(0.86)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(66) scale(0.66)"/>
+        <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-66) scale(0.66)"/>
+        <path d="M0 0Q6 -32 0 -64Q-6 -32 0 0Z" transform="rotate(100) scale(0.4)"/>
+        <path d="M0 0Q6 -32 0 -64Q-6 -32 0 0Z" transform="rotate(-100) scale(0.4)"/>
+        <path d="M-1.5 0h3v16h-3z"/>
+      </g>
+    </svg>
+    <div class="marchio">
+      <h1>The Oblio House</h1>
+      <p>Reparto fattoni e obliosi</p>
+    </div>
+  </header>
+  <div class="avviso" id="avviso" hidden></div>
+  <main id="view" tabindex="-1">
+    <section class="cartella">
+      <div class="cart-h"><h2 class="etichetta">Bollettino del reparto</h2></div>
+      <div class="riga-tratt"></div>
+      <p class="vuoto">Apro le cartelle. Qui compaiono cassa della farmacia, ticket non pagati e scorte da ricomprare.</p>
+    </section>
+  </main>
+</div>
+<nav class="nav" aria-label="Sezioni"><div class="nav-in" id="nav"></div></nav>
+<dialog class="foglio" id="foglio" aria-labelledby="foglio-t">
+  <div class="foglio-h">
+    <h2 id="foglio-t"></h2>
+    <button class="tondo" id="foglio-x" type="button" aria-label="Chiudi"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="foglio-b" id="foglio-b"></div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>

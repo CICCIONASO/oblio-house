@@ -1,0 +1,374 @@
+// Prova dei calcoli: importi, divisione spese, debiti, cassa, scorte, voto, freccette, classifiche.
+process.env.TZ = 'Europe/Rome';
+const fs = require('fs');
+const path = require('path');
+const assert = require('assert');
+const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+const m = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(js);
+if (!m) throw new Error('blocco PURE non trovato');
+const api = new Function(m[1] + '\nreturn {parseEur,splitShares,derive,seedState,normState,unitsOf,ymd,toInt,serata,prevMonth,inPer,voteSummary,serateChiuse,dartVal,playDarts,statRe,statConsumi,statFreccette,statPagatori,applyImg0,normImg,IMG0,rifiutiSerata,calPieno,prossimiRifiuti,statSpazzatura,pulizieStato,normCfg};')();
+const { parseEur, splitShares, derive, seedState, normState } = api;
+const { serata, prevMonth, inPer, voteSummary, serateChiuse, dartVal, playDarts, statRe, statConsumi, statFreccette, statPagatori, applyImg0, normImg, IMG0 } = api;
+const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
+const extra = new Function(m[1] + '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,sintomiDi};')();
+
+// importi
+assert.strictEqual(parseEur('12,50'), 1250);
+assert.strictEqual(parseEur('3'), 300);
+assert.strictEqual(parseEur('0,5'), 50);
+assert.strictEqual(parseEur('1.234,56'), 123456);
+assert.strictEqual(parseEur('€ 4,00'), 400);
+assert.strictEqual(parseEur('2.67'), 267);
+assert.strictEqual(parseEur('2,675'), NaN);
+assert.strictEqual(parseEur('0'), 0);
+assert.ok(isNaN(parseEur('')));
+assert.ok(isNaN(parseEur('abc')));
+assert.ok(isNaN(parseEur('-3')));
+assert.strictEqual(parseEur('19,99'), 1999);
+
+// divisione
+const sh = splitShares(1000, ['a', 'b', 'c']);
+assert.deepStrictEqual(sh, { a: 334, b: 333, c: 333 });
+assert.strictEqual(Object.values(splitShares(1, ['a', 'b', 'c', 'd', 'e', 'f'])).reduce((s, v) => s + v, 0), 1);
+assert.deepStrictEqual(splitShares(900, ['pj', 'pesce', 'ciccio', 'peppecarlo', 'conti', 'chicco']), { pj: 150, pesce: 150, ciccio: 150, peppecarlo: 150, conti: 150, chicco: 150 });
+
+// listino e persone iniziali
+const S = seedState(1000);
+assert.strictEqual(S.people.length, 6);
+assert.strictEqual(S.products.length, 24);
+assert.strictEqual(S.products.find((p) => p.name === 'Birra').price, 100);
+assert.strictEqual(S.products.find((p) => p.name === 'Kit Kat').price, 150);
+const birra = S.products.find((p) => p.name === 'Birra').id;
+const bueno = S.products.find((p) => p.name === 'Kinder Bueno').id;
+
+let t = 2000;
+const mv = (o) => { const x = Object.assign({ id: 'm' + t, t: t++ }, o); S.moves.push(x); return x; };
+mv({ k: 'inv', a: 0, items: [{ id: birra, n: 'Birra', q: 10, pr: 100 }] });
+mv({ k: 'tab', p: 'pesce', a: 330, items: [{ id: birra, n: 'Birra', q: 2, pr: 100 }, { id: bueno, n: 'Kinder Bueno', q: 1, pr: 130 }] });
+mv({ k: 'sale', p: 'ciccio', a: 100, items: [{ id: birra, n: 'Birra', q: 1, pr: 100 }] });
+const pay = mv({ k: 'pay', p: 'pesce', a: 200 });
+mv({ k: 'dplus', p: 'conti', a: 500, note: 'vecchio conto' });
+mv({ k: 'dminus', p: 'conti', a: 100 });
+mv({ k: 'exp', a: 1000, paidBy: 'cassa', cat: 'Rifornimento bar' });
+mv({ k: 'in', a: 5000, note: 'fondo iniziale' });
+mv({ k: 'exp', a: 600, paidBy: 'pj', settle: 'debito' });
+mv({ k: 'exp', a: 900, paidBy: 'chicco', settle: 'dividi', shares: splitShares(900, S.people.map((p) => p.id)) });
+
+let D = derive(S);
+assert.strictEqual(D.cash, 100 + 200 - 1000 + 5000, 'cassa');
+assert.strictEqual(D.debt.pesce, 330 - 200 + 150, 'pesce');
+assert.strictEqual(D.debt.ciccio, 150, 'ciccio');
+assert.strictEqual(D.debt.conti, 500 - 100 + 150, 'conti');
+assert.strictEqual(D.debt.pj, -600 + 150, 'pj in credito');
+assert.strictEqual(D.debt.chicco, -900 + 150, 'chicco in credito');
+assert.strictEqual(D.debt.peppecarlo, 150, 'peppecarlo');
+assert.strictEqual(D.stock[birra], 7, 'scorta birra');
+assert.strictEqual(D.stock[bueno], undefined, 'bueno non contato');
+assert.strictEqual(D.units.pesce, 4, 'tacche pesce');
+assert.strictEqual(D.units.pj || 0, 0, 'pj senza tacche');
+assert.strictEqual(D.spent.pesce, 330);
+assert.strictEqual(D.sold[birra], 3);
+
+// la somma dei debiti e dei crediti torna con le spese anticipate
+const somma = Object.values(D.debt).reduce((s, v) => s + v, 0);
+assert.strictEqual(somma, (330 - 200) + (500 - 100) - 600 + (900 - 900), 'quadratura debiti');
+
+// rimborso dalla cassa di una spesa anticipata
+mv({ k: 'exp', a: 250, paidBy: 'conti', settle: 'cassa' });
+D = derive(S);
+assert.strictEqual(D.cash, 4300 - 250);
+assert.strictEqual(D.debt.conti, 550);
+
+// conta cassa: riallineo a 40,00
+mv({ k: 'count', a: 4000 - D.cash, counted: 4000, expected: D.cash });
+D = derive(S);
+assert.strictEqual(D.cash, 4000);
+
+// annullo il pagamento di pesce
+pay.x = { t: 1 };
+D = derive(S);
+assert.strictEqual(D.debt.pesce, 480);
+assert.strictEqual(D.cash, 3800);
+delete pay.x;
+
+// carico e scorta negativa
+mv({ k: 'load', a: 0, items: [{ id: birra, n: 'Birra', q: 24, pr: 100 }, { id: bueno, n: 'Kinder Bueno', q: 5, pr: 130 }] });
+mv({ k: 'tab', p: 'pj', a: 780, items: [{ id: bueno, n: 'Kinder Bueno', q: 6, pr: 130 }] });
+D = derive(S);
+assert.strictEqual(D.stock[birra], 31);
+assert.strictEqual(D.stock[bueno], -1);
+assert.strictEqual(D.debt.pj, -450 + 780);
+assert.strictEqual(D.units.pj, 6, 'tacche pj: il credito copre una parte ma la consumazione resta aperta');
+
+// pagamento totale azzera le tacche
+mv({ k: 'pay', p: 'pj', a: 330 });
+D = derive(S);
+assert.strictEqual(D.debt.pj, 0);
+assert.strictEqual(D.units.pj || 0, 0);
+
+// andata e ritorno del backup
+const back = normState(JSON.parse(JSON.stringify(S)));
+assert.ok(back);
+assert.deepStrictEqual(derive(back), D);
+assert.strictEqual(normState({ foo: 1 }), null);
+assert.strictEqual(normState(null), null);
+
+// dati sporchi non rompono i calcoli
+const dirty = normState({ people: [{ id: 'x', name: '' }, null, { name: 'no id' }], products: [{ id: 'p', price: 'abc', min: '' }], moves: [{ k: 'tab', p: 'x', a: 'NaN' }, { k: 'pay', p: 'x', a: -500 }, 'boh', { k: 'count', a: -200 }] });
+assert.strictEqual(dirty.people.length, 1);
+assert.strictEqual(dirty.people[0].name, 'Senza nome');
+assert.strictEqual(dirty.products[0].price, 0);
+assert.strictEqual(dirty.products[0].min, null);
+const Dd = derive(dirty);
+assert.strictEqual(Dd.cash, -200);
+assert.strictEqual(Dd.debt.x || 0, 0);
+
+// ---------- serata: vale fino alle 6 del mattino dopo ----------
+const L = (y, mo, d, hh, mi) => new Date(y, mo - 1, d, hh, mi || 0).getTime();
+assert.strictEqual(serata(L(2026, 10, 12, 23, 0), 6), '2026-10-12');
+assert.strictEqual(serata(L(2026, 10, 13, 5, 59), 6), '2026-10-12');
+assert.strictEqual(serata(L(2026, 10, 13, 6, 0), 6), '2026-10-13');
+assert.strictEqual(serata(L(2026, 11, 1, 2, 0), 6), '2026-10-31', 'a cavallo del mese');
+assert.strictEqual(serata(L(2026, 1, 1, 3, 0), 6), '2025-12-31', 'a cavallo dell’anno');
+assert.strictEqual(serata(L(2026, 10, 25, 5, 30), 6), '2026-10-24', 'notte del ritorno all’ora solare');
+assert.strictEqual(serata(L(2026, 10, 25, 6, 30), 6), '2026-10-25');
+assert.strictEqual(serata(L(2026, 3, 29, 5, 30), 6), '2026-03-28', 'notte del passaggio all’ora legale');
+assert.strictEqual(serata(L(2026, 10, 12, 0, 30), 0), '2026-10-12', 'chiusura a mezzanotte');
+assert.strictEqual(prevMonth('2026-01'), '2025-12');
+assert.ok(inPer('2026-10-03', 'mese', '2026-10-12'));
+assert.ok(!inPer('2026-09-30', 'mese', '2026-10-12'));
+assert.ok(inPer('2026-09-30', 'scorso', '2026-10-12'));
+assert.ok(inPer('2020-01-01', 'sempre', '2026-10-12'));
+
+// ---------- voto palese ----------
+const vs = voteSummary([{ v: 'pj', c: 'pesce' }, { v: 'ciccio', c: 'pesce' }, { v: 'pesce', c: 'ciccio' }, { v: 'pj', c: 'ciccio' }]);
+assert.deepStrictEqual(vs.tally, { pesce: 1, ciccio: 2 }, 'vale l’ultimo voto di pj');
+assert.deepStrictEqual(vs.winners, ['ciccio']);
+assert.strictEqual(vs.n, 3);
+assert.deepStrictEqual(voteSummary([{ v: 'a', c: 'x' }, { v: 'b', c: 'y' }]).winners.sort(), ['x', 'y'], 'pari merito');
+assert.deepStrictEqual(voteSummary([]).winners, []);
+
+const SV = seedState(1);
+SV.votes = [
+  { id: '1', s: '2026-10-10', v: 'pj', c: 'pesce', t: 1 }, { id: '2', s: '2026-10-10', v: 'conti', c: 'pesce', t: 2 }, { id: '3', s: '2026-10-10', v: 'pesce', c: 'ciccio', t: 3 },
+  { id: '4', s: '2026-10-11', v: 'pj', c: 'ciccio', t: 4 }, { id: '5', s: '2026-10-11', v: 'ciccio', c: 'pj', t: 5 },
+  { id: '6', s: '2026-09-30', v: 'pj', c: 'conti', t: 6 },
+  { id: '7', s: '2026-10-12', v: 'pj', c: 'chicco', t: 7 },
+];
+assert.deepStrictEqual(Object.keys(serateChiuse(SV, '2026-10-12')).sort(), ['2026-09-30', '2026-10-10', '2026-10-11']);
+const reO = statRe(SV, 'mese', '2026-10-12');
+assert.strictEqual(reO.serate, 2);
+assert.deepStrictEqual(reO.by.pesce, { rossi: 1, voti: 2 });
+assert.deepStrictEqual(reO.by.ciccio, { rossi: 1, voti: 2 }, 'pari merito l’11: codice rosso a tutti e due');
+assert.deepStrictEqual(reO.by.pj, { rossi: 1, voti: 1 });
+assert.ok(!reO.by.chicco, 'la serata ancora aperta non conta');
+assert.ok(!reO.by.conti, 'settembre è fuori da questo mese');
+assert.strictEqual(statRe(SV, 'scorso', '2026-10-12').by.conti.rossi, 1);
+assert.strictEqual(statRe(SV, 'sempre', '2026-10-12').serate, 3);
+
+// ---------- freccette: 501/301 a chiusura libera ----------
+assert.deepStrictEqual(dartVal('T20'), { n: 20, m: 3, v: 60 });
+assert.deepStrictEqual(dartVal('D25'), { n: 25, m: 2, v: 50 });
+assert.deepStrictEqual(dartVal('M'), { n: 0, m: 0, v: 0 });
+assert.deepStrictEqual(dartVal('T25'), { n: 0, m: 0, v: 0 }, 'il triplo centro non esiste');
+const tira = (g, ...c) => { g.d.push(...c); return playDarts(g); };
+const g1 = { mode: '301', players: ['pj', 'pesce'], d: [] };
+let st = tira(g1, 'T20', 'T20', 'T20');
+assert.strictEqual(st.R.pj.left, 121); assert.strictEqual(st.cur, 1); assert.strictEqual(st.turns[0].pts, 180);
+st = tira(g1, 'S20', 'S20', 'S20');
+assert.strictEqual(st.R.pesce.left, 241); assert.strictEqual(st.cur, 0);
+st = tira(g1, 'T20', 'S20', 'S1');
+assert.strictEqual(st.R.pj.left, 40);
+st = tira(g1, 'M', 'M', 'M');
+st = tira(g1, 'T20');
+assert.strictEqual(st.R.pj.left, 40, 'sballato: torna al punteggio di inizio turno');
+assert.strictEqual(st.cur, 1, 'sballato alla prima freccetta: il turno finisce subito');
+assert.ok(st.turns[st.turns.length - 1].bust);
+st = tira(g1, 'S1', 'S1', 'S1');
+assert.strictEqual(st.R.pesce.left, 238);
+st = tira(g1, 'S20', 'S19');
+assert.strictEqual(st.R.pj.left, 1); assert.strictEqual(st.turn.length, 2); assert.strictEqual(st.t0, 40);
+st = tira(g1, 'S1');
+assert.strictEqual(st.win, 'pj', 'chiusura libera: basta un singolo');
+assert.strictEqual(st.R.pj.left, 0); assert.strictEqual(st.R.pj.co, 40);
+assert.deepStrictEqual(st.ultimi, ['pesce']);
+assert.strictEqual(st.R.pj.darts, 10); assert.strictEqual(st.R.pj.pts, 301); assert.strictEqual(st.R.pj.best, 180); assert.strictEqual(st.R.pj.busts, 1);
+assert.strictEqual(playDarts(Object.assign({}, g1, { d: g1.d.concat(['T20']) })).used, g1.d.length, 'i tiri dopo la vittoria non contano');
+const g2 = { mode: '501', players: ['a'], d: ['T20', 'T20', 'T20', 'T20', 'T20', 'T20', 'T20', 'T20', 'T19', 'T20'] };
+assert.strictEqual(playDarts(g2).R.a.left, 81, 'sballato alla terza freccetta');
+assert.strictEqual(playDarts({ mode: '301', players: ['a', 'b'], d: ['D25', 'S25', 'M'] }).R.a.left, 226);
+
+// ---------- giro dell'orologio: doppio +2, triplo +3 ----------
+const go1 = { mode: 'orologio', players: ['pj', 'ciccio'], d: [] };
+let so = tira(go1, 'T1', 'D4', 'S6');
+assert.strictEqual(so.R.pj.tgt, 7); assert.strictEqual(so.cur, 1);
+so = tira(go1, 'S5', 'M', 'S2');
+assert.strictEqual(so.R.ciccio.tgt, 1, 'conta solo il numero di turno');
+so = tira(go1, 'T7', 'T10', 'T13', 'M', 'M', 'M', 'T16', 'D19');
+assert.strictEqual(so.win, 'pj'); assert.strictEqual(so.R.pj.tgt, 21);
+assert.deepStrictEqual(so.ultimi, ['ciccio']);
+const go2 = { mode: 'orologio', players: ['a'], d: [] };
+for (let n = 1; n <= 20; n++) go2.d.push('S' + n);
+assert.strictEqual(playDarts(go2).win, 'a', 'il singolo sul 20 chiude, niente centro');
+assert.strictEqual(playDarts(go2).R.a.darts, 20);
+
+// ---------- classifiche ----------
+const SG = seedState(1);
+SG.games = [
+  Object.assign({ id: 'g1', t: L(2026, 10, 12, 22, 0), end: 1 }, g1),
+  { id: 'g2', t: L(2026, 10, 12, 23, 0), mode: '301', players: ['pj', 'pesce'], d: ['T20'], end: 0 },
+  Object.assign({ id: 'g3', t: L(2026, 10, 12, 23, 30), end: 1, x: { t: 1 } }, go1),
+  { id: 'g4', t: L(2026, 10, 12, 23, 40), mode: 'orologio', players: ['ciccio'], d: go2.d.slice(), end: 1 },
+];
+const fr1 = statFreccette(SG, 'mese', '2026-10-12', 6);
+assert.strictEqual(fr1.pj.vinte, 1); assert.strictEqual(fr1.pj.gare, 1); assert.strictEqual(fr1.pesce.ultimo, 1);
+assert.strictEqual(fr1.pj.co, 40); assert.strictEqual(fr1.pj.darts, 10);
+assert.strictEqual(fr1.ciccio.gare, 0, 'da solo è allenamento, la partita annullata non conta');
+
+const day = 864e5, T0 = L(2026, 10, 5, 22, 0);
+const SP = seedState(1);
+SP.moves = [
+  { id: '1', t: T0, k: 'sale', p: 'pj', a: 200, items: [{ n: 'Birra', q: 2, pr: 100 }] },
+  { id: '2', t: T0, k: 'tab', p: 'pesce', a: 300, items: [{ n: 'Birra', q: 3, pr: 100 }] },
+  { id: '3', t: T0 + 2 * day, k: 'pay', p: 'pesce', a: 300 },
+  { id: '4', t: T0, k: 'tab', p: 'conti', a: 100, items: [{ n: 'Mars', q: 1, pr: 100 }] },
+  { id: '5', t: T0, k: 'pay', p: 'chicco', a: 500 },
+  { id: '6', t: T0 + day, k: 'tab', p: 'chicco', a: 150, items: [{ n: 'Kit Kat', q: 1, pr: 150 }] },
+  { id: '7', t: T0, k: 'tab', p: 'ciccio', a: 100, items: [{ n: 'Mars', q: 1, pr: 100 }], x: { t: 1 } },
+  { id: '8', t: T0, k: 'tab', p: 'peppecarlo', a: 200, items: [{ n: 'Birra', q: 2, pr: 100 }] },
+  { id: '9', t: T0 + day, k: 'pay', p: 'peppecarlo', a: 100 },
+];
+const pg = statPagatori(SP, 'mese', '2026-10-12', 6, T0 + 3 * day);
+assert.strictEqual(pg.pj.giorni, 0, 'paga subito = zero giorni');
+assert.ok(Math.abs(pg.pesce.giorni - 2) < 1e-9);
+assert.ok(Math.abs(pg.conti.giorni - 3) < 1e-9, 'quello ancora sul ticket conta fino a oggi'); assert.strictEqual(pg.conti.open, 100);
+assert.strictEqual(pg.chicco.giorni, 0, 'credito già versato: zero giorni');
+assert.ok(Math.abs(pg.peppecarlo.giorni - 2) < 1e-9, 'metà pagata dopo 1 giorno, metà aperta da 3');
+assert.ok(!pg.ciccio, 'movimento annullato');
+const cs = statConsumi(SP, 'mese', '2026-10-12', 6);
+assert.deepStrictEqual(cs.pesce, { eur: 300, pz: 3 });
+assert.deepStrictEqual(cs.pj, { eur: 200, pz: 2 });
+assert.ok(!cs.ciccio);
+assert.deepStrictEqual(statConsumi(SP, 'scorso', '2026-10-12', 6), {});
+
+// ---------- backup vecchi e dati sporchi ----------
+const old = normState({ people: [{ id: 'pj', name: 'PJ' }], products: [], moves: [] });
+assert.deepStrictEqual(old.votes, []); assert.deepStrictEqual(old.games, []);
+assert.strictEqual(old.cfg.voteCut, 6); assert.strictEqual(old.cfg.selfVote, true); assert.strictEqual(old.cfg.puliziaGiorni, 14);
+assert.deepStrictEqual(old.cfg.rifiuti, { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] });
+assert.deepStrictEqual(old.trash, []); assert.deepStrictEqual(old.cleanings, []);
+assert.strictEqual(old.people[0].img, '');
+const nv = normState({ people: [], products: [], moves: [], votes: [{ s: '2026-10-12', v: 'pj', c: 'pesce', t: 1 }, { s: '2026-10-12', v: 'pj', c: 'conti', t: 5 }, { s: 'boh', v: 'pj', c: 'x' }, { s: '2026-10-12', v: '', c: 'x' }, null] });
+assert.strictEqual(nv.votes.length, 1); assert.strictEqual(nv.votes[0].c, 'conti');
+const ng = normState({ people: [], products: [], moves: [], games: [
+  { id: 'a', mode: 'cricket', players: ['pj'], d: [] },
+  { id: 'b', mode: '301', players: ['pj', 'pj', 'pesce'], d: ['T20', 'X9', 'T21', 'S25', 'D25'] },
+  { id: 'c', mode: 'orologio', players: ['a'], d: go2.d.concat(['S5']) }] });
+assert.strictEqual(ng.games.length, 2);
+assert.deepStrictEqual(ng.games[0].players, ['pj', 'pesce']);
+assert.deepStrictEqual(ng.games[0].d, ['T20', 'S25', 'D25']);
+assert.strictEqual(ng.games[0].end, 0);
+assert.strictEqual(ng.games[1].d.length, 20); assert.ok(ng.games[1].end > 0);
+assert.strictEqual(normState({ people: [], products: [], moves: [], cfg: { voteCut: 30 } }).cfg.voteCut, 6);
+assert.strictEqual(normState({ people: [], products: [], moves: [], cfg: { voteCut: 0 } }).cfg.voteCut, 0);
+assert.strictEqual(normState({ people: [], products: [], moves: [], cfg: { voteCut: '4', selfVote: false } }).cfg.selfVote, false);
+assert.strictEqual(normImg('c3'), 'c3'); assert.strictEqual(normImg('c9'), ''); assert.strictEqual(normImg('javascript:alert(1)'), '');
+assert.strictEqual(normImg('data:image/jpeg;base64,AAAA'), 'data:image/jpeg;base64,AAAA');
+assert.strictEqual(normImg('data:image/svg+xml;base64,AAAA'), '', 'niente svg: potrebbero contenere script');
+
+// ---------- caricature: assegnate una volta, senza rubare scelte fatte a mano ----------
+assert.deepStrictEqual(IMG0, { pesce: 'c1', conti: 'c2', chicco: 'c3', pj: 'c4', peppecarlo: 'c5', ciccio: 'c6' });
+const SI = seedState(1);
+SI.people.find((p) => p.id === 'conti').img = 'c1';
+assert.strictEqual(applyImg0(SI), true);
+assert.strictEqual(SI.people.find((p) => p.id === 'pesce').img, '', 'la c1 l’ha già presa conti a mano');
+assert.strictEqual(SI.people.find((p) => p.id === 'pj').img, 'c4');
+assert.strictEqual(SI.people.find((p) => p.id === 'conti').img, 'c1');
+assert.strictEqual(applyImg0(SI), false, 'non si ripete');
+SI.people.find((p) => p.id === 'pj').img = '';
+assert.strictEqual(applyImg0(SI), false, 'tolta a mano resta tolta');
+assert.strictEqual(applyImg0(normState(JSON.parse(JSON.stringify(SI)))), false, 'anche dopo un backup');
+
+// ---------- rifiuti: si espone la sera prima del ritiro ----------
+const cfgR = normCfg({ rifiuti: { 1: ['organico', 'boh'], 2: ['plastica', 'vetro'], 4: ['carta'], 6: ['secco'] } });
+assert.deepStrictEqual(cfgR.rifiuti[1], ['organico'], 'frazioni sconosciute scartate');
+assert.deepStrictEqual(cfgR.rifiuti[2], ['vetro', 'plastica'], 'ordine fisso del calendario');
+assert.ok(calPieno(cfgR)); assert.ok(!calPieno(normCfg({})));
+// 2026-10-11 è domenica: la sera si espone l'organico del lunedì mattina
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-10-11'), ['organico']);
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-10-12'), ['vetro', 'plastica'], 'lunedì sera → ritiro di martedì');
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-10-13'), [], 'martedì sera: il mercoledì non passa nessuno');
+assert.deepStrictEqual(prossimiRifiuti(cfgR, '2026-10-13'), { k: '2026-10-14', f: ['carta'] });
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-10-24'), [], 'sabato sera: la domenica non si ritira');
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-10-31'), [], 'fine mese: sabato 31 → domenica, niente');
+assert.deepStrictEqual(rifiutiSerata(cfgR, '2026-11-01'), ['organico'], 'domenica 1 novembre → lunedì 2');
+assert.strictEqual(prossimiRifiuti(normCfg({}), '2026-10-13'), null);
+assert.strictEqual(normCfg({ puliziaGiorni: 0 }).puliziaGiorni, 14);
+assert.strictEqual(normCfg({ puliziaGiorni: '10' }).puliziaGiorni, 10);
+
+const ST = seedState(1);
+ST.trash = [
+  { id: 't1', s: '2026-10-11', p: ['pj'], f: ['organico'], t: 1 },
+  { id: 't2', s: '2026-10-12', p: ['pj', 'pesce'], f: ['vetro'], t: 2 },
+  { id: 't3', s: '2026-09-28', p: ['conti'], f: ['carta'], t: 3 },
+];
+const spz = statSpazzatura(ST, 'mese', '2026-10-12');
+assert.deepStrictEqual(spz.pj, { n: 2, ultima: '2026-10-12' });
+assert.deepStrictEqual(spz.pesce, { n: 1, ultima: '2026-10-12' });
+assert.ok(!spz.conti, 'settembre è fuori');
+assert.strictEqual(statSpazzatura(ST, 'sempre', '2026-10-12').conti.n, 1);
+const nt = normState({ people: [], products: [], moves: [], trash: [
+  { s: '2026-10-12', p: ['pj'], f: ['vetro'], t: 5 }, { s: '2026-10-12', p: ['ciccio'], f: ['vetro'], t: 9 },
+  { s: '2026-10-13', p: [], f: [] }, { s: 'ieri', p: ['pj'] }, { s: '2026-10-14', p: ['pj', 'pj'], f: ['plutonio'], t: 3 }] });
+assert.strictEqual(nt.trash.length, 2, 'una sola uscita per serata, senza nomi niente');
+assert.deepStrictEqual(nt.trash[0].p, ['ciccio'], 'vale l’ultima segnata');
+assert.deepStrictEqual(nt.trash[1].p, ['pj']); assert.deepStrictEqual(nt.trash[1].f, []);
+
+// ---------- pulizie: avviso dopo 14 giorni ----------
+const SC = seedState(1);
+assert.deepStrictEqual(pulizieStato(SC, L(2026, 10, 12, 22), 14).mai, true);
+SC.cleanings = [{ id: 'c1', t: L(2026, 9, 20, 18), p: [] }, { id: 'c2', t: L(2026, 9, 28, 18), p: ['pj'] }];
+let pu = pulizieStato(SC, L(2026, 10, 11, 17), 14);
+assert.strictEqual(pu.giorni, 12); assert.strictEqual(pu.scadute, false); assert.strictEqual(pu.mancano, 2);
+pu = pulizieStato(SC, L(2026, 10, 12, 18, 1), 14);
+assert.strictEqual(pu.giorni, 14); assert.strictEqual(pu.scadute, true, 'dopo due settimane esce l’avviso');
+assert.strictEqual(pulizieStato(SC, L(2026, 10, 12, 18, 1), 20).scadute, false, 'soglia dalle regole');
+const nc = normState({ people: [], products: [], moves: [], cleanings: [{ t: 50, p: ['pj', 'pj'] }, { t: 0 }, null, { t: 10 }] });
+assert.strictEqual(nc.cleanings.length, 2); assert.strictEqual(nc.cleanings[0].t, 10); assert.deepStrictEqual(nc.cleanings[1].p, ['pj']);
+
+// ---------- calendario del centro precompilato (dalla foto) ----------
+const { applyCal0, CAL0, SINTOMI0, topSintomo, sintomiDi } = extra;
+const SK = seedState(1);
+assert.ok(!calPieno(SK.cfg));
+assert.strictEqual(applyCal0(SK), true);
+assert.deepStrictEqual(SK.cfg.rifiuti[1], ['organico', 'vetro'], 'lunedì: organico e vetro');
+assert.deepStrictEqual(SK.cfg.rifiuti[2], ['secco']);
+assert.deepStrictEqual(SK.cfg.rifiuti[4], ['plastica']);
+assert.deepStrictEqual(SK.cfg.rifiuti[6], ['carta']);
+assert.ok(![1, 2, 3, 4, 5, 6].some((g) => SK.cfg.rifiuti[g].includes('pannolini')), 'pannolini fuori di default');
+assert.deepStrictEqual(rifiutiSerata(SK.cfg, '2026-10-12'), ['secco'], 'lunedì sera: secco per il martedì');
+assert.deepStrictEqual(rifiutiSerata(SK.cfg, '2026-10-11'), ['organico', 'vetro'], 'domenica sera: organico e vetro');
+assert.strictEqual(applyCal0(SK), false, 'una volta sola');
+const SK2 = seedState(1); SK2.cfg.rifiuti[3] = ['vetro'];
+applyCal0(SK2);
+assert.deepStrictEqual(SK2.cfg.rifiuti[1], [], 'un calendario già compilato a mano non si tocca');
+SK.cfg.rifiuti = normCfg({}).rifiuti;
+assert.strictEqual(applyCal0(normState(JSON.parse(JSON.stringify(SK)))), false, 'svuotato a mano resta vuoto, anche dopo un backup');
+assert.ok(Object.keys(CAL0).length === 6);
+
+// ---------- sintomi dell'oblio ----------
+assert.ok(SINTOMI0.length >= 8);
+assert.ok(SINTOMI0.includes('Richieste di essere ucciso'));
+assert.ok(!SINTOMI0.some((s) => /uccidersi/i.test(s)));
+assert.deepStrictEqual(normCfg({}).sintomi, SINTOMI0);
+assert.deepStrictEqual(normCfg({ sintomi: [' Urla ', 'Urla', '', 'x'.repeat(60)] }).sintomi, ['Urla', 'x'.repeat(40)]);
+assert.deepStrictEqual(normCfg({ sintomi: [] }).sintomi, [], 'lista svuotata a mano resta vuota');
+const sy = voteSummary([{ v: 'pj', c: 'pesce', y: 'Urla strazianti' }, { v: 'conti', c: 'pesce', y: 'Urla strazianti' }, { v: 'ciccio', c: 'pesce', y: 'Grida silenziose' }, { v: 'pesce', c: 'ciccio' }]);
+assert.strictEqual(topSintomo(sy.sint.pesce), 'Urla strazianti');
+assert.strictEqual(topSintomo(sy.sint.ciccio), null);
+const nyv = normState({ people: [], products: [], moves: [], votes: [{ s: '2026-10-12', v: 'pj', c: 'pesce', y: '  Silenzio assordante ', t: 1 }, { s: '2026-10-12', v: 'conti', c: 'pesce', y: '', t: 2 }] });
+assert.strictEqual(nyv.votes[0].y, 'Silenzio assordante');
+assert.ok(!('y' in nyv.votes[1]));
+assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
+
+console.log('calcoli: tutto torna (' + S.moves.length + ' movimenti di prova, più voto, freccette, classifiche, rifiuti e pulizie)');

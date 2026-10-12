@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#2A0E4F"/>
+  <g fill="none" stroke="#35155F" stroke-width="26">
+    <circle cx="256" cy="256" r="118"/>
+    <circle cx="256" cy="256" r="170"/>
+    <circle cx="256" cy="256" r="222"/>
+    <circle cx="256" cy="256" r="274"/>
+    <circle cx="256" cy="256" r="326"/>
+  </g>
+  <g transform="translate(256 256) scale(__SCALA__) translate(-22 -22)">
+    <path d="M15 2h14v13h13v14H29v13H15V29H2V15h13z" fill="#9BE22D" stroke="#160633" stroke-width="2.4" stroke-linejoin="round"/>
+    <g transform="translate(22 27) scale(0.2)" fill="#160633">
+      <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z"/>
+      <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(34) scale(0.86)"/>
+      <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-34) scale(0.86)"/>
+      <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(66) scale(0.66)"/>
+      <path d="M0 0Q7 -32 0 -64Q-7 -32 0 0Z" transform="rotate(-66) scale(0.66)"/>
+      <path d="M0 0Q6 -32 0 -64Q-6 -32 0 0Z" transform="rotate(100) scale(0.4)"/>
+      <path d="M0 0Q6 -32 0 -64Q-6 -32 0 0Z" transform="rotate(-100) scale(0.4)"/>
+      <path d="M-1.5 0h3v16h-3z"/>
+    </g>
+  </g>
+</svg>
