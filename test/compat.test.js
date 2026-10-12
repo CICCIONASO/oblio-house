@@ -15,7 +15,9 @@ const pure = (file) => /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.
 const NUOVA = carica(pure(path.join(__dirname, '..', 'src', 'app.js')));
 const V044 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.4.4.js'), 'utf8'));
 const V050 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.0.js'), 'utf8'));
-assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0');
+const V051 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.1.js'), 'utf8'));
+assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1');
+const VOTI_DAL = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn VOTI_DAL;')();
 const sintomi = (v) => NUOVA.sintomiVoto(v);
 
 // finto server: ultimo che scrive vince, con un contatore come ora del server
@@ -23,7 +25,7 @@ function Server() { this.docs = {}; this.clock = 0; }
 Server.prototype.write = function (key, d) { this.docs[key] = Object.assign({ key }, d, { s: ++this.clock }); };
 Server.prototype.since = function (c) { return Object.values(this.docs).filter((d) => d.s > c).sort((a, b) => a.s - b.s); };
 
-let clock = 1e12;
+let clock = VOTI_DAL + 864e5;   // dopo l'azzeramento dei voti della 0.6.0
 const tick = (n) => (clock += n || 1000);
 function Phone(dev, api, S, SY) { this.dev = dev; this.api = api; this.S = S; this.SY = SY || { cursor: 0, init: false, ent: {}, ver: api.APP_V }; }
 Phone.prototype.push = function (srv, senzaRete) {
@@ -113,4 +115,56 @@ assert.ok(O3.SY.cursor > 0, 'stessa versione: niente rilettura completa');
 assert.strictEqual(O3.push(srv), 0);
 uguali(A, P2);
 
-console.log('compatibilità: tutto torna (0.4.4, 0.5.0 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso)');
+// 6. dalla 0.5.1 alla 0.6.0 con i dati veri di un locale già avviato: si perdono solo i voti di prima dell'azzeramento
+{
+  const srv2 = new Server();
+  const U = new Phone('U', V051, V051.seedState(4));     // il telefono principale, ancora alla 0.5.1
+  const T = new Phone('T', V051, V051.seedState(5));     // un altro telefono alla 0.5.1
+  const birra = U.S.products.find((p) => p.name === 'Birra');
+  birra.price = 150; U.S.products.push({ id: 'pgin', name: 'Gin tonic', cat: 'Bevande', price: 500, min: 2, on: true });
+  const prima = VOTI_DAL - 3 * 3600e3;
+  U.S.moves.push({ id: 'u1', t: prima, k: 'inv', a: 0, items: [{ id: birra.id, n: 'Birra', q: 24, pr: 150 }, { id: 'pgin', n: 'Gin tonic', q: 3, pr: 500 }] });
+  U.S.moves.push({ id: 'u2', t: prima + 1, k: 'tab', p: 'pesce', a: 450, items: [{ id: birra.id, n: 'Birra', q: 3, pr: 150 }] });
+  U.S.moves.push({ id: 'u3', t: prima + 2, k: 'in', a: 5000, note: 'fondo' });
+  U.S.moves.push({ id: 'u4', t: prima + 3, k: 'exp', a: 900, paidBy: 'chicco', settle: 'dividi', shares: { pj: 450, chicco: 450 } });
+  U.S.votes.push({ id: 'v2026-10-12_pj', s: '2026-10-12', v: 'pj', c: 'pesce', y: 'Urla strazianti', t: prima + 4 });
+  U.S.votes.push({ id: 'v2026-10-11_conti', s: '2026-10-11', v: 'conti', c: 'pj', t: prima - 864e5 });
+  U.S.trash.push({ id: 'r2026-10-11', s: '2026-10-11', p: ['pj'], f: ['vetro'], t: prima });
+  U.S.cleanings.push({ id: 'c1', t: prima, p: ['pesce'] });
+  U.S.cfg.voteCut = 5;
+  clock = prima + 10; U.giro(srv2); T.giro(srv2); U.giro(srv2);
+  assert.strictEqual(T.S.votes.length, 2, 'prima dell’aggiornamento i voti ci sono');
+  const conti = (ph) => { const D = NUOVA.derive(ph.S); return [D.cash, D.debt.pesce, D.debt.chicco, D.debt.pj, D.stock[birra.id], D.stock.pgin]; };
+  const atteso = conti(T);
+  // U si aggiorna alla 0.6.0
+  clock = VOTI_DAL + 3600e3;
+  const U2 = U.aggiorna(NUOVA);
+  assert.strictEqual(U2.S.votes.length, 0, 'i voti di prima dell’azzeramento spariscono');
+  assert.deepStrictEqual(conti(U2), atteso, 'cassa, graffi, crediti e scorte identici');
+  assert.strictEqual(U2.S.products.find((p) => p.id === birra.id).price, 150);
+  assert.strictEqual(U2.S.products.length, U.S.products.length);
+  assert.strictEqual(U2.S.trash.length, 1); assert.strictEqual(U2.S.cleanings.length, 1); assert.strictEqual(U2.S.cfg.voteCut, 5);
+  assert.deepStrictEqual(U2.S.cfg.buttiamo, ['secco', 'vetro', 'plastica']);
+  const scritte = U2.push(srv2);
+  assert.strictEqual(scritte, 2, 'manda solo le due cancellazioni dei voti');
+  U2.pull(srv2); T.giro(srv2);
+  assert.strictEqual(T.S.votes.length, 0, 'anche il telefono non aggiornato perde i voti vecchi');
+  assert.deepStrictEqual(conti(T), atteso, 'e il resto non cambia');
+  // dopo: voti nuovi (anche dalla 0.5.1) restano ovunque; T aggiornato più tardi non cancella niente di nuovo
+  clock += 1000; U2.S.votes.push({ id: 'v2026-10-12_pesce', s: '2026-10-12', v: 'pesce', c: 'conti', y: 'Dormire al locale', t: clock });
+  U2.giro(srv2); T.giro(srv2);
+  clock += 1000; T.S.votes.push({ id: 'v2026-10-12_ciccio', s: '2026-10-12', v: 'ciccio', c: 'conti', t: clock }); T.giro(srv2); U2.giro(srv2);
+  const T2 = T.aggiorna(NUOVA);
+  assert.strictEqual(T2.push(srv2), 0, 'T aggiornato dopo: niente da cancellare né da rimandare');
+  T2.pull(srv2); U2.giro(srv2);
+  assert.deepStrictEqual(T2.S.votes.map((v) => v.id).sort(), ['v2026-10-12_ciccio', 'v2026-10-12_pesce']);
+  assert.deepStrictEqual(U2.S.votes.map((v) => v.id).sort(), ['v2026-10-12_ciccio', 'v2026-10-12_pesce']);
+  uguali(U2, T2, 'dopo l’aggiornamento i due telefoni sono identici');
+  assert.deepStrictEqual(conti(T2), atteso);
+  // un telefono nuovo installato adesso trova tutto (senza i voti vecchi)
+  const N = new Phone('N', NUOVA, NUOVA.seedState(9)); N.giro(srv2);
+  uguali(U2, N, 'il telefono nuovo trova il locale com’è');
+  assert.strictEqual(N.push(srv2), 0);
+}
+
+console.log('compatibilità: tutto torna (0.4.4, 0.5.0, 0.5.1 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)');

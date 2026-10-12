@@ -2,7 +2,7 @@
 const VERSIONE = '__VERSIONE__';
 const CACHE = 'oblio-' + VERSIONE;
 const FONT_CSS = '__FONT_CSS__';
-const FILES = ['./', './index.html', './guida.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'].concat(__IMMAGINI__);
+const FILES = ['./', './index.html', './guida.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './ocr/lettore.js'].concat(__IMMAGINI__);
 const ESTERNI = __ESTERNI__; // libreria di sincronizzazione, se attiva
 const PROPRI = new Set(FILES.map((f) => new URL(f, self.registration.scope).pathname));
 

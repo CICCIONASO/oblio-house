@@ -18,4 +18,5 @@ giallo se ci sono modifiche da inviare. Le regole del database sono in `firestor
 ## Com'è fatta
 - `src/`: sorgenti (`app.js`, `app.css`, `body.html`, `sw.js`, icona, caricature in `img/`).
 - `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`); se c'è `src/sync-config.json` accende la sincronizzazione.
-- `test/`: prova dei calcoli (`node test/pure.test.js`), della sincronizzazione (`node test/sync.test.js`), della compatibilità tra versioni dell'app sullo stesso locale (`node test/compat.test.js`, con le versioni vecchie in `test/fixtures/`) e prova a schermo (`node test/e2e.js`).
+- `src/ocr/`: lettore di scontrini che gira sul telefono. `lettore.js` è nostro; il motore (`tesseract-core-*`, da tesseract.js-core 6.1.2) e il modello italiano (`ita.traineddata.gz`, tessdata 4.0.0_best_int) sono di terzi, con licenza Apache-2.0 (testi nella stessa cartella).
+- `test/`: prova dei calcoli (`node test/pure.test.js`), della sincronizzazione (`node test/sync.test.js`), della compatibilità tra versioni dell'app sullo stesso locale (`node test/compat.test.js`, con le versioni vecchie in `test/fixtures/`; letture vere di scontrini di prova in `test/fixtures/ocr/`) e prova a schermo (`node test/e2e.js`).

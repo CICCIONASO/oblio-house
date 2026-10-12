@@ -17,7 +17,7 @@ function Server() { this.docs = {}; this.clock = 0; }
 Server.prototype.write = function (key, d) { this.docs[key] = Object.assign({ key }, d, { s: ++this.clock }); };
 Server.prototype.since = function (c) { return Object.values(this.docs).filter((d) => d.s > c).sort((a, b) => a.s - b.s); };
 
-let clock = 1e12;
+let clock = Date.parse('2026-11-01T00:00:00Z');   // dopo l'azzeramento dei voti della 0.6.0
 const tick = (n) => (clock += n || 1000);
 function Phone(dev, S) { this.dev = dev; this.S = S; this.SY = { cursor: 0, init: false, ent: {} }; this.online = true; this.coda = []; }
 Phone.prototype.push = function (srv) {

@@ -8,11 +8,13 @@ const path = require('path');
 const dist = path.join(__dirname, '..', 'docs');
 const PURE = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8'))[1];
 const calc = new Function(PURE + '\nreturn {derive,previsione,normState,canon,hashStr};')();
+const statoDi = async (pg) => calc.normState(await pg.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1'))));
 // «1.234,56 €» → 123456 centesimi
 const centesimi = (s) => { const m = /([-−])?\s*([\d.]+),(\d{2})/.exec(s || ''); return m ? (m[1] ? -1 : 1) * (parseInt(m[2].replace(/\./g, ''), 10) * 100 + parseInt(m[3], 10)) : NaN; };
 const shots = path.join(__dirname, 'shots');
 fs.mkdirSync(shots, { recursive: true });
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json' };
+const { DESPAR, CONAD, foto } = require('./scontrini.js');
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.gz': 'application/gzip', '.txt': 'text/plain; charset=utf-8' };
 // servito sotto /app/ per provare i percorsi relativi come su un sito con sottocartella
 // finto server di sincronizzazione (al posto di Firebase): l'ultimo che scrive vince, «s» è l'ora del server
 const stanze = {};
@@ -269,23 +271,93 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   {
     const st = calc.normState(await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1'))));
     const P = calc.previsione(st, calc.derive(st));
-    if (P.totale !== P.cassa + P.incassare - P.restituire + P.scorte) fail('soldi: il totale non è la somma delle voci');
+    if (P.attuale !== P.cassa + P.scorte) fail('soldi: l’attuale non è cassa + scorte');
+    if (P.previsionale !== P.attuale + P.incassare - P.restituire) fail('soldi: il previsionale non torna');
     const mostrato = centesimi(await text('#soldi-tot'));
-    if (mostrato !== P.totale) fail('soldi: in pagina ' + mostrato + ' centesimi, attesi ' + P.totale);
+    if (mostrato !== P.attuale) fail('soldi: in pagina ' + mostrato + ' centesimi, attesi ' + P.attuale);
+    if (centesimi(await text('#soldi-prev')) !== P.previsionale) fail('soldi: previsionale in pagina sbagliato');
     const gin = P.righe.find((r) => r.n === 'Gin tonic');
     if (!gin || gin.v !== 3000) fail('soldi: Gin tonic deve valere 30,00 € (6 × 5,00)');
     if (!/Gin tonic6 pz × 5,00\s€30,00\s€/.test(await text('.cartella:has(h3:text("Scorte in magazzino"))'))) fail('soldi: riga del Gin tonic sbagliata: ' + (await text('.cartella:has(h3:text("Scorte in magazzino"))')).slice(0, 200));
     if (!/Prima di fidarvi/.test(await text('#view')) || !/prezzo di vendita/.test(await text('#view'))) fail('soldi: mancano le avvertenze');
     await tab('Reparto');
-    if (centesimi(await text('[data-k="apri-soldi"]')) !== P.totale) fail('bollettino: soldi previsti diversi dalla pagina');
+    if (centesimi(await text('[data-k="apri-soldi"]')) !== P.attuale) fail('bollettino: soldi del locale diversi dalla pagina');
     await page.click('[data-k="apri-soldi"]'); await page.waitForTimeout(80);
     if (!/Soldi del locale/.test(await text('h2.titolo'))) fail('dal bollettino non si apre la pagina dei soldi');
     if (!/Reparto/.test(await text('.indietro'))) fail('dai soldi il tasto indietro non torna al Reparto');
     await cassa();
-    if (centesimi(await text('[data-k="cassa-soldi"]')) !== P.totale) fail('cassa: collegamento ai soldi previsti sbagliato');
-    note('soldi del locale: ' + (P.totale / 100).toFixed(2) + ' € (cassa ' + P.cassa / 100 + ', graffi ' + P.incassare / 100 + ', crediti ' + P.restituire / 100 + ', scorte ' + P.scorte / 100 + ')');
+    if (centesimi(await text('[data-k="cassa-soldi"]')) !== P.attuale) fail('cassa: collegamento ai soldi del locale sbagliato');
+    note('soldi del locale: adesso ' + (P.attuale / 100).toFixed(2) + ' € (cassa ' + P.cassa / 100 + ', scorte ' + P.scorte / 100 + '), previsionale ' + (P.previsionale / 100).toFixed(2) + ' € (graffi ' + P.incassare / 100 + ', crediti ' + P.restituire / 100 + ')');
   }
   await tab('Altro'); await page.click('.voce:has-text("Scorte e lista")');
+
+  // ---------- Scontrino: foto letta sul telefono (motore vero, foto di prova), conferma riga per riga ----------
+  {
+    const fotoD = await foto(DESPAR, path.join(shots, 'scontrino-despar.jpg'), { ombra: '8a8378', storto: 2, sfoca: 1 });
+    const fotoC = await foto(CONAD, path.join(shots, 'scontrino-conad.jpg'), { font: 'Liberation Mono', storto: -2, sfoca: 1.0, luce: 0.85 });
+    const leggi = async (file) => {
+      const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-k="scontrino"]')]);
+      await fc.setFiles(file);
+      const ok = await page.waitForSelector('#foglio-t:text("Conferma lo scontrino")', { timeout: 90000 }).then(() => true, () => false);
+      if (!ok) fail('scontrino: la conferma non arriva: ' + (await text('#foglio')).slice(0, 300));
+      return ok;
+    };
+    const righe = async () => page.$$eval('#foglio .sc-riga', (li) => li.map((r) => ({ d: r.querySelector('.sc-d span').textContent, sel: r.querySelector('select.sc-prod').selectedOptions[0].textContent, pz: (r.querySelector('.sc-num input') || {}).value, sp: r.querySelectorAll('.sc-num input')[1].value })));
+    const sceglie = async (n, testo) => { const s = page.locator('#foglio .sc-riga').nth(n).locator('select.sc-prod'); await s.selectOption({ label: testo }); };
+    const prima = await statoDi(page), D0 = calc.derive(prima);
+    const t0 = Date.now();
+    if (await leggi(fotoD)) {
+      note('scontrino letto in ' + (Date.now() - t0) + ' ms (prima volta, con il download del lettore)');
+      await shot('13e-scontrino-conferma', true);
+      const r = await righe();
+      // la descrizione può avere qualche lettera storta (è una foto): contano prodotto, pezzi e prezzo
+      const attese = [['COCA', 'Coca Cola lattina', '1', '0,89'], ['KINDER', 'Kinder Bueno', '2', '1,58'], ['BIRRA', 'Birra', '1', '1,19'],
+        ['PATATINE', 'Cipster', '1', '1,19'], ['SACCHI', '+ Prodotto nuovo', '1', '2,49'], ['ESTATHE', 'Estathé limone / pesca', '1', '0,79']];
+      if (JSON.stringify(r.map((x) => [x.d.split(' ')[0], x.sel, x.pz, x.sp])) !== JSON.stringify(attese)) fail('scontrino: righe proposte diverse: ' + JSON.stringify(r));
+      if (!/Totale letto sullo scontrino: 8,13\s€ · torna/.test(await text('#foglio .sc-somma'))) fail('scontrino: somma e totale non tornano: ' + (await text('#foglio .sc-somma')));
+      if (/\[object|null|undefined|NaN/.test(await text('#foglio'))) fail('scontrino: nel foglio compare testo tecnico: ' + (await text('#foglio')).slice(0, 400));
+      const larg = await page.$eval('#foglio-b', (b) => [b.scrollWidth, b.clientWidth]);
+      if (larg[0] > larg[1] + 1) fail('scontrino: il foglio scorre di lato ' + larg.join(' > '));
+      // la birra la escludo (presa per casa), i sacchi sono una spesa del locale ma non vanno in magazzino
+      await sceglie(2, 'Escludi: non è del locale');
+      await sceglie(4, 'Altra spesa (non va in magazzino)');
+      if (!/Righe: 6,94\s€/.test(await text('#foglio .sc-somma'))) fail('scontrino: somma dopo le scelte: ' + (await text('#foglio .sc-somma')));
+      await page.click('#foglio button:has-text("Registra lo scontrino")');
+      await page.waitForTimeout(150);
+      if (!/Scontrino registrato: 5 pezzi, spesa 6,94/.test(await text('#toast'))) fail('scontrino: messaggio finale: ' + (await text('#toast')));
+      const dopo = await statoDi(page), D1 = calc.derive(dopo), pid = (n) => dopo.products.find((p) => p.name === n);
+      if (D1.cash !== D0.cash - 694) fail('scontrino: la spesa doveva uscire dalla cassa (6,94)');
+      if (D1.stock[pid('Coca Cola lattina').id] !== D0.stock[pid('Coca Cola lattina').id] + 1) fail('scontrino: coca non caricata');
+      if (D1.stock[pid('Kinder Bueno').id] !== 2 || D1.stock[pid('Birra').id] !== D0.stock[pid('Birra').id]) fail('scontrino: carico sbagliato');
+      if (pid('Kinder Bueno').cost !== 79 || pid('Cipster').cost !== 119) fail('scontrino: costi d’acquisto sbagliati');
+      if (!(pid('Kinder Bueno').al || []).some((a) => a.d === 'KINDER BUENO T2')) fail('scontrino: la descrizione non è stata ricordata');
+      if (dopo.products.some((p) => /sacchi/i.test(p.name))) fail('scontrino: i sacchi non dovevano diventare un prodotto');
+      const sp = dopo.moves.filter((m) => m.k === 'exp').pop();
+      if (!sp || sp.note !== 'Scontrino DESPAR ALTAMURA del 12/10/2026' || sp.a !== 694) fail('scontrino: spesa nel registro sbagliata');
+    }
+    // secondo scontrino: un prodotto nuovo, una confezione da 4, pagato da CHICCO e scalato dal suo ticket
+    if (await leggi(fotoC)) {
+      const r = await righe();
+      if (r.length !== 5 || r[2].sel !== '+ Prodotto nuovo' || r[1].sel !== 'Mars') fail('scontrino 2: righe proposte: ' + JSON.stringify(r));
+      await page.locator('#foglio .sc-riga').nth(1).locator('button:has-text("Confezione da 4")').click();
+      const nuovo = page.locator('#foglio .sc-riga').nth(2);
+      if ((await nuovo.locator('.sc-nuovo input').first().inputValue()) !== 'Acqua naturale') fail('scontrino 2: nome proposto');
+      await page.click('#foglio button:has-text("Registra lo scontrino")');
+      if (!/prezzo di vendita di «Acqua naturale»/.test(await text('#foglio .errore'))) fail('scontrino 2: senza prezzo di vendita non deve salvare');
+      await nuovo.locator('.sc-nuovo input.soldi').fill('0,50');
+      await page.click('#foglio .chip:has-text("CHICCO")');
+      await page.click('#foglio .chip:has-text("Scala dal suo ticket")');
+      await shot('13f-scontrino-nuovo-prodotto', true);
+      const p0 = await statoDi(page), d0 = calc.derive(p0);
+      await page.click('#foglio button:has-text("Registra lo scontrino")');
+      await page.waitForTimeout(150);
+      const p1 = await statoDi(page), d1 = calc.derive(p1), acqua = p1.products.find((p) => p.name === 'Acqua naturale'), mars = p1.products.find((p) => p.name === 'Mars');
+      if (!acqua || acqua.price !== 50 || acqua.cost !== 110 || d1.stock[acqua.id] !== 3) fail('scontrino 2: prodotto nuovo sbagliato ' + JSON.stringify(acqua));
+      if (mars.cost !== 75 || d1.stock[mars.id] !== (d0.stock[mars.id] || 0) + 4) fail('scontrino 2: confezione da 4 non caricata');
+      if (d1.debt.chicco !== d0.debt.chicco - 1257 || d1.cash !== d0.cash) fail('scontrino 2: spesa di CHICCO non scalata dal ticket');
+      note('scontrini: 2 letti con il motore vero, righe abbinate, prodotto nuovo, costi e spesa registrati');
+    }
+  }
 
   // la Farmacia mostra le scorte e scala
   await tab('Farmacia');
@@ -295,6 +367,22 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('.posbar .pill:has-text("Paga subito")');
   await page.waitForTimeout(80);
   if (!/26 pz/.test(await text('.prod-add:has-text("Birra")'))) fail('scorta non scalata');
+  // PESCE prende una birra e dà di più per chiudere i suoi graffi
+  {
+    const s0 = await statoDi(page), d0 = calc.derive(s0), deb = d0.debt.pesce;
+    await page.click('.chip:has-text("PESCE")');
+    await page.click('.prod-add:has-text("Birra")');
+    await page.click('[data-k="ha-dato"]');
+    await page.click('#foglio .chip:has-text("Conto + graffi")');
+    if (!/scalano i graffi: chiusi tutti/.test(await text('#foglio'))) fail('ha dato: anteprima sbagliata: ' + (await text('#foglio')).slice(0, 200));
+    await shot('13g-ha-dato');
+    await page.click('#foglio button[type=submit]');
+    await page.waitForTimeout(100);
+    if (!/scalati dai graffi/.test(await text('#toast'))) fail('ha dato: messaggio: ' + (await text('#toast')));
+    const d1 = calc.derive(await statoDi(page));
+    if (d1.debt.pesce !== 0 || d1.cash !== d0.cash + 100 + deb) fail('ha dato: graffi o cassa sbagliati (' + d1.debt.pesce + ', ' + (d1.cash - d0.cash) + ')');
+    note('ha dato di più: ' + (100 + deb) / 100 + ' € per una birra da 1 €, graffi di PESCE chiusi');
+  }
 
   // Listino e persone
   await tab('Altro');
@@ -324,16 +412,23 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await tab('Reparto');
   await page.locator('.cartella:has(h2:text("Faccende"))').screenshot({ path: path.join(shots, '15c-faccende.png') });
   if (!(await page.$('[data-k="rif-fatto"]'))) {
-    // sabato sera non si espone niente: per la prova segno l'organico tutti i giorni
+    // non tutte le sere si espone qualcosa: per la prova segno il vetro tutti i giorni
     await tab('Altro'); await page.click('.voce:has-text("Regole")');
     for (const g of ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato']) {
-      const c = page.locator('.campo:has(.lab:text("Ritiro ' + g + ' mattina")) .chip:has-text("Organico")');
+      const c = page.locator('.campo:has(.lab:text("Ritiro ' + g + ' mattina")) .chip:has-text("Vetro")');
       if ((await c.getAttribute('aria-pressed')) !== 'true') await c.click();
     }
     await page.click('button:has-text("Salva il calendario")');
     await tab('Reparto');
   }
   if (!/Stasera fuori:/.test(await text('#view'))) fail('manca il promemoria dei rifiuti di stasera');
+  if (/Organico|Carta/.test(await text('.cartella:has(h2:text("Faccende"))'))) fail('rifiuti: organico e carta non li buttate, niente avviso');
+  {
+    await tab('Altro'); await page.click('.voce:has-text("Regole")');
+    const premuto = async (n) => page.getAttribute('.campo:has(.lab:text("Cosa buttate")) .chip:has-text("' + n + '")', 'aria-pressed');
+    if ((await premuto('Organico')) !== 'false' || (await premuto('Vetro')) !== 'true' || (await premuto('Indifferenziata')) !== 'true' || (await premuto('Plastica')) !== 'true') fail('rifiuti: «Cosa buttate» di partenza sbagliato');
+    await tab('Reparto');
+  }
   await page.click('[data-k="rif-fatto"]');
   await page.click('#foglio .chip:has-text("PJ")');
   await page.click('#foglio button[type=submit]');
@@ -520,7 +615,10 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('.pill:has-text("Abbandona")'); await page.click('#foglio .pill:has-text("Sì, abbandona")');
   await tab('Altro'); await page.click('.voce:has-text("Classifiche")'); await overflow('classifiche 320'); await shot('33-classifiche-320', true);
   await tab('Altro'); await page.click('.voce:has-text("Soldi del locale")'); await overflow('soldi 320'); await shot('33b-soldi-320', true);
-  await page.click('.indietro'); await page.click('.voce:has-text("Scorte e lista")'); await page.click('[data-k="nuovo-prodotto"]'); await overflow('nuovo prodotto 320'); await shot('33c-nuovo-prodotto-320'); await page.click('#foglio-x');
+  await tab('Farmacia'); await page.click('.chip:has-text("CONTI")'); await page.click('.prod-add:has-text("Mars")'); await overflow('farmacia con ha dato 320'); await shot('33d-posbar-320');
+  await page.click('[data-k="ha-dato"]'); { const l = await page.$eval('#foglio-b', (b) => [b.scrollWidth, b.clientWidth]); if (l[0] > l[1] + 1) fail('ha dato 320: il foglio scorre di lato'); }
+  await page.click('#foglio-x'); await page.click('.posbar .pill-x');
+  await tab('Altro'); await page.click('.voce:has-text("Scorte e lista")'); await page.click('[data-k="nuovo-prodotto"]'); await overflow('nuovo prodotto 320'); await shot('33c-nuovo-prodotto-320'); await page.click('#foglio-x');
   await page.setViewportSize({ width: 1100, height: 800 });
   await cassa(); await shot('34-cassa-desktop'); await overflow('cassa desktop');
 
@@ -656,11 +754,12 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   // (come la tiene una versione vecchia). Al riavvio con la versione nuova B rilegge il locale, si ripara e non scrive niente.
   {
     const st = stanze.prova, key = 'votes~vprova_conti', u = Date.now();
-    const voto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: 1, y: ['Dormire al locale', 'Giocare alle slot'] };
+    const tv = Date.now();   // dopo l'azzeramento dei voti della 0.6.0
+    const voto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: tv, y: ['Dormire al locale', 'Giocare alle slot'] };
     st[key] = { key, c: 'votes', i: voto.id, j: calc.canon(voto), u, by: 'P', s: ++orologio };
     await aspetta(B.p, () => (JSON.parse(localStorage.getItem('oblio.v1')).votes || []).some((v) => v.id === 'vprova_conti'), null, 'B non riceve il voto scritto dalla 0.5.0');
     await B.p.waitForTimeout(400);
-    const ridotto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: 1, y: 'Dormire al locale' };
+    const ridotto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: tv, y: 'Dormire al locale' };
     await B.p.goto(base + 'guida.html');   // pagina senza app: posso toccare i dati salvati senza che l'app li riscriva
     await B.p.evaluate(([rid, h, u]) => {
       const S = JSON.parse(localStorage.getItem('oblio.v1'));

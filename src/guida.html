@@ -129,7 +129,7 @@ a{color:inherit}
   <section class="cartella" id="reparto">
     <h2><span>3</span>Reparto, la schermata principale</h2>
     <ul>
-      <li><strong>Bollettino</strong>: cassa, ticket aperti, soldi previsti, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare. Tocca la cifra dei <strong>soldi previsti</strong> per il dettaglio (capitolo 6).</li>
+      <li><strong>Bollettino</strong>: cassa, ticket aperti, soldi del locale, scorte, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare. Tocca la cifra dei <strong>soldi del locale</strong> per il dettaglio (capitolo 6).</li>
       <li><span class="t">Segna consumazione</span> porta in Farmacia; <span class="t">Cassa</span> apre la cassa.</li>
       <li><strong>Faccende</strong>: i rifiuti di stasera e le pulizie (capitolo 10).</li>
       <li><strong>Triage</strong>: il voto di chi sta peggio (capitolo 7).</li>
@@ -147,6 +147,7 @@ a{color:inherit}
         <ul>
           <li><span class="t">Sul ticket</span>: va sul suo debito, la cassa non cambia.</li>
           <li><span class="t">Paga subito</span>: i soldi entrano in cassa.</li>
+          <li><span class="t">Ha dato di più?</span> (sotto il totale): se dà più del conto, scrivi quanto ha dato. La differenza <strong>scala i suoi graffi</strong>, dai più vecchi; se li supera, resta in credito. C'è il tasto rapido «Conto + graffi» per chiudere tutto.</li>
         </ul>
       </li>
     </ol>
@@ -177,9 +178,14 @@ a{color:inherit}
       </li>
       <li><span class="t">Conta cassa</span>: conta i soldi veri e scrivi il totale. L'app si riallinea e la differenza resta nel registro.</li>
       <li><strong>Registro</strong>: tutti i movimenti, con i filtri Tutto, Cassa, Ticket e Scorte.</li>
-      <li><strong>Soldi del locale</strong> (da <span class="t">Altro</span>, dal Bollettino o dalla Cassa): la previsione di quanti soldi ha il locale, cioè <strong>cassa + graffi da incassare + scorte</strong> al prezzo di vendita, meno gli eventuali crediti da restituire. Sotto trovi quanto valgono le scorte prodotto per prodotto e chi deve cosa.</li>
+      <li><strong>Soldi del locale</strong> (da <span class="t">Altro</span>, dal Bollettino o dalla Cassa), in due conti separati:
+        <ul>
+          <li><strong>Il locale adesso</strong> = cassa + scorte al prezzo di vendita. Se gli scontrini hanno insegnato all'app il costo d'acquisto, compare anche il valore a costo e il margine.</li>
+          <li><strong>Previsionale</strong>, a parte = il totale di adesso <strong>+ graffi</strong> da incassare <strong>− crediti</strong> da restituire.</li>
+        </ul>
+        Sotto trovi quanto valgono le scorte prodotto per prodotto e chi deve cosa.</li>
     </ul>
-    <p class="nota">È una stima: conta i graffi come se li pagassero tutti e le scorte al prezzo di vendita, che è più di quanto le avete pagate. I prodotti mai contati restano fuori. Per un numero affidabile fate prima <span class="t">Conta cassa</span> e <span class="t">Inventario</span>.</p>
+    <p class="nota">Sono stime: il previsionale conta i graffi come se li pagassero tutti, e le scorte valgono al prezzo di vendita, che è più di quanto le avete pagate. I prodotti mai contati restano fuori. Per numeri affidabili fate prima <span class="t">Conta cassa</span> e <span class="t">Inventario</span>.</p>
   </section>
 
   <section class="cartella" id="triage">
@@ -230,7 +236,7 @@ a{color:inherit}
   <section class="cartella" id="faccende">
     <h2><span>10</span>Faccende: rifiuti e pulizie</h2>
     <ul>
-      <li><strong>Rifiuti</strong>: la sera prima del ritiro il Reparto dice cosa va fuori (calendario del centro, si espone dalle 21:00). Chi li porta giù tocca <span class="t">Portati giù</span> e sceglie il suo nome: vale per la classifica Spazzatura.</li>
+      <li><strong>Rifiuti</strong>: la sera prima del ritiro il Reparto dice cosa va fuori (calendario del centro, si espone dalle 21:00), ma solo per quello che il locale butta: <strong>indifferenziata, plastica e metalli, vetro</strong>. Si cambia da <span class="t">Regole</span> › <span class="t">Cosa buttate</span>. Chi li porta giù tocca <span class="t">Portati giù</span> e sceglie il suo nome: vale per la classifica Spazzatura.</li>
       <li><strong>Pulizie</strong>: dopo aver pulito tocca <span class="t">Pulizia fatta</span>; si può anche dire «ieri» o «3 giorni fa». Dopo 14 giorni senza pulizie compare l'avviso.</li>
     </ul>
   </section>
@@ -240,6 +246,7 @@ a{color:inherit}
     <ul>
       <li><strong>Scorte e lista della spesa</strong>:
         <ul>
+          <li><span class="t">Scontrino</span>: fai la foto allo scontrino della spesa (dritto, con buona luce, tutto dentro). Il telefono la legge da solo e propone riga per riga prodotto, pezzi e quanto è costato: tu correggi quello che serve e tocchi <span class="t">Registra lo scontrino</span>. Solo allora carica le scorte, salva il costo d'acquisto, crea i prodotti nuovi (il prezzo di vendita lo decidi tu) e registra la spesa in cassa, scegliendo chi ha pagato. Le righe in arancione sono da controllare; quelle che non c'entrano si segnano «Altra spesa» (va in cassa ma non in magazzino) o «Escludi». La volta dopo l'app ricorda come quel prodotto compare sullo scontrino.</li>
           <li><span class="t">+ Nuovo prodotto</span>: un prodotto che non c'era, con prezzo, categoria, i pezzi che ci sono adesso e la soglia. C'è anche dentro <span class="t">Inventario</span> e <span class="t">Carico</span>: salvato il prodotto torni lì, con i numeri già scritti.</li>
           <li><span class="t">Inventario</span>: conti i pezzi che ci sono davvero.</li>
           <li><span class="t">Carico</span>: segni quello che arriva quando si fa la spesa.</li>
@@ -251,7 +258,7 @@ a{color:inherit}
       <li><strong>Pazienti e visitatori</strong>: aggiungi un visitatore, cambia nome e faccia (caricatura o foto dal telefono). Togli la spunta «Ancora in reparto» per chi non viene più.</li>
       <li><strong>Regole del reparto</strong>: ora di chiusura della serata, voto a se stessi, calendario dei rifiuti, giorni delle pulizie e sintomi dell'oblio.</li>
     </ul>
-    <p class="nota">Tutto quello che cambi qui cambia per tutti i telefoni.</p>
+    <p class="nota">Tutto quello che cambi qui cambia per tutti i telefoni. Il lettore di scontrini, la prima volta, scarica circa 4,5 MB (serve internet); poi funziona anche senza rete e la foto non esce mai dal telefono.</p>
   </section>
 
   <section class="cartella" id="errori">

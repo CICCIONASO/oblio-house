@@ -42,7 +42,7 @@ ul,ol{list-style:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .app{position:relative;max-width:520px;margin-inline:auto;padding-inline:16px;padding-block:0 calc(100px + env(safe-area-inset-bottom,0px))}
-body.con-pos .app{padding-block:0 calc(236px + env(safe-area-inset-bottom,0px))}
+body.con-pos .app{padding-block:0 calc(258px + env(safe-area-inset-bottom,0px))}
 .decor{position:absolute;inset:0 0 auto 0;height:290px;overflow:hidden;pointer-events:none}
 .spirale{position:absolute;right:-170px;top:-190px;width:460px;height:460px;border-radius:50%;background:repeating-radial-gradient(circle at center,var(--viola-2) 0,var(--viola-2) 12px,var(--viola) 12px,var(--viola) 24px)}
 
@@ -178,7 +178,7 @@ dialog.foglio::backdrop{background:rgba(10,3,24,.62)}
 .spunta input{width:22px;height:22px;accent-color:var(--viola-forte)}
 
 .toast{position:fixed;left:16px;right:16px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;justify-content:center;pointer-events:none}
-body.con-pos .toast{bottom:calc(214px + env(safe-area-inset-bottom,0px))}
+body.con-pos .toast{bottom:calc(236px + env(safe-area-inset-bottom,0px))}
 body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .toast>div{pointer-events:auto;max-width:480px;background:var(--panna);color:var(--notte);border:3px solid var(--notte);border-radius:16px;padding:8px 14px;display:flex;gap:14px;align-items:center;font-size:14px;line-height:1.3;font-weight:600;box-shadow:4px 4px 0 var(--notte);min-width:0}
 .toast span{min-width:0;overflow-wrap:anywhere}
@@ -326,6 +326,29 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .avvisi li+li{margin-top:6px}
 .avvisi li.rosso{color:var(--rosso);font-weight:600}
 .cartella h4.giorno{margin:0}
+
+/* farmacia: chi dà più del conto */
+.pos-dx{display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:0}
+.link.chiaro{color:var(--lilla);font-size:13px;font-weight:600;padding:3px 0;margin:-3px 0}
+
+/* scontrino: lettura e conferma */
+.progresso{height:12px;border:2px solid var(--notte);border-radius:99px;overflow:hidden;background:var(--bianco)}
+.progresso>i{display:block;height:100%;width:0;background:var(--acido);transition:width .2s}
+.sc-righe{display:flex;flex-direction:column;gap:10px;list-style:none;padding:0;counter-reset:riga}
+.sc-riga{display:flex;flex-direction:column;gap:8px;padding:10px;border:2px solid var(--riga);border-radius:14px;background:var(--bianco);counter-increment:riga}
+.sc-riga.dubbio{border-color:var(--arancio);box-shadow:inset 0 0 0 1px var(--arancio)}
+.sc-riga.escluso{opacity:.6}
+.sc-d{font:600 13px/1.3 var(--f-testo);overflow-wrap:anywhere}
+.sc-d::before{content:counter(riga) ". ";color:var(--grigio)}
+.sc-d small{font-weight:500;color:var(--grigio)}
+.sc-num{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;min-width:0}
+.sc-num label{display:flex;flex-direction:column;gap:3px}
+.inp.corto2{width:96px;text-align:right}
+.sc-nuovo{display:flex;flex-direction:column;gap:8px;padding-top:8px;border-top:1px dashed var(--riga)}
+.sc-nuovo .inp.soldi{width:110px}
+.sc-somma{font-size:14px;line-height:1.45}
+.sc-pre{white-space:pre-wrap;font:12px/1.35 var(--f-testo);background:var(--bianco);border:1px solid var(--riga);border-radius:10px;padding:8px;max-height:260px;overflow:auto}
+.pill .ic{flex:none}
 </style>
 <div class="app" id="app">
   <div class="decor" aria-hidden="true"><div class="spirale"></div></div>
@@ -372,15 +395,19 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.5.1';
+var APP_V='0.6.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14};
 /* frazioni del calendario Teknoservice di Altamura */
-var FRAZ=[['organico','Organico'],['secco','Secco residuo'],['vetro','Vetro'],['carta','Carta e cartone'],['plastica','Plastica e metalli'],['pannolini','Pannolini e pannoloni']];
+var FRAZ=[['organico','Organico'],['secco','Indifferenziata (secco)'],['vetro','Vetro'],['carta','Carta e cartone'],['plastica','Plastica e metalli'],['pannolini','Pannolini e pannoloni']];
 var FRAZ_ID=FRAZ.map(function(f){return f[0];});
 /* calendario «Centro – utenze domestiche» dalla foto (Comune di Altamura): giorno di ritiro → frazioni.
    Pannolini (mar, gio, sab) lasciati fuori: si spuntano dalle Regole se servono. */
 var CAL0={1:['organico','vetro'],2:['secco'],3:['organico'],4:['plastica'],5:['organico'],6:['carta']};
+/* cosa butta davvero il locale: gli avvisi arrivano solo per queste (si cambia dalle Regole) */
+var BUTTIAMO0=['secco','plastica','vetro'];
+/* voti azzerati alla 0.6.0: quelli registrati prima di questo istante spariscono da tutti i telefoni */
+var VOTI_DAL=Date.parse('2026-10-12T20:11:00Z');   // 22:11 ora italiana, pubblicazione della 0.6.0
 /* sintomi dell'oblio: motivo (facoltativo) del voto nel triage, modificabili dalle Regole */
 var SINTOMI0=['Silenzio assordante','Grida silenziose','Richieste di aiuto','Urla strazianti','Scomparsa del volto',
   'Fumare 5/6 canne la sera','Dormire al locale','Sempre al cellulare senza parlare','Giocare alle slot','Stato depressivo',
@@ -503,20 +530,229 @@ function sintomiDi(S,id){
   S.votes.forEach(function(v){if(v.c===id)sintomiVoto(v).forEach(function(y){conta[y]=(conta[y]||0)+1;});});
   return conta;
 }
-/* previsione dei soldi del locale: cassa + graffi da incassare − crediti da restituire + scorte a prezzo di listino */
+/* soldi del locale. Attuale: cassa + scorte a prezzo di vendita. Previsionale, a parte: in più i graffi da incassare,
+   meno i crediti da restituire. Le scorte valgono anche a costo d'acquisto, per i prodotti che ce l'hanno (dagli scontrini). */
 function previsione(S,D){
-  var o={cassa:D.cash,incassare:0,restituire:0,nInc:0,nRes:0,scorte:0,righe:[],nonContati:0,negativi:0};
+  var o={cassa:D.cash,incassare:0,restituire:0,nInc:0,nRes:0,scorte:0,scorteCosto:0,margine:0,nCosto:0,righe:[],nonContati:0,negativi:0};
   Object.keys(D.debt).forEach(function(p){var d=D.debt[p];if(d>0){o.incassare+=d;o.nInc++;}else if(d<0){o.restituire-=d;o.nRes++;}});
   S.products.forEach(function(p){
     if(!(p.id in D.stock)){if(p.on)o.nonContati++;return;}
     if(toInt(D.stock[p.id])<0)o.negativi++;
     var q=Math.max(0,toInt(D.stock[p.id]));
-    if(q>0){o.scorte+=q*p.price;o.righe.push({id:p.id,n:p.name,q:q,pr:p.price,v:q*p.price});}
+    if(q<=0)return;
+    var r={id:p.id,n:p.name,q:q,pr:p.price,v:q*p.price};
+    if(p.cost!=null){r.c=p.cost;r.vc=q*p.cost;o.scorteCosto+=r.vc;o.margine+=r.v-r.vc;o.nCosto++;}
+    o.scorte+=r.v;o.righe.push(r);
   });
   o.righe.sort(function(a,b){return b.v-a.v||a.n.localeCompare(b.n);});
-  o.liquidi=o.cassa+o.incassare-o.restituire;
-  o.totale=o.liquidi+o.scorte;
+  o.attuale=o.cassa+o.scorte;
+  o.previsionale=o.attuale+o.incassare-o.restituire;
   return o;
+}
+/* ---------- scontrini: dal testo letto dalla foto alle righe da confermare ---------- */
+function normUp(s){return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();}
+function chiaveScontrino(d){return normUp(d).replace(/[^A-Z0-9]+/g,' ').trim().slice(0,40);}
+var SC_PREZZO=/^(.*?)\s*[€]?\s*([-–—~]?)\s*(\d{1,4})\s?[,.]\s?(\d{2})\d?\s*(?:€|EUR|[A-Z*]{1,2})?\s*$/;
+var SC_QTA=/^(?:N\.?\s*)?(\d{1,3})\s*(?:PZ\.?\s*)?[X×*\/]+[^0-9]{0,3}(\d{1,4})\s?[,.]\s?(\d{2})(?:\s+(\d{1,4})\s?[,.]\s?(\d{2}))?/;
+var SC_SCONTO=/^(SCONTO|SCONT|SC\.|PROMO|OFFERTA|RIDUZ|STORNO|ABBUONO|BUONO SCONTO|COUPON|RIBASSO)/;
+var SC_NO=/^(SUB ?TOTALE|TOTALE|TOT\b|TOT\.|DI CUI|IVA\b|IMPONIBILE|CONTANT|PAGAMENT|PAGATO|IMPORTO|RESTO|CARTA|BANCOMAT|ELETTRONIC|POS\b|CREDITO|DEBITO|BUONI?\b|ARROTOND|SALDO|PUNTI|N\.? ?PEZZI|NUMERO|DOCUMENTO|DOC\b|SCONTRINO|CASSA|CASSIERE|OPERATORE|P\.? ?IVA|C\.? ?F\b|TEL\b|DESCRIZIONE|PREZZO|EURO\b|EUR\b|GRAZIE|RT\b|MATRICOLA|RESO\b|ACCONTO|NON RISCOSSO)/;
+function scCent(n,d,neg){var v=parseInt(n,10)*100+parseInt(d,10);return neg?-v:v;}
+function scPulisci(d){
+  return normUp(d).replace(/[€]/g,' ').replace(/\s\d{1,2}(?:[,.]\d{1,2})?\s?%/g,' ').replace(/^\s*\d{5,}\s+/,'')
+    .replace(/[|_]+/g,' ').replace(/\s+/g,' ').trim();
+}
+function scDescrizione(d){return /[A-Z]{2}/.test(d)&&!SC_NO.test(d);}
+/* righe dello scontrino: {d: descrizione, q: quantità sullo scontrino, tot: importo della riga in centesimi} */
+function leggiScontrino(testo){
+  var out={righe:[],totale:null,somma:0,coerente:false,negozio:'',data:''},cand={},qPend=null,descPend=null,ultima=null,prima=-1;
+  String(testo||'').split(/\r?\n/).forEach(function(raw,i){
+    var l=normUp(raw).replace(/\s+/g,' ').trim();if(!l)return;
+    if(!out.data){var md=/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2}|\d{2})\b/.exec(l);if(md&&+md[1]>=1&&+md[1]<=31&&+md[2]>=1&&+md[2]<=12)out.data=(md[1].length<2?'0':'')+md[1]+'/'+(md[2].length<2?'0':'')+md[2]+'/'+(md[3].length===2?'20'+md[3]:md[3]);}
+    if(!out.negozio&&prima<0&&/[A-Z]{3}/.test(l)&&!/^(VIA|V\.LE|VIALE|C\.?SO|CORSO|PIAZZA|P\.? ?IVA|TEL|DOCUMENTO)/.test(l)&&!SC_PREZZO.test(l))out.negozio=l.replace(/[^A-Z0-9 &'.-]/g,'').trim().slice(0,30);
+    if(/^\d+[,.]\d{3}\s*KG/.test(l))return;                       // riga del peso: informazione, non articolo
+    var q=SC_QTA.exec(l);
+    if(q){
+      var qq=parseInt(q[1],10),un=scCent(q[2],q[3]);
+      if(!qq||qq>99){qPend=null;return;}
+      if(q[4]!=null){                                               // «2 x 0,79   1,58»: la descrizione era sulla riga prima
+        var t=scCent(q[4],q[5]);
+        if(descPend){out.righe.push(ultima={d:descPend,q:qq,tot:t});descPend=null;if(prima<0)prima=i;}
+        else if(ultima&&ultima.q===1&&Math.abs(ultima.tot-t)<=2)ultima.q=qq;
+        qPend=null;return;
+      }
+      if(ultima&&ultima.q===1&&ultima.i===i-1&&Math.abs(ultima.tot-qq*un)<=2){ultima.q=qq;qPend=null;}   // quantità sotto l'articolo
+      else qPend={q:qq,u:un};                                                                           // quantità sopra l'articolo
+      return;
+    }
+    var m=SC_PREZZO.exec(l);
+    if(!m){descPend=scDescrizione(scPulisci(l))?scPulisci(l):null;return;}
+    var cent=scCent(m[3],m[4],!!m[2]),d=scPulisci(m[1]);
+    if(SC_SCONTO.test(d)||cent<0){                                   // sconto: scala dall'articolo prima
+      if(ultima){
+        var sc=Math.abs(cent);
+        if(sc>=ultima.tot){                                          // sconto più grande dell'articolo: lettura sbagliata
+          var alt=parseInt(String(sc).slice(1),10)||0;sc=alt>0&&alt<ultima.tot?alt:0;ultima.corretta=true;
+        }
+        ultima.tot-=sc;
+      }
+      descPend=null;return;
+    }
+    if(!d||SC_NO.test(d)){
+      if(/^SUB ?TOTALE/.test(d))cand.sub=cent;
+      else if(/^TOTALE|^TOT\b|^TOT\./.test(d))cand.tot=cent;
+      else if(/^(IMPORTO PAGATO|PAGATO|IMPORTO)/.test(d))cand.pag=cent;
+      else if(/ELETTRONIC|CARTA|BANCOMAT|POS\b/.test(d))cand.el=cent;
+      else if(/CONTANT/.test(d))cand.cont=cent;
+      else if(/^RESTO/.test(d))cand.resto=cent;
+      descPend=null;return;
+    }
+    if(!/[A-Z]{2}/.test(d)){descPend=null;return;}
+    var r={d:d.slice(0,40),q:1,tot:cent,i:i};
+    if(qPend){
+      var att=qPend.q*qPend.u;
+      if(Math.abs(att-cent)<=2)r.q=qPend.q;
+      else if(ultima&&ultima.q===1&&Math.abs(ultima.tot-att)<=2)ultima.q=qPend.q;
+      else r.q=qPend.q;                                              // nessuno torna (lettura sporca): di solito sta sopra
+      qPend=null;
+    }
+    out.righe.push(r);ultima=r;descPend=null;if(prima<0)prima=i;
+  });
+  if(qPend&&ultima&&ultima.q===1&&Math.abs(ultima.tot-qPend.q*qPend.u)<=2)ultima.q=qPend.q;
+  out.righe.forEach(function(r){delete r.i;out.somma+=r.tot;});
+  // il totale: quello che torna con la somma delle righe, altrimenti quello stampato
+  var lista=[cand.tot,cand.sub,cand.pag,cand.el,(cand.cont!=null&&cand.resto!=null)?cand.cont-cand.resto:null].filter(function(x){return x!=null&&x>0;});
+  var giusto=lista.filter(function(x){return Math.abs(x-out.somma)<=1;})[0];
+  if(giusto==null&&lista.length&&scRipara(out.righe,lista)){out.somma=out.righe.reduce(function(n,r){return n+r.tot;},0);giusto=lista.filter(function(x){return Math.abs(x-out.somma)<=1;})[0];}
+  out.totale=giusto!=null?giusto:(cand.tot!=null?cand.tot:(lista[0]!=null?lista[0]:null));
+  out.coerente=out.totale!=null&&Math.abs(out.totale-out.somma)<=1;
+  return out;
+}
+/* errore tipico della lettura: una cifra in più davanti al prezzo («60,89» per «0,89»). Se togliendola a una, due
+   o tre righe la somma torna con un totale stampato, la correggo e segno la riga come da verificare. */
+function scRipara(righe,totali){
+  var somma=righe.reduce(function(n,r){return n+r.tot;},0),cand=[];
+  righe.forEach(function(r,i){if(r.tot>=100){var c=String(r.tot),v=parseInt(c.slice(1),10)||0;cand.push({i:i,giu:r.tot-v,v:v});}});
+  if(!cand.length||cand.length>14)return false;
+  var trovate={},n=0;
+  totali.filter(function(T,i){return totali.indexOf(T)===i;}).forEach(function(T){
+    var serve=somma-T;if(serve<=0)return;
+    (function cerca(da,scelte,tot){
+      if(n>1)return;
+      if(Math.abs(tot-serve)<=1&&scelte.length){var k=scelte.map(function(c){return c.i;}).join(',');if(!trovate[k]){trovate[k]=scelte.slice();n++;}return;}
+      if(scelte.length===3)return;
+      for(var j=da;j<cand.length;j++){scelte.push(cand[j]);cerca(j+1,scelte,tot+cand[j].giu);scelte.pop();}
+    })(0,[],0);
+  });
+  if(n!==1)return false;   // una sola spiegazione possibile, altrimenti lascio decidere a chi conferma
+  trovate=trovate[Object.keys(trovate)[0]];
+  trovate.forEach(function(c){righe[c.i].tot=c.v;righe[c.i].corretta=true;});
+  return true;
+}
+/* abbinamento a un prodotto del listino: prima i nomi già confermati (alias), poi le parole in comune */
+var SC_VUOTE={'DI':1,'DA':1,'AL':1,'ALLA':1,'LA':1,'IL':1,'LO':1,'CON':1,'E':1,'ED':1,'PER':1,'GUSTO':0};
+function scParole(s,desc){
+  return normUp(s).replace(/[^A-Z0-9]+/g,' ').split(' ').filter(function(w){
+    return w.length>=2&&!SC_VUOTE[w]&&!/^\d/.test(w)&&!(desc&&/^[XT]\d+$/.test(w));
+  });
+}
+function scDist(a,b){   // distanza di modifica limitata (basta sapere se è 0, 1 o di più)
+  if(Math.abs(a.length-b.length)>1)return 2;
+  var i=0,j=0,e=0;
+  while(i<a.length&&j<b.length){if(a[i]===b[j]){i++;j++;continue;}if(++e>1)return 2;if(a.length>b.length)i++;else if(b.length>a.length)j++;else{i++;j++;}}
+  return e+(a.length-i)+(b.length-j);
+}
+function abbinaRiga(d,products){
+  var k=chiaveScontrino(d),best=null;
+  products.forEach(function(p){
+    (p.al||[]).forEach(function(a){if(!best&&a.d===k)best={id:p.id,k:a.k||1,s:2};});
+  });
+  if(best)return best;
+  var dw=scParole(d,true);if(!dw.length)return null;
+  products.forEach(function(p){
+    var pw=scParole(p.name,false);if(!pw.length)return;
+    var hit=0;
+    pw.forEach(function(w){
+      var b=0;
+      dw.forEach(function(x){
+        if(x===w)b=1;
+        else if(Math.min(x.length,w.length)>=3&&(x.indexOf(w)===0||w.indexOf(x)===0))b=Math.max(b,0.85);
+        else if(Math.min(x.length,w.length)>=4&&scDist(x,w)<=1)b=Math.max(b,0.75);
+      });
+      hit+=b;
+    });
+    var s=hit/pw.length;
+    if(s>=0.6&&(!best||s>best.s||(s===best.s&&p.on&&!prod0(products,best.id).on)))best={id:p.id,k:1,s:s};
+  });
+  return best;
+}
+function prod0(products,id){for(var i=0;i<products.length;i++)if(products[i].id===id)return products[i];return {};}
+/* pezzi per confezione scritti nella descrizione: «MARS X4», «NUTELLA T6», «PERONI 3X33CL» (solo un suggerimento) */
+function confezione(d){
+  var u=normUp(d),m=/\bX\s?(\d{1,2})\b/.exec(u)||/\bT(\d{1,2})\b/.exec(u)||/\b(\d{1,2})\s?X\s?\d/.exec(u);
+  var n=m?parseInt(m[1],10):1;return n>=2&&n<=24?n:1;
+}
+/* nome proposto per un prodotto nuovo: la descrizione dello scontrino, in minuscolo e senza i formati */
+function nomeProposto(d){
+  var t=normUp(d).replace(/\b\d+([,.]\d+)?\s?(CL|ML|LT|L|G|GR|KG|PZ)\b/g,' ').replace(/\b[XT]\d+\b/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+  return (t.charAt(0).toUpperCase()+t.slice(1)).slice(0,40);
+}
+/* proposta da confermare: righe con il prodotto abbinato, i pezzi (quantità × pezzi per confezione già noti) */
+function propostaScontrino(letto,products){
+  return letto.righe.map(function(r){
+    var a=abbinaRiga(r.d,products),pezzi=r.q*(a?a.k:1);
+    return {d:r.d,q:r.q,tot:r.tot,prod:a?a.id:null,k:a?a.k:1,pezzi:pezzi,certo:!!a&&a.s>=1&&!r.corretta,corretta:!!r.corretta,conf:a&&a.s>=2?1:confezione(r.d)};
+  });
+}
+/* ricorda come un prodotto compare sugli scontrini (una sola scheda per descrizione) */
+function ricordaAlias(products,id,d,k){
+  var key=chiaveScontrino(d);if(!key)return;
+  products.forEach(function(p){
+    if(!p.al||p.id===id)return;
+    p.al=p.al.filter(function(a){return a.d!==key;});if(!p.al.length)delete p.al;
+  });
+  var p=prod0(products,id);if(!p.id)return;
+  p.al=(p.al||[]).filter(function(a){return a.d!==key;});
+  p.al.push({d:key,k:Math.min(99,Math.max(1,toInt(k)||1))});
+  if(p.al.length>12)p.al=p.al.slice(-12);
+}
+/* registra uno scontrino confermato. righe: {tipo:'prod'|'nuovo'|'altro'|'no', prod, nome, cat, prezzo, pezzi, spesa, d, q}.
+   Crea i prodotti nuovi, aggiorna costo d'acquisto e alias, aggiunge il carico e, se richiesta, la spesa.
+   opz: {negozio, data, spesa (bool), by ('cassa' o paziente), settle, tra (per dividi)}. id(): nuovo identificativo. */
+function applicaScontrino(S,righe,opz,ora,id){
+  var agg={},ordine=[],tot=0,nuovi=[];
+  var nota=('Scontrino'+(opz.negozio?' '+opz.negozio:'')+(opz.data?' del '+opz.data:'')).slice(0,120);
+  righe.forEach(function(r){
+    if(r.tipo==='no')return;
+    tot+=Math.max(0,toInt(r.spesa));
+    if(r.tipo==='altro')return;
+    var p;
+    if(r.tipo==='nuovo'){
+      p={id:'p'+id(),name:str(r.nome,40).trim()||'Prodotto',cat:str(r.cat,20).trim()||'Altro',price:Math.max(0,toInt(r.prezzo)),min:null,on:true};
+      S.products.push(p);nuovi.push(p);
+    }else p=prod0(S.products,r.prod);
+    if(!p||!p.id)return;
+    if(!agg[p.id]){agg[p.id]={p:p,pezzi:0,spesa:0};ordine.push(p.id);}
+    agg[p.id].pezzi+=Math.max(0,toInt(r.pezzi));agg[p.id].spesa+=Math.max(0,toInt(r.spesa));
+    if(r.d)ricordaAlias(S.products,p.id,r.d,r.q>0&&toInt(r.pezzi)%r.q===0?toInt(r.pezzi)/r.q:1);
+  });
+  var items=[];
+  ordine.forEach(function(pid){
+    var a=agg[pid];if(a.pezzi<=0)return;
+    a.p.cost=Math.round(a.spesa/a.pezzi);
+    items.push({id:pid,n:a.p.name,q:a.pezzi,pr:a.p.price,c:a.p.cost});
+  });
+  var mosse=[];
+  if(items.length)mosse.push({id:id(),t:ora,k:'load',a:0,items:items,note:nota});
+  if(opz.spesa&&tot>0){
+    var e={id:id(),t:ora+1,k:'exp',a:tot,note:nota,cat:'Rifornimento bar',paidBy:opz.by||'cassa'};
+    if(e.paidBy!=='cassa'){
+      e.settle=opz.settle||'cassa';
+      if(e.settle==='dividi')e.shares=splitShares(tot,opz.tra||[]);
+    }
+    mosse.push(e);
+  }
+  mosse.forEach(function(m){S.moves.push(m);});
+  return {mosse:mosse,nuovi:nuovi,totale:tot,pezzi:items.reduce(function(n,it){return n+it.q;},0)};
 }
 function serateChiuse(S,openKey){
   var g={},out={};
@@ -646,8 +882,8 @@ function statPagatori(S,per,openKey,cut,now){
 /* rifiuti: cfg.rifiuti[g] = frazioni ritirate la mattina del giorno g (0 dom … 6 sab).
    Si espongono la sera prima, quindi la serata K mostra il ritiro del giorno dopo. */
 function rifiutiSerata(cfg,key){
-  var p=String(key).split('-'),g=new Date(+p[0],+p[1]-1,+p[2]+1,12).getDay();
-  return (cfg.rifiuti&&cfg.rifiuti[g])||[];
+  var p=String(key).split('-'),g=new Date(+p[0],+p[1]-1,+p[2]+1,12).getDay(),b=cfg.buttiamo||BUTTIAMO0;
+  return ((cfg.rifiuti&&cfg.rifiuti[g])||[]).filter(function(f){return b.indexOf(f)>=0;});
 }
 function calPieno(cfg){for(var g=0;g<7;g++)if(cfg.rifiuti&&cfg.rifiuti[g]&&cfg.rifiuti[g].length)return true;return false;}
 function prossimiRifiuti(cfg,key){
@@ -699,6 +935,23 @@ function seedState(now){
     meta:{created:now,rev:0,saved:0,exported:0,img0:'',cal0:'',sint0:''}
   };
 }
+/* campi che questa versione non conosce, aggiunti da versioni più nuove: restano come sono, così un telefono
+   non aggiornato non li cancella quando modifica la stessa cosa. «noti» sono i campi che la versione gestisce già. */
+function tieniAltro(raw,o,noti){
+  Object.keys(raw).forEach(function(k){
+    if(noti.indexOf(k)>=0||k in o||!/^[a-z][A-Za-z0-9]{0,15}$/.test(k))return;
+    var v=raw[k];if(v===undefined||typeof v==='function')return;
+    try{var j=JSON.stringify(v);if(j&&j.length<=2000)o[k]=JSON.parse(j);}catch(e){}
+  });
+  return o;
+}
+var NOTI={
+  cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo'],
+  people:['id','name','kind','on','img'],
+  products:['id','name','cat','price','min','on','cost','al'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x'],
+  votes:['id','s','v','c','t','y','ys']
+};
 function normCfg(c){
   c=c&&typeof c==='object'?c:{};
   var cut=c.voteCut==null||c.voteCut===''?CFG0.voteCut:toInt(c.voteCut);
@@ -710,8 +963,9 @@ function normCfg(c){
     sint=[];
     c.sintomi.slice(0,40).forEach(function(s){s=str(s,40).trim();if(s&&sint.indexOf(s)<0)sint.push(s);});
   }
-  return {voteCut:cut>=0&&cut<=12?cut:CFG0.voteCut,selfVote:c.selfVote!==false,
-    puliziaGiorni:pg>=1&&pg<=90?pg:CFG0.puliziaGiorni,rifiuti:rif,sintomi:sint};
+  var but=FRAZ_ID.filter(function(id){return (Array.isArray(c.buttiamo)?c.buttiamo:BUTTIAMO0).indexOf(id)>=0;});
+  return tieniAltro(c,{voteCut:cut>=0&&cut<=12?cut:CFG0.voteCut,selfVote:c.selfVote!==false,
+    puliziaGiorni:pg>=1&&pg<=90?pg:CFG0.puliziaGiorni,rifiuti:rif,sintomi:sint,buttiamo:but},NOTI.cfg);
 }
 /* sintomi: chi aveva la lista di partenza precedente riceve quelli aggiunti dopo, una volta sola */
 function applySintomi0(S){
@@ -737,12 +991,21 @@ function normState(raw){
   raw.people.forEach(function(p){
     if(p&&typeof p.id==='string'&&p.id){
       var id=str(p.id,40);
-      S.people.push({id:id,name:str(p.name,24).trim()||'Senza nome',kind:p.kind==='amico'?'amico':'paziente',on:p.on!==false,
-        img:normImg(p.img)});
+      S.people.push(tieniAltro(p,{id:id,name:str(p.name,24).trim()||'Senza nome',kind:p.kind==='amico'?'amico':'paziente',on:p.on!==false,
+        img:normImg(p.img)},NOTI.people));
     }
   });
   raw.products.forEach(function(p){
-    if(p&&typeof p.id==='string'&&p.id)S.products.push({id:str(p.id,40),name:str(p.name,40).trim()||'Prodotto',cat:str(p.cat,20).trim()||'Altro',price:Math.max(0,toInt(p.price)),min:(p.min==null||p.min==='')?null:Math.max(0,toInt(p.min)),on:p.on!==false});
+    if(!p||typeof p.id!=='string'||!p.id)return;
+    var o={id:str(p.id,40),name:str(p.name,40).trim()||'Prodotto',cat:str(p.cat,20).trim()||'Altro',price:Math.max(0,toInt(p.price)),min:(p.min==null||p.min==='')?null:Math.max(0,toInt(p.min)),on:p.on!==false};
+    if(p.cost!=null&&p.cost!=='')o.cost=Math.max(0,toInt(p.cost));            // costo d'acquisto al pezzo, dall'ultimo scontrino
+    var al=[];                                                                   // come compare sugli scontrini (chiave) e pezzi per confezione
+    (Array.isArray(p.al)?p.al:[]).forEach(function(a){
+      if(!a||typeof a!=='object')return;var d=chiaveScontrino(a.d);if(!d||al.some(function(x){return x.d===d;}))return;
+      al.push({d:d,k:Math.min(99,Math.max(1,toInt(a.k)||1))});
+    });
+    if(al.length)o.al=al.slice(-12);
+    S.products.push(tieniAltro(p,o,NOTI.products));
   });
   raw.moves.forEach(function(m){
     if(!m||typeof m.k!=='string')return;
@@ -751,14 +1014,14 @@ function normState(raw){
     if(m.note)o.note=str(m.note,120);
     if(m.cat)o.cat=str(m.cat,30);
     if(Array.isArray(m.items))o.items=m.items.filter(function(it){return it&&typeof it==='object';}).slice(0,80).map(function(it){
-      var x={n:str(it.n,40),q:Math.max(0,toInt(it.q)),pr:Math.max(0,toInt(it.pr))};if(it.id)x.id=str(it.id,40);return x;});
+      var x={n:str(it.n,40),q:Math.max(0,toInt(it.q)),pr:Math.max(0,toInt(it.pr))};if(it.id)x.id=str(it.id,40);if(it.c!=null)x.c=Math.max(0,toInt(it.c));return x;});
     if(m.paidBy)o.paidBy=str(m.paidBy,24);
     if(m.settle)o.settle=str(m.settle,10);
     if(m.shares&&typeof m.shares==='object'){o.shares={};Object.keys(m.shares).slice(0,40).forEach(function(k){o.shares[str(k,24)]=Math.max(0,toInt(m.shares[k]));});}
     if(m.counted!=null)o.counted=toInt(m.counted);
     if(m.expected!=null)o.expected=toInt(m.expected);
     if(m.x)o.x={t:toInt(m.x.t)};
-    S.moves.push(o);
+    S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
   S.moves.sort(function(a,b){return a.t-b.t;});
   (Array.isArray(raw.shop)?raw.shop:[]).forEach(function(s){if(s&&s.text)S.shop.push({id:str(s.id,40)||('s'+S.shop.length),text:str(s.text,60),t:toInt(s.t)});});
@@ -767,11 +1030,12 @@ function normState(raw){
     if(!v||typeof v!=='object')return;
     var s=str(v.s,10),chi=str(v.v,24),per=str(v.c,24);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||!chi||!per)return;
+    if(toInt(v.t)<VOTI_DAL)return;                                     // voti azzerati alla 0.6.0
     var o={id:str(v.id,40)||('v'+vv.length),s:s,v:chi,c:per,t:toInt(v.t)};
     var ys=[];
     sintomiVoto(v).slice(0,12).forEach(function(x){x=str(x,40).trim();if(x&&ys.indexOf(x)<0)ys.push(x);});
     metiSintomi(o,ys);
-    vv.push(o);
+    vv.push(tieniAltro(v,o,NOTI.votes));
   });
   vv.sort(function(a,b){return a.t-b.t;});
   vv.forEach(function(v){ultimo[v.s+'|'+v.v]=v;});
@@ -973,7 +1237,8 @@ var IC={
   bersaglio:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
   x:'<path d="M6 6l12 12M18 6L6 18"/>',
   avanti:'<path d="M9 6l6 6-6 6"/>',
-  indietro:'<path d="M15 6l-6 6 6 6"/>'
+  indietro:'<path d="M15 6l-6 6 6 6"/>',
+  scontrino:'<path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M9 8h6M9 12h6M9 16h3"/>'
 };
 function ic(n,s){
   var e=document.createElement('span');e.className='ic';e.setAttribute('aria-hidden','true');
@@ -1405,7 +1670,7 @@ function vReparto(){
     h('dl',{class:'bollettino'},
       rigaB('Cassa farmacia',eur(D.cash),D.cash<0?'rosso':null),
       rigaB('Ticket aperti',tot?eur(tot)+' · '+deb.length+(deb.length===1?' paziente':' pazienti'):'nessuno',tot?'rosso':null),
-      rigaB('Soldi previsti',h('button',{type:'button',class:'link','data-k':'apri-soldi',onclick:function(){go('reparto','soldi');}},eur(previsione(S,D).totale))),
+      rigaB('Soldi del locale',h('button',{type:'button',class:'link','data-k':'apri-soldi',onclick:function(){go('reparto','soldi');}},eur(previsione(S,D).attuale))),
       rigaB('Scorte',scorte,low.length?'rosso':null),
       partitaAttiva()?rigaB('Freccette','partita in corso: '+nomeModo(partitaAttiva().mode)):null,
       SYNC&&SST.stato!=='spento'?rigaB('Telefoni',h('span',{id:'sync-riga'},syncTesto()),SST.stato==='errore'?'rosso':null):null,
@@ -1604,14 +1869,52 @@ function prodTile(p){
     n?h('span',{class:'prod-q'},String(n)):null);
 }
 function posClear(){UI.pos={p:null,qty:{},extra:[]};render();}
-function posSave(kind){
+function posSave(kind,dato){
   var pos=UI.pos,items=[],a=0;
   S.products.forEach(function(p){var q=pos.qty[p.id]||0;if(q){items.push({id:p.id,n:p.name,q:q,pr:p.price});a+=q*p.price;}});
   pos.extra.forEach(function(x){items.push({n:x.n,q:1,pr:x.pr});a+=x.pr;});
   if(!pos.p||!items.length)return;
-  var who=pName(pos.p);
+  var who=pName(pos.p),chi=pos.p;
   UI.pos={p:null,qty:{},extra:[]};
-  addMove({k:kind,p:pos.p,items:items,a:a},kind==='tab'?'Sul ticket di '+who+': '+eur(a):who+' ha pagato in cassa: '+eur(a));
+  if(kind==='sale'&&dato>a){
+    // ha dato più del conto: la differenza è un incasso sul suo ticket (scala i graffi; oltre, credito)
+    var deb=Math.max(0,D.debt[chi]||0),ex=dato-a,t=Date.now();
+    var m1={id:rid(),t:t,k:'sale',p:chi,items:items,a:a},m2={id:rid(),t:t+1,k:'pay',p:chi,a:ex,note:'Dato in più pagando una consumazione'};
+    S.moves.push(m1,m2);commit();
+    toast(who+' ha dato '+eur(dato)+': '+eur(a)+' la consumazione, '+(ex<=deb?eur(ex)+' scalati dai graffi':(deb?eur(deb)+' chiudono i graffi e '+eur(ex-deb)+' in credito':eur(ex)+' in credito')),function(){
+      S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');
+    });
+    return;
+  }
+  addMove({k:kind,p:chi,items:items,a:a},kind==='tab'?'Sul ticket di '+who+': '+eur(a):who+' ha pagato in cassa: '+eur(a));
+}
+function openHaDato(){
+  var pos=UI.pos,t=posTotal();if(!pos.p||!t.n)return;
+  var chi=pos.p,deb=Math.max(0,D.debt[chi]||0),cred=Math.max(0,-(D.debt[chi]||0));
+  var a=soldi('hd-a'),info=h('p',{class:'aiuto','aria-live':'polite'});
+  function upd(){
+    var v=parseEur(a.value);
+    if(isNaN(v)){info.textContent='Scrivi quanto ha dato.';return;}
+    if(v<t.a){info.textContent='È meno del conto ('+eur(t.a)+'): per lasciare il resto sul ticket usa «Sul ticket».';return;}
+    var ex=v-t.a;
+    if(!ex)info.textContent='Paga giusto: '+eur(t.a)+'.';
+    else if(ex<=deb)info.textContent=eur(t.a)+' per questa consumazione, '+eur(ex)+' scalano i graffi: '+(ex<deb?'ne restano '+eur(deb-ex)+'.':'chiusi tutti.');
+    else info.textContent=eur(t.a)+' per questa consumazione'+(deb?', '+eur(deb)+' chiudono i graffi':'')+' e '+eur(ex-deb)+' vanno in credito.';
+  }
+  function metti(v){a.value=c2s(v);upd();}
+  a.addEventListener('input',upd);
+  var tagli=[];
+  if(deb)tagli.push(h('button',{type:'button',class:'chip sm',onclick:function(){metti(t.a+deb);}},'Conto + graffi: '+eur(t.a+deb)));
+  [500,1000,2000,5000].forEach(function(v){if(v>t.a)tagli.push(h('button',{type:'button',class:'chip sm',onclick:function(){metti(v);}},eur(v)));});
+  formSheet('Paga '+pName(chi),[
+    h('dl',{class:'scheda'},h('dt',null,'Conto di adesso'),h('dd',null,eur(t.a)),h('dt',null,'Graffi aperti'),h('dd',{class:deb?'rosso':null},deb?eur(deb):(cred?'nessuno, è in credito di '+eur(cred):'nessuno'))),
+    campo('Quanto ha dato',a,'hd-a'),h('div',{class:'chips'},tagli),info,
+    h('p',{class:'aiuto'},'Quello che dà in più scala i suoi graffi, dai più vecchi; se li supera, resta in credito per le prossime volte.')],function(){
+    var v=parseEur(a.value);
+    if(isNaN(v)||v<t.a)return 'Scrivi almeno '+eur(t.a)+'.';
+    posSave('sale',v);
+  },'Registra il pagamento');
+  upd();
 }
 function vFarmacia(){
   var pos=UI.pos,out=[h('h2',{class:'titolo'},'Farmacia')];
@@ -1637,7 +1940,8 @@ function vFarmacia(){
   if(pos.p||t.n>0){
     out.push(h('div',{class:'posbar'},h('div',{class:'posbar-in'},
       h('div',{class:'pos-tot'},h('span',{class:'pos-who'},pos.p?pName(pos.p):'Scegli il paziente'),
-        h('strong',null,t.n?eur(t.a)+' · '+t.n+(t.n===1?' pezzo':' pezzi'):'Scegli cosa prende')),
+        h('span',{class:'pos-dx'},h('strong',null,t.n?eur(t.a)+' · '+t.n+(t.n===1?' pezzo':' pezzi'):'Scegli cosa prende'),
+          ok?h('button',{type:'button',class:'link chiaro','data-k':'ha-dato',onclick:openHaDato},'Ha dato di più?'):null)),
       h('div',{class:'pos-btns'},
         h('button',{type:'button',class:'pill duo-verde',disabled:!ok,onclick:function(){posSave('tab');}},'Sul ticket'),
         h('button',{type:'button',class:'pill',disabled:!ok,onclick:function(){posSave('sale');}},'Paga subito'),
@@ -1760,7 +2064,7 @@ function vCassa(){
       h('button',{class:'pill duo-verde',type:'button',onclick:openEntrata},'Entrata'),
       h('button',{class:'pill duo-rosa',type:'button',onclick:function(){openSpesa();}},'Spesa'),
       h('button',{class:'pill',type:'button',onclick:openConta},'Conta cassa')),
-    h('p',{class:'aiuto'},'Con graffi e scorte: ',h('button',{type:'button',class:'link','data-k':'cassa-soldi',onclick:function(){go(UI.tab,'soldi');}},'previsione '+eur(previsione(S,D).totale)))));
+    (function(P){return h('p',{class:'aiuto'},'Con le scorte il locale ha ',h('button',{type:'button',class:'link','data-k':'cassa-soldi',onclick:function(){go(UI.tab,'soldi');}},eur(P.attuale)),'; con i graffi, previsionale '+eur(P.previsionale)+'.');})(previsione(S,D))));
   var filtri=h('div',{class:'chips',role:'group','aria-label':'Filtro'});
   [['tutto','Tutto'],['cassa','Cassa'],['ticket','Ticket'],['scorte','Scorte']].forEach(function(f){
     filtri.append(h('button',{type:'button',class:'chip','data-k':'f-'+f[0],'aria-pressed':String(UI.filter===f[0]),onclick:function(){UI.filter=f[0];UI.limit=40;render();}},f[1]));
@@ -1863,16 +2167,18 @@ function rigaConto(nome,sotto,importo,cls,icls){
     h('span',{class:'cresce'},h('span',{class:'nome'},nome),sotto?h('span',{class:'sotto'},sotto):null),
     h('span',{class:'importo'+(icls?' '+icls:'')},importo)));
 }
-function barraSoldi(P){
-  var parti=[['cassa','Cassa',P.cassa],['graffi',P.restituire?'Graffi meno crediti':'Graffi',P.incassare-P.restituire],['scorte','Scorte',P.scorte]];
+function barraSoldi(parti){   // parti: [classe, nome, centesimi]
   var tot=0,neg=false;
   parti.forEach(function(x){if(x[2]<0)neg=true;tot+=x[2];});
   if(neg||tot<=0)return null;   // con una voce in negativo le proporzioni ingannano: resta solo il conto
   function pc(v){return Math.round(v/tot*100);}
-  var testo=parti.map(function(x){return x[1]+' '+pc(x[2])+'%';}).join(', ');
-  return [h('div',{class:'soldi-barra',role:'img','aria-label':testo},
+  return [h('div',{class:'soldi-barra',role:'img','aria-label':parti.map(function(x){return x[1]+' '+pc(x[2])+'%';}).join(', ')},
       parti.filter(function(x){return x[2]>0;}).map(function(x){return h('i',{class:'s-'+x[0],style:'flex-grow:'+x[2]});})),
     h('ul',{class:'soldi-leg','aria-hidden':'true'},parti.map(function(x){return h('li',null,h('i',{class:'s-'+x[0]}),x[1]+' '+pc(x[2])+'%');}))];
+}
+function testoCosto(P){
+  if(!P.nCosto)return null;
+  return 'a costo d’acquisto '+eur(P.scorteCosto)+(P.nCosto<P.righe.length?' (solo '+P.nCosto+' prodotti su '+P.righe.length+' hanno il costo)':'')+' · margine '+eur(P.margine);
 }
 function vSoldi(){
   var P=previsione(S,D),tc=ultimoDi('count'),ti=ultimoDi('inv');
@@ -1880,18 +2186,27 @@ function vSoldi(){
   var cred=people(true).filter(function(p){return (D.debt[p.id]||0)<0;}).sort(function(a,b){return D.debt[a.id]-D.debt[b.id];});
   var out=[indietro(),h('h2',{class:'titolo'},'Soldi del locale')];
   out.push(h('section',{class:'cartella'},
-    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Previsione'),h('span',{class:'timbro scuro'},'Stima')),
-    h('span',{class:'cifrona'+(P.totale<0?' rosso':''),id:'soldi-tot'},eur(P.totale)),
-    h('p',{class:'aiuto'},'Cassa, più i graffi se li pagano tutti, più le scorte se le vendete tutte a prezzo di listino.'),
-    barraSoldi(P),
+    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Il locale adesso'),h('span',{class:'timbro ok'},'Cassa + scorte')),
+    h('span',{class:'cifrona'+(P.attuale<0?' rosso':''),id:'soldi-tot'},eur(P.attuale)),
+    h('p',{class:'aiuto'},'I soldi in cassa più le scorte, se le vendete tutte a prezzo di listino. I graffi sono a parte, nel previsionale.'),
+    barraSoldi([['cassa','Cassa',P.cassa],['scorte','Scorte',P.scorte]]),
     h('div',{class:'riga-tratt'}),
     h('ul',{class:'righe conto'},
       rigaConto('Cassa adesso','calcolata dall’app · ultima conta: '+daQuando(tc),eur(P.cassa),null,P.cassa<0?'rosso':null),
-      rigaConto('Graffi da incassare',P.nInc?P.nInc+(P.nInc===1?' paziente':' pazienti')+' con il ticket aperto':'nessun ticket aperto',eurS(P.incassare)),
-      P.restituire?rigaConto('Crediti da restituire',P.nRes+(P.nRes===1?' paziente è':' pazienti sono')+' in credito',eurS(-P.restituire)):null,
-      rigaConto('Soldi se pagano tutti','cassa più graffi'+(P.restituire?', meno i crediti':''),eur(P.liquidi),'tot',P.liquidi<0?'rosso':null),
       rigaConto('Scorte a prezzo di vendita',P.righe.length?P.righe.length+(P.righe.length===1?' prodotto':' prodotti')+' in magazzino · ultimo inventario: '+daQuando(ti):'nessun prodotto contato',eurS(P.scorte)),
-      rigaConto('Totale previsto',null,eur(P.totale),'tot',P.totale<0?'rosso':null))));
+      P.nCosto?rigaConto('Le stesse scorte a costo',testoCosto(P),eur(P.scorteCosto)):null,
+      rigaConto('Totale attuale',null,eur(P.attuale),'tot',P.attuale<0?'rosso':null))));
+
+  out.push(h('section',{class:'cartella'},
+    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Previsionale, con i graffi'),h('span',{class:'timbro scuro'},'Stima')),
+    h('span',{class:'cifrona'+(P.previsionale<0?' rosso':''),id:'soldi-prev'},eur(P.previsionale)),
+    h('p',{class:'aiuto'},'Quanto avrebbe il locale se tutti saldassero i graffi e si restituissero i crediti.'),
+    h('div',{class:'riga-tratt'}),
+    h('ul',{class:'righe conto'},
+      rigaConto('Totale attuale','cassa + scorte',eur(P.attuale)),
+      rigaConto('Graffi da incassare',P.nInc?P.nInc+(P.nInc===1?' paziente':' pazienti')+' con il ticket aperto':'nessun ticket aperto',eurS(P.incassare)),
+      rigaConto('Crediti da restituire',P.nRes?P.nRes+(P.nRes===1?' paziente è':' pazienti sono')+' in credito (spese anticipate o pagato in più)':'nessuno',eurS(-P.restituire)),
+      rigaConto('Totale previsionale',null,eur(P.previsionale),'tot',P.previsionale<0?'rosso':null))));
 
   // avvertenze: prima i dati da sistemare, poi i limiti della stima
   var av=[];
@@ -1899,8 +2214,8 @@ function vSoldi(){
   else if(Date.now()-tc>14*864e5)av.push(h('li',{class:'rosso'},'Ultima conta della cassa '+daQuando(tc)+': da allora il conto si basa solo su quello che è stato segnato.'));
   if(P.nonContati)av.push(h('li',{class:'rosso'},P.nonContati+(P.nonContati===1?' prodotto in vendita non è mai stato contato e resta':' prodotti in vendita non sono mai stati contati e restano')+' fuori dal conto.'));
   if(P.negativi)av.push(h('li',{class:'rosso'},P.negativi+(P.negativi===1?' prodotto risulta':' prodotti risultano')+' sotto zero (venduto più di quanto contato): conta zero finché non rifate l’inventario.'));
-  av.push(h('li',null,'Le scorte valgono al prezzo di vendita: quello che le avete pagate è meno, e qualcosa si offre, scade o sparisce.'));
-  av.push(h('li',null,'I graffi contano per intero: ogni ticket che non viene pagato abbassa il totale.'));
+  av.push(h('li',null,P.nCosto?'Le scorte valgono al prezzo di vendita; il valore a costo vale solo per i prodotti passati da uno scontrino.':'Le scorte valgono al prezzo di vendita: quello che le avete pagate è meno. Con gli scontrini l’app impara anche il costo.'));
+  av.push(h('li',null,'Il previsionale conta i graffi per intero: ogni ticket che non viene pagato lo abbassa.'));
   out.push(h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Prima di fidarvi')),
     h('div',{class:'riga-tratt'}),
@@ -1914,7 +2229,7 @@ function vSoldi(){
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Scorte in magazzino'),h('span',{class:'importo'},eur(P.scorte))),
     h('div',{class:'riga-tratt'}),
     P.righe.length?h('ul',{class:'righe'},mostra.map(function(r){
-      return rigaConto(r.n,r.q+' pz × '+eur(r.pr),eur(r.v));
+      return rigaConto(r.n,r.q+' pz × '+eur(r.pr)+(r.c!=null?' · costo '+eur(r.c):''),eur(r.v));
     })):h('p',{class:'vuoto'},'Ancora nessun prodotto contato. Fate un inventario da Scorte e qui compare quanto valgono.'),
     tutte?null:h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button',onclick:function(){UI.soldiTutte=true;render();}},'Mostra tutti ('+P.righe.length+')'))));
 
@@ -1925,7 +2240,6 @@ function vSoldi(){
     cred.length?[h('h4',{class:'giorno'},'Da restituire'),h('ul',{class:'righe'},cred.map(personRow))]:null));
   return out;
 }
-
 /* ---------- vista: Altro ---------- */
 function voce(titolo,sotto,onclick){
   return h('li',null,h('button',{type:'button',class:'voce',onclick:onclick},
@@ -1940,7 +2254,7 @@ function vAltro(){
       voce('Guida all’uso','Come funziona ogni sezione, per chi è appena entrato in reparto',function(){var u=IN_CLAUDE?'https://ciccionaso.github.io/oblio-house/guida.html':'guida.html';if(IN_CLAUDE)window.open(u,'_blank');else location.href=u;}),
       SYNC?voce('Telefoni collegati',syncTesto()+(SST.errore?' · '+SST.errore:''),openSync):null,
       voce('Cassa e registro',eur(D.cash)+' in cassa',function(){go('altro','cassa');}),
-      voce('Soldi del locale','Previsione '+eur(previsione(S,D).totale)+' tra cassa, graffi e scorte',function(){go('altro','soldi');}),
+      (function(P){return voce('Soldi del locale','Adesso '+eur(P.attuale)+' · previsionale con i graffi '+eur(P.previsionale),function(){go('altro','soldi');});})(previsione(S,D)),
       voce('Scorte e lista della spesa',da?da+(da===1?' cosa da comprare':' cose da comprare'):'Niente da comprare',function(){go('altro','scorte');}),
       voce('Listino',S.products.filter(function(p){return p.on;}).length+' prodotti',function(){go('altro','listino');}),
       voce('Pazienti e visitatori',people().length+' in reparto'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),function(){go('altro','persone');}),
@@ -1978,6 +2292,7 @@ function vScorte(){
   });
   out.push(h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Magazzino'),h('button',{class:'pill sm',type:'button','data-k':'nuovo-prodotto',onclick:function(){openProdotto(null);}},'+ Nuovo prodotto')),
+    h('button',{class:'pill duo-rosa largo',type:'button','data-k':'scontrino',onclick:openScontrino},ic('scontrino',20),'Scontrino'),
     h('div',{class:'azioni tre'},
       h('button',{class:'pill duo-verde',type:'button',onclick:openCarico},'Carico'),
       h('button',{class:'pill',type:'button',onclick:openInventario},'Inventario'),
@@ -2093,6 +2408,205 @@ function openProdotto(id,opz){
     }
     if(opz.poi)setTimeout(opz.poi,60);
   });
+}
+/* ---------- scontrini: foto → lettura sul telefono → conferma ---------- */
+var LETTORE=null,letture={},nLett=0,progLettore=null;
+function lettore(){
+  if(!LETTORE){
+    LETTORE=new Worker('ocr/lettore.js');
+    LETTORE.onmessage=function(e){
+      var m=e.data||{};
+      if(m.t==='carico'||m.t==='leggo'){if(progLettore)progLettore(m.t,m.p);return;}
+      var cb=letture[m.id];if(cb){delete letture[m.id];cb(m);}
+    };
+    LETTORE.onerror=function(e){
+      var ks=Object.keys(letture);LETTORE=null;
+      ks.forEach(function(k){var cb=letture[k];delete letture[k];cb({t:'errore',msg:(e&&e.message)||'il lettore si è fermato'});});
+    };
+  }
+  return LETTORE;
+}
+/* la foto diventa un'immagine grigia a contrasto pieno, alta al massimo 2600 punti: legge meglio e consuma meno */
+function preparaFoto(file){
+  return new Promise(function(ok,ko){
+    var url=URL.createObjectURL(file),img=new Image();
+    img.onload=function(){
+      try{
+        var w=img.naturalWidth,hh=img.naturalHeight,m=Math.max(w,hh),k=m>2600?2600/m:(m<1400?1400/m:1);
+        var c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(hh*k));
+        var x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);
+        var d=x.getImageData(0,0,c.width,c.height),px=d.data,ist=new Uint32Array(256),n=c.width*c.height,i,lo=0,hi=255,a=0;
+        for(i=0;i<px.length;i+=4){var y=(px[i]*299+px[i+1]*587+px[i+2]*114)/1000|0;px[i]=y;ist[y]++;}
+        for(;lo<255;lo++){a+=ist[lo];if(a>n*0.02)break;}
+        for(a=0;hi>0;hi--){a+=ist[hi];if(a>n*0.02)break;}
+        var f=hi>lo+10?255/(hi-lo):1;
+        for(i=0;i<px.length;i+=4){var v=Math.max(0,Math.min(255,(px[i]-lo)*f))|0;px[i]=px[i+1]=px[i+2]=v;}
+        x.putImageData(d,0,0);
+        c.toBlob(function(b){if(!b)return ko(new Error('foto non convertita'));b.arrayBuffer().then(ok,ko);},'image/png');
+      }catch(e){ko(e);}
+    };
+    img.onerror=function(){URL.revokeObjectURL(url);ko(new Error('questa foto non si apre'));};
+    img.src=url;
+  });
+}
+/* prima lettura con la soglia adattiva (regge le ombre); se righe e totale non tornano, seconda lettura con la soglia
+   classica e tengo la migliore. «rilettura» avvisa quando parte la seconda. */
+function leggiFoto(file,rilettura){
+  return preparaFoto(file).then(function(png){
+    function passa(soglia){
+      return new Promise(function(ok){var id=++nLett,copia=png.slice(0);letture[id]=ok;lettore().postMessage({t:'leggi',id:id,png:copia,opz:{soglia:soglia}},[copia]);});
+    }
+    return passa(2).then(function(m){
+      if(m.t==='errore')return m;
+      var l=leggiScontrino(m.testo);
+      if(l.coerente&&l.righe.length)return m;
+      if(rilettura)rilettura();
+      return passa(0).then(function(m2){
+        if(m2.t==='errore')return m;
+        var l2=leggiScontrino(m2.testo);
+        return (l2.coerente&&!l.coerente)||(l2.coerente===l.coerente&&l2.righe.length>l.righe.length)?m2:m;
+      });
+    });
+  });
+}
+var fotoInput=null;
+function openScontrino(){
+  if(IN_CLAUDE){toast('Il lettore di scontrini funziona nell’app vera, non in questa anteprima.');return;}
+  if(!fotoInput){
+    fotoInput=h('input',{type:'file',accept:'image/*',id:'sc-foto',hidden:true,'aria-hidden':'true',tabindex:'-1'});
+    fotoInput.addEventListener('change',function(){var f=fotoInput.files&&fotoInput.files[0];fotoInput.value='';if(f)scontrinoDaFoto(f);});
+    document.body.append(fotoInput);
+  }
+  fotoInput.click();
+}
+function scontrinoDaFoto(file){
+  var stato=h('p',{class:'aiuto','aria-live':'polite'},'Preparo la foto…'),riemp=h('i'),barra=h('div',{class:'progresso'},riemp);
+  openSheet('Scontrino',[stato,barra,h('p',{class:'aiuto'},'Tutto avviene sul telefono. La prima volta scarica il lettore (circa 4,5 MB, serve internet); poi legge anche senza rete.')]);
+  var fase='Leggo lo scontrino… ';
+  function prog(t,p){var n=Math.round(p*100);stato.textContent=(t==='carico'?'Scarico il lettore… ':fase)+n+'%';riemp.style.width=n+'%';}
+  progLettore=prog;
+  leggiFoto(file,function(){fase='Non torna: rileggo in un altro modo… ';}).then(function(m){
+    progLettore=null;
+    if(m.t==='errore')throw new Error(m.msg);
+    var letto=leggiScontrino(m.testo);
+    if(!letto.righe.length){
+      openSheet('Scontrino',[h('p',{class:'errore'},'Non trovo righe con un prezzo. Rifai la foto dritta, con buona luce e lo scontrino tutto dentro, oppure inserisci le righe a mano.'),
+        h('details',null,h('summary',null,'Testo letto'),h('pre',{class:'sc-pre'},m.testo||'(niente)')),
+        h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:openScontrino},'Altra foto'),h('button',{class:'pill',type:'button',onclick:function(){confermaScontrino(letto,m.testo);}},'Inserisci a mano'))]);
+      return;
+    }
+    confermaScontrino(letto,m.testo);
+  }).catch(function(err){
+    progLettore=null;
+    openSheet('Scontrino',[h('p',{class:'errore'},'Lettura non riuscita: '+(err&&err.message||err)+'.'),
+      h('p',{class:'aiuto'},'Se è la prima volta serve internet per scaricare il lettore. Puoi anche inserire le righe a mano.'),
+      h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:openScontrino},'Riprova'),
+        h('button',{class:'pill',type:'button',onclick:function(){confermaScontrino({righe:[],totale:null,somma:0,coerente:false,negozio:'',data:''},'');}},'Inserisci a mano'))]);
+  });
+}
+function opzioniProdotto(sel){
+  var o=[];
+  cats().forEach(function(c){
+    var l=S.products.filter(function(p){return p.cat===c;});if(!l.length)return;
+    o.push(h('optgroup',{label:c},l.map(function(p){return h('option',{value:p.id},p.name+(p.on?'':' (fuori listino)'));})));
+  });
+  o.push(h('optgroup',{label:'Altro'},h('option',{value:'+'},'+ Prodotto nuovo'),h('option',{value:'altro'},'Altra spesa (non va in magazzino)'),h('option',{value:'no'},'Escludi: non è del locale')));
+  var s=h('select',{class:'inp sc-prod','aria-label':'Prodotto'},o);s.value=sel;return s;
+}
+function confermaScontrino(letto,grezzo){
+  var righe=propostaScontrino(letto,S.products).map(function(r){
+    return {d:r.d,q:r.q,tipo:r.prod?'prod':'+',prod:r.prod,pezzi:r.pezzi,spesa:r.tot,conf:r.conf,certo:r.certo,nome:nomeProposto(r.d),prezzo:'',cat:cats()[0]||'Altro'};
+  });
+  var lista=h('ol',{class:'sc-righe'}),somma=h('p',{class:'sc-somma','aria-live':'polite'});
+  var err=h('p',{class:'errore',role:'alert',hidden:true});
+  var conSpesa=h('input',{type:'checkbox',id:'sc-spesa',checked:true});
+  var chi=chipSel([{v:'cassa',label:'La cassa'}].concat(peopleOpts()),'cassa');
+  var come=chipSel([{v:'cassa',label:'Rimborso dalla cassa'},{v:'debito',label:'Scala dal suo ticket'},{v:'dividi',label:'Dividi tra tutti'}],'cassa');
+  var tra=chipSel(peopleOpts(),people().filter(function(p){return p.kind==='paziente';}).map(function(p){return p.id;}),true);
+  var boxChi=gruppo('Chi ha pagato',chi),boxCome=gruppo('Come rientra dei soldi',come),boxTra=gruppo('Tra chi si divide',tra);
+  function aggSpesa(){boxChi.hidden=!conSpesa.checked;boxCome.hidden=!conSpesa.checked||chi.get()==='cassa';boxTra.hidden=boxCome.hidden||come.get()!=='dividi';}
+  conSpesa.addEventListener('change',aggSpesa);chi.addEventListener('change',aggSpesa);come.addEventListener('change',aggSpesa);
+  function aggSomma(){
+    var t=0,pr=0,al=0;
+    righe.forEach(function(r){if(r.tipo==='no')return;var v=parseEur(r.spesaTxt!=null?r.spesaTxt:c2s(r.spesa));if(isNaN(v))return;t+=v;if(r.tipo==='altro')al+=v;else pr+=v;});
+    var d=letto.totale!=null?letto.totale-t:null;
+    somma.replaceChildren();
+    put(somma,[h('b',null,'Righe: '+eur(t)),' (magazzino '+eur(pr)+(al?', altre spese '+eur(al):'')+')',
+      letto.totale!=null?[h('br'),'Totale letto sullo scontrino: '+eur(letto.totale)+(d===0?' · torna.':''),
+        d?h('span',{class:'rosso'},' · '+(d>0?'mancano '+eur(d):'ci sono '+eur(-d)+' in più')+': controlla le righe.'):null]:null]);
+  }
+  function rigaUI(r){
+    var li=h('li',{class:'sc-riga'+(r.tipo==='prod'&&!r.certo?' dubbio':'')});
+    var sel=opzioniProdotto(r.tipo==='prod'?r.prod:r.tipo);
+    var pz=h('input',{class:'inp corto',type:'text',inputmode:'numeric',autocomplete:'off',value:String(r.pezzi),'aria-label':'Pezzi'});
+    var sp=h('input',{class:'inp soldi corto2',type:'text',inputmode:'decimal',autocomplete:'off',value:c2s(r.spesa),'aria-label':'Spesa della riga'});
+    var unit=h('span',{class:'sotto'});
+    var nome=testo(null,'Nome del prodotto',40,r.nome),prezzo=soldi(null),cat=h('select',{class:'inp'},cats().concat(cats().indexOf('Altro')<0?['Altro']:[]).map(function(c){return h('option',{value:c},c);}));
+    nome.setAttribute('aria-label','Nome del prodotto nuovo');prezzo.setAttribute('aria-label','Prezzo di vendita');prezzo.placeholder='vendita';cat.value=r.cat;cat.setAttribute('aria-label','Categoria');
+    var nuovo=h('div',{class:'sc-nuovo'},h('div',{class:'linea'},h('span',{class:'cresce1'},nome)),h('div',{class:'linea'},h('span',{class:'nome cresce1'},'Prezzo di vendita'),prezzo),h('div',{class:'linea'},h('span',{class:'nome cresce1'},'Categoria'),cat));
+    var bConf=r.conf>1?h('button',{type:'button',class:'chip sm',onclick:function(){pz.value=String(r.q*r.conf);leggi();}},'Confezione da '+r.conf+'? Metti '+(r.q*r.conf)+' pezzi'):null;
+    var numeri=h('div',{class:'sc-num'},h('label',null,h('span',{class:'sotto'},'Pezzi'),pz),h('label',null,h('span',{class:'sotto'},'Spesa €'),sp),unit);
+    function leggi(){
+      r.tipo=sel.value==='+'||sel.value==='altro'||sel.value==='no'?sel.value:'prod';
+      if(r.tipo==='prod')r.prod=sel.value;
+      r.pezziTxt=pz.value;r.spesaTxt=sp.value;r.nome=nome.value;r.prezzoTxt=prezzo.value;r.cat=cat.value;
+      var n=leggiNumero(pz.value),v=parseEur(sp.value),inMag=r.tipo==='prod'||r.tipo==='+';
+      nuovo.hidden=r.tipo!=='+';pz.parentNode.hidden=!inMag;if(bConf)bConf.hidden=!inMag;
+      sp.parentNode.hidden=r.tipo==='no';li.classList.toggle('escluso',r.tipo==='no');
+      unit.textContent=inMag&&n>0&&!isNaN(v)?eur(Math.round(v/n))+' al pezzo':'';
+      aggSomma();
+    }
+    [sel,pz,sp,nome,prezzo,cat].forEach(function(x){x.addEventListener(x.tagName==='SELECT'?'change':'input',leggi);});
+    put(li,[h('div',{class:'sc-d'},h('span',null,r.d||'Riga aggiunta a mano'),r.q>1?h('small',null,' · '+r.q+' sullo scontrino'):null),sel,numeri,bConf,nuovo]);
+    setTimeout(leggi,0);
+    return li;
+  }
+  righe.forEach(function(r){lista.append(rigaUI(r));});
+  var agg=h('button',{type:'button',class:'pill sm',onclick:function(){var r={d:'',q:1,tipo:'+',prod:null,pezzi:1,spesa:0,conf:1,certo:false,nome:'',prezzo:'',cat:cats()[0]||'Altro'};righe.push(r);lista.append(rigaUI(r));}},'+ Aggiungi riga');
+  var salva=h('button',{type:'button',class:'pill duo-verde largo',onclick:function(){
+    var vere=[],nomi={},msg='';
+    S.products.forEach(function(p){nomi[p.name.toLowerCase()]=1;});
+    righe.forEach(function(r,i){
+      if(msg||r.tipo==='no')return;
+      var n=leggiNumero(r.pezziTxt!=null?r.pezziTxt:String(r.pezzi)),v=parseEur(r.spesaTxt!=null?r.spesaTxt:c2s(r.spesa)),dove='Riga '+(i+1)+': ';
+      if(isNaN(v)){msg=dove+'scrivi la spesa, per esempio 1,29.';return;}
+      var x={tipo:r.tipo,d:r.d,q:r.q,spesa:v};
+      if(r.tipo==='prod'||r.tipo==='+'){
+        if(n==null||isNaN(n)||n<1){msg=dove+'scrivi quanti pezzi entrano in magazzino.';return;}
+        x.pezzi=n;
+      }
+      if(r.tipo==='prod')x.prod=r.prod;
+      if(r.tipo==='+'){
+        var nm=(r.nome||'').trim(),pr=parseEur(r.prezzoTxt||'');
+        if(!nm){msg=dove+'scrivi il nome del prodotto nuovo.';return;}
+        if(nomi[nm.toLowerCase()]){msg=dove+'«'+nm+'» c’è già nel listino o in un’altra riga: sceglilo dall’elenco.';return;}
+        if(isNaN(pr)){msg=dove+'scrivi il prezzo di vendita di «'+nm+'».';return;}
+        nomi[nm.toLowerCase()]=1;x.tipo='nuovo';x.nome=nm;x.prezzo=pr;x.cat=r.cat;
+      }
+      vere.push(x);
+    });
+    if(!msg&&!vere.length)msg='Non c’è niente da registrare.';
+    var by=chi.get(),opz={negozio:letto.negozio,data:letto.data,spesa:conSpesa.checked,by:by,settle:come.get(),tra:tra.get()};
+    if(!msg&&opz.spesa&&!by)msg='Scegli chi ha pagato.';
+    if(!msg&&opz.spesa&&by!=='cassa'&&opz.settle==='dividi'&&!opz.tra.length)msg='Scegli tra chi dividere la spesa.';
+    if(msg){err.textContent=msg;err.hidden=false;err.scrollIntoView({block:'center'});return;}
+    var primaP=JSON.parse(JSON.stringify(S.products));
+    var r=applicaScontrino(S,vere,opz,Date.now(),rid);
+    closeSheet();commit();
+    toast('Scontrino registrato: '+r.pezzi+(r.pezzi===1?' pezzo':' pezzi')+(r.nuovi.length?', '+r.nuovi.length+(r.nuovi.length===1?' prodotto nuovo':' prodotti nuovi'):'')+(opz.spesa?', spesa '+eur(r.totale):''),function(){
+      S.products=primaP;S.moves=S.moves.filter(function(m){return r.mosse.indexOf(m)<0;});commit();toast('Scontrino annullato.');
+    });
+  }},'Registra lo scontrino');
+  aggSpesa();
+  openSheet('Conferma lo scontrino',[
+    h('p',{class:'aiuto'},(letto.negozio?letto.negozio+(letto.data?' · '+letto.data:'')+'. ':'')+'Controlla ogni riga: prodotto, pezzi che entrano in magazzino e quanto è costata. Le righe evidenziate sono da verificare. Finché non tocchi «Registra» non cambia niente.'),
+    h('div',{class:'azioni'},h('button',{type:'button',class:'pill sm',onclick:openScontrino},'Rifai la foto')),
+    lista,agg,somma,
+    h('div',{class:'riga-tratt'}),
+    h('label',{class:'spunta',for:'sc-spesa'},conSpesa,'Registra anche la spesa in cassa'),
+    boxChi,boxCome,boxTra,err,salva,
+    grezzo?h('details',null,h('summary',null,'Testo letto dalla foto'),h('pre',{class:'sc-pre'},grezzo)):null]);
+  aggSomma();
 }
 function vPersone(){
   return [indietro(),h('h2',{class:'titolo'},'Pazienti'),
@@ -2480,8 +2994,10 @@ function vRegole(){
     var sel=chipSel(FRAZ.map(function(f){return {v:f[0],label:f[1]};}),S.cfg.rifiuti[g],true);
     return {g:g,sel:sel,box:gruppo('Ritiro '+GIORNI[g].toLowerCase()+' mattina',sel)};
   });
+  var butt=chipSel(FRAZ.map(function(f){return {v:f[0],label:f[1]};}),S.cfg.buttiamo||BUTTIAMO0,true);
   var formR=h('form',{class:'modulo',onsubmit:function(ev){
-      ev.preventDefault();giorni.forEach(function(x){S.cfg.rifiuti[x.g]=x.sel.get();});commit();toast('Calendario dei rifiuti salvato.');}},
+      ev.preventDefault();S.cfg.buttiamo=butt.get();giorni.forEach(function(x){S.cfg.rifiuti[x.g]=x.sel.get();});commit();toast('Calendario dei rifiuti salvato.');}},
+    gruppo('Cosa buttate (gli avvisi arrivano solo per queste)',butt),
     giorni.map(function(x){return x.box;}),
     h('button',{class:'pill duo-verde largo',type:'submit'},'Salva il calendario'));
   var pg=h('input',{class:'inp corto',id:'rg-pul',type:'text',inputmode:'numeric',autocomplete:'off',value:String(S.cfg.puliziaGiorni)});

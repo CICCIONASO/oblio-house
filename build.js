@@ -56,6 +56,14 @@ fs.mkdirSync(path.join(dist, 'img'), { recursive: true });
 immagini.forEach((f) => fs.copyFileSync(path.join(imgSrc, f), path.join(dist, 'img', f)));
 fs.writeFileSync(path.join(root, 'preview-files.json'), JSON.stringify(Object.fromEntries(immagini.map((f) => ['img/' + f, 'src/img/' + f])), null, 2));
 
+// lettore di scontrini: motore OCR e modello italiano serviti dal sito stesso (niente servizi esterni).
+// Non entrano nella cache d'installazione: li scarica il lettore la prima volta che serve e li tiene nella sua cache.
+const ocrSrc = path.join(root, 'src', 'ocr');
+fs.rmSync(path.join(dist, 'ocr'), { recursive: true, force: true });
+fs.mkdirSync(path.join(dist, 'ocr'), { recursive: true });
+const ocrFiles = fs.readdirSync(ocrSrc).sort();
+ocrFiles.forEach((f) => fs.copyFileSync(path.join(ocrSrc, f), path.join(dist, 'ocr', f)));
+
 fs.writeFileSync(path.join(dist, 'sw.js'), src('sw.js')
   .replace('__VERSIONE__', VERSIONE + '-' + Date.now().toString(36))
   .replace('__FONT_CSS__', FONT_CSS)
