@@ -1421,12 +1421,23 @@ function syncTesto(){
     default:return '';
   }
 }
+// etichetta corta nell'intestazione, al posto del pallino
+function syncBreve(){
+  switch(SST.stato){
+    case 'ok':return 'Sincronizzato';
+    case 'attesa':return SST.attesa+' da inviare';
+    case 'collego':return 'Mi collego…';
+    case 'errore':return 'Non collegati';
+    default:return '';
+  }
+}
 function paintSync(){
   var el=$('#sync');if(!el)return;
   var on=!!SYNC&&SST.stato!=='spento';
   el.hidden=!on;
   if(!on)return;
-  el.className='sync-dot '+SST.stato;
+  el.className='sync-et '+SST.stato;
+  el.textContent=syncBreve();
   el.setAttribute('aria-label','Telefoni: '+syncTesto());
   el.title='Telefoni: '+syncTesto()+(SST.errore?' · '+SST.errore:'');
   var r=$('#sync-riga');if(r)r.textContent=syncTesto();
@@ -2119,7 +2130,7 @@ function prodTile(p){
   return h('div',{class:'prod'+(n?' on':'')},
     h('button',{type:'button',class:'prod-add','data-k':'add-'+p.id,onclick:function(){UI.pos.qty[p.id]=n+1;render();}},
       h('span',{class:'prod-n'},p.name),h('span',{class:'prod-p'},eur(p.price)),
-      st!=null?h('span',{class:'prod-s'+(st<=0?' zero':'')},st<=0?'finito':st+' pz'):null),
+      st!=null?h('span',{class:'prod-s'+(st<=0?' zero':p.min!=null&&st<=p.min?' poco':'')},st<=0?'finito':p.min!=null&&st<=p.min?'ultimi '+st+' pz':st+' pz'):null),
     n?h('button',{type:'button',class:'prod-less','data-k':'less-'+p.id,'aria-label':'Togli uno: '+p.name,onclick:function(){if(n<=1)delete UI.pos.qty[p.id];else UI.pos.qty[p.id]=n-1;render();}},'−'):null,
     n?h('span',{class:'prod-q'},String(n)):null);
 }
