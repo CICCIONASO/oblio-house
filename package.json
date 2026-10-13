@@ -5,11 +5,12 @@
   "description": "L'app del reparto: farmacia, ticket, cassa, scorte, freccette e classifiche.",
   "scripts": {
     "build": "node build.js",
-    "test": "npm run test:pure && npm run test:novita && npm run test:sync && npm run test:compat",
+    "test": "npm run test:pure && npm run test:novita && npm run test:sync && npm run test:compat && npm run test:versione",
     "test:pure": "node test/pure.test.js",
     "test:novita": "node test/novita.test.js",
     "test:sync": "node test/sync.test.js",
     "test:compat": "node test/compat.test.js",
+    "test:versione": "node test/versione.test.js",
     "test:e2e": "node build.js && node test/e2e.js"
   },
   "engines": {
