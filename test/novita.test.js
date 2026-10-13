@@ -352,6 +352,7 @@ const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, 
     spese: -1200,
     entrate: 0,
     debiti: 0,
+    prelievi: 0,
     conte: -150,
     inventari: -120,
     prezzi: 2000,
@@ -365,6 +366,42 @@ const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, 
   assert.strictEqual(r2.correzioni, -5000);
   assert.strictEqual(r2.adesso, A.previsione(S, A.derive(S)).previsionale);
   assert.strictEqual(r2.correzioni + r2.somma, r2.diff);
+}
+
+/* ---------- preso dalla cassa e scorte sotto zero: il previsionale non si muove ---------- */
+{
+  const S = A.seedState(1);
+  const coca = S.products.find((p) => p.name === 'Coca Cola lattina');
+  let t = Date.parse('2026-10-02T20:00:00+02:00');
+  const mv = (o) => {
+    const x = Object.assign({ id: 'n' + t, t: (t += 60000) }, o);
+    S.moves.push(x);
+    return x;
+  };
+  mv({ k: 'in', a: 5000 });
+  mv({ k: 'inv', a: 0, items: [{ id: coca.id, n: 'Coca', q: 1, pr: 120 }] });
+  const P0 = A.previsione(S, A.derive(S));
+  const foto = { id: 'k2', t: t + 1, previsionale: P0.previsionale };
+  t += 1000;
+  // PEPPE prende 10 € dalla cassa per la pizza: due movimenti insieme
+  mv({ k: 'dplus', p: 'peppe', a: 1000, note: 'pizza', g: 'gp', pc: 1 });
+  mv({ k: 'exp', a: 1000, note: 'pizza', cat: 'Preso dalla cassa', paidBy: 'cassa', g: 'gp', pc: 1 });
+  // tre coche vendute con una sola in magazzino
+  mv({ k: 'sale', p: 'pj', a: 360, items: [{ id: coca.id, n: 'Coca', q: 3, pr: 120 }] });
+  const D1 = A.derive(S),
+    P1 = A.previsione(S, D1);
+  assert.strictEqual(D1.cash, 5000 - 1000 + 360);
+  assert.strictEqual(D1.debt.peppe, 1000);
+  assert.strictEqual(P1.previsionale, P0.previsionale, 'né il prelievo né le vendite sotto zero cambiano il previsionale');
+  const r = A.spiegaVerifica(S, foto, t + 1);
+  assert.strictEqual(r.diff, 0);
+  assert.strictEqual(r.cat.prelievi, 0, 'uscita e debito si compensano');
+  assert.strictEqual(r.cat.spese, 0, 'non è una spesa del locale');
+  assert.strictEqual(r.cat.debiti, 0);
+  assert.strictEqual(r.cat.vendite, 0);
+  // il segno «pc» resta anche dopo la normalizzazione
+  const N = A.normState(JSON.parse(JSON.stringify(S)));
+  assert.strictEqual(N.moves.filter((m) => m.pc === 1).length, 2);
 }
 
 /* ---------- codici, muro, verifiche: normalizzazione ---------- */

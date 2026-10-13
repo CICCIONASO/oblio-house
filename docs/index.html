@@ -519,7 +519,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.8.0';
+var APP_V='0.9.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: quante persone può votare ognuno in una serata; graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -733,6 +733,7 @@ function topSintomi(conta,quanti){
   var max=Math.max.apply(null,ks.map(function(s){return conta[s];}));
   return ks.filter(function(s){return conta[s]===max;}).slice(0,quanti||3);
 }
+// eslint-disable-next-line no-unused-vars -- usata dai test (blocco PURE)
 function topSintomo(conta){return topSintomi(conta,1)[0]||null;}
 function sintomiDi(S,id){
   var conta={};
@@ -740,15 +741,17 @@ function sintomiDi(S,id){
   return conta;
 }
 /* soldi del locale. Attuale: cassa + scorte a prezzo di vendita. Previsionale, a parte: in più i graffi da incassare,
-   meno i crediti da restituire. Le scorte valgono anche a costo d'acquisto, per i prodotti che ce l'hanno (dagli scontrini). */
+   meno i crediti da restituire. Le scorte valgono anche a costo d'acquisto, per i prodotti che ce l'hanno (dagli scontrini).
+   Una scorta sotto zero vale in negativo: così vendere a listino non cambia mai il previsionale, nemmeno senza merce
+   segnata (prima contava zero e ogni vendita lo alzava). L'inventario la rimette a posto. */
 function previsione(S,D){
   var o={cassa:D.cash,incassare:0,restituire:0,nInc:0,nRes:0,scorte:0,scorteCosto:0,margine:0,nCosto:0,righe:[],nonContati:0,negativi:0};
   Object.keys(D.debt).forEach(function(p){var d=D.debt[p];if(d>0){o.incassare+=d;o.nInc++;}else if(d<0){o.restituire-=d;o.nRes++;}});
   S.products.forEach(function(p){
     if(!(p.id in D.stock)){if(p.on)o.nonContati++;return;}
-    if(toInt(D.stock[p.id])<0)o.negativi++;
-    var q=Math.max(0,toInt(D.stock[p.id]));
-    if(q<=0)return;
+    var q=toInt(D.stock[p.id]);
+    if(q<0)o.negativi++;
+    if(!q)return;
     var r={id:p.id,n:p.name,q:q,pr:p.price,v:q*p.price};
     if(p.cost!=null){r.c=p.cost;r.vc=q*p.cost;o.scorteCosto+=r.vc;o.margine+=r.v-r.vc;o.nCosto++;}
     o.scorte+=r.v;o.righe.push(r);
@@ -762,7 +765,7 @@ function previsione(S,D){
 function normUp(s){return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();}
 function chiaveScontrino(d){return normUp(d).replace(/[^A-Z0-9]+/g,' ').trim().slice(0,40);}
 var SC_PREZZO=/^(.*?)\s*[€]?\s*([-–—~]?)\s*(\d{1,4})\s?[,.]\s?(\d{2})\d?\s*(?:€|EUR|[A-Z*]{1,2})?\s*$/;
-var SC_QTA=/^(?:N\.?\s*)?(\d{1,3})\s*(?:PZ\.?\s*)?[X×*\/]+[^0-9]{0,3}(\d{1,4})\s?[,.]\s?(\d{2})(?:\s+(\d{1,4})\s?[,.]\s?(\d{2}))?/;
+var SC_QTA=/^(?:N\.?\s*)?(\d{1,3})\s*(?:PZ\.?\s*)?[X×*/]+[^0-9]{0,3}(\d{1,4})\s?[,.]\s?(\d{2})(?:\s+(\d{1,4})\s?[,.]\s?(\d{2}))?/;
 var SC_SCONTO=/^(SCONTO|SCONT|SC\.|PROMO|OFFERTA|RIDUZ|STORNO|ABBUONO|BUONO SCONTO|COUPON|RIBASSO)/;
 var SC_NO=/^(SUB ?TOTALE|TOTALE|TOT\b|TOT\.|DI CUI|IVA\b|IMPONIBILE|CONTANT|PAGAMENT|PAGATO|IMPORTO|RESTO|CARTA|BANCOMAT|ELETTRONIC|POS\b|CREDITO|DEBITO|BUONI?\b|ARROTOND|SALDO|PUNTI|N\.? ?PEZZI|NUMERO|DOCUMENTO|DOC\b|SCONTRINO|CASSA|CASSIERE|OPERATORE|P\.? ?IVA|C\.? ?F\b|TEL\b|DESCRIZIONE|PREZZO|EURO\b|EUR\b|GRAZIE|RT\b|MATRICOLA|RESO\b|ACCONTO|NON RISCOSSO)/;
 function scCent(n,d,neg){var v=parseInt(n,10)*100+parseInt(d,10);return neg?-v:v;}
@@ -776,7 +779,7 @@ function leggiScontrino(testo){
   var out={righe:[],totale:null,somma:0,coerente:false,negozio:'',data:''},cand={},qPend=null,descPend=null,ultima=null,prima=-1;
   String(testo||'').split(/\r?\n/).forEach(function(raw,i){
     var l=normUp(raw).replace(/\s+/g,' ').trim();if(!l)return;
-    if(!out.data){var md=/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2}|\d{2})\b/.exec(l);if(md&&+md[1]>=1&&+md[1]<=31&&+md[2]>=1&&+md[2]<=12)out.data=(md[1].length<2?'0':'')+md[1]+'/'+(md[2].length<2?'0':'')+md[2]+'/'+(md[3].length===2?'20'+md[3]:md[3]);}
+    if(!out.data){var md=/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})\b/.exec(l);if(md&&+md[1]>=1&&+md[1]<=31&&+md[2]>=1&&+md[2]<=12)out.data=(md[1].length<2?'0':'')+md[1]+'/'+(md[2].length<2?'0':'')+md[2]+'/'+(md[3].length===2?'20'+md[3]:md[3]);}
     if(!out.negozio&&prima<0&&/[A-Z]{3}/.test(l)&&!/^(VIA|V\.LE|VIALE|C\.?SO|CORSO|PIAZZA|P\.? ?IVA|TEL|DOCUMENTO)/.test(l)&&!SC_PREZZO.test(l))out.negozio=l.replace(/[^A-Z0-9 &'.-]/g,'').trim().slice(0,30);
     if(/^\d+[,.]\d{3}\s*KG/.test(l))return;                       // riga del peso: informazione, non articolo
     var q=SC_QTA.exec(l);
@@ -1276,9 +1279,9 @@ function prossimiCompleanni(S,oggi){
    previsionale = cassa + graffi (al netto dei crediti) + scorte contate × prezzo di quel momento.
    «correzioni»: quello che è cambiato nel passato dopo la foto (annullamenti, movimenti segnati in ritardo). */
 function spiegaVerifica(S,snap,tFine){
-  var prod={},stock={},cash=0,debt=0,cat={carichi:0,vendite:0,spese:0,entrate:0,debiti:0,conte:0,inventari:0,prezzi:0,altro:0};
+  var prod={},stock={},cash=0,debt=0,cat={carichi:0,vendite:0,spese:0,entrate:0,debiti:0,prelievi:0,conte:0,inventari:0,prezzi:0,altro:0};
   S.products.forEach(function(p){prod[p.id]=p;});
-  function vp(id,t){return (id in stock)&&prod[id]?Math.max(0,stock[id])*prezzoAl(prod[id],t):0;}
+  function vp(id,t){return (id in stock)&&prod[id]?stock[id]*prezzoAl(prod[id],t):0;}
   function valore(t){var v=cash+debt;Object.keys(stock).forEach(function(id){v+=vp(id,t);});return v;}
   var ev=[];
   S.moves.forEach(function(m){if(m&&!m.x&&toInt(m.t)<=tFine)ev.push({t:toInt(m.t),m:m});});
@@ -1288,7 +1291,7 @@ function spiegaVerifica(S,snap,tFine){
   function fuori(m){(m.items||[]).forEach(function(it){if(it&&it.id&&(it.id in stock))stock[it.id]-=toInt(it.q);});}
   function applica(e){
     if(!e.m){   // cambio di prezzo: le scorte di quel prodotto cambiano valore
-      var p=e.p,dopo=prezzoAl(p,e.x.t),q=(p.id in stock)?Math.max(0,stock[p.id]):0;
+      var p=e.p,dopo=prezzoAl(p,e.x.t),q=(p.id in stock)?stock[p.id]:0;
       return {k:'prezzi',d:q*(dopo-e.x.da)};
     }
     var m=e.m,a=m.k==='count'?toInt(m.a):Math.max(0,toInt(m.a)),ids={},prima=0,dopo2=0,k='altro';
@@ -1298,7 +1301,7 @@ function spiegaVerifica(S,snap,tFine){
     switch(m.k){
       case 'sale':cash+=a;fuori(m);k='vendite';break;
       case 'tab':if(m.p)debt+=a;fuori(m);k='vendite';break;
-      case 'dplus':if(m.p)debt+=a;k='debiti';break;
+      case 'dplus':if(m.p)debt+=a;k=m.pc?'prelievi':'debiti';break;
       case 'dminus':if(m.p)debt-=a;k='debiti';break;
       case 'pay':cash+=a;if(m.p)debt-=a;break;
       case 'in':cash+=a;k='entrate';break;
@@ -1306,7 +1309,7 @@ function spiegaVerifica(S,snap,tFine){
         if(!m.paidBy||m.paidBy==='cassa'||m.settle==='cassa')cash-=a;
         else if(m.settle==='dividi'){debt-=a;var sh=m.shares||{};Object.keys(sh).forEach(function(p){debt+=toInt(sh[p]);});}
         else debt-=a;
-        k='spese';break;
+        k=m.pc?'prelievi':'spese';break;
       case 'count':cash+=a;k='conte';break;
       case 'load':(m.items||[]).forEach(function(it){if(it&&it.id)stock[it.id]=(stock[it.id]||0)+toInt(it.q);});k='carichi';break;
       case 'inv':(m.items||[]).forEach(function(it){if(it&&it.id)stock[it.id]=toInt(it.q);});k='inventari';break;
@@ -1395,7 +1398,7 @@ var NOTI={
   cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH'],
   people:['id','name','kind','on','img','nato'],
   products:['id','name','cat','price','min','on','cost','al','ph'],
-  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da'],
   quote:['id','mese','a','chi','scad','note','t'],
   muro:['id','t','p','testo','col','dv','mod'],
@@ -1490,6 +1493,7 @@ function normState(raw){
     if(m.x)o.x={t:toInt(m.x.t)};
     if(m.xm)o.xm=str(m.xm,120);                     // motivo dell'annullamento
     if(m.g)o.g=str(m.g,40);                         // movimenti che vanno insieme (pagamento misto, resto in più)
+    if(m.pc)o.pc=1;                                 // preso dalla cassa: debito + uscita, non è una spesa del locale
     if(m.mese&&/^\d{4}-\d{2}$/.test(String(m.mese)))o.mese=String(m.mese);   // quota del locale: di che mese
     S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
@@ -2293,11 +2297,12 @@ function moveInfo(mv){
   switch(mv.k){
     case 'sale':return {t:'Pagato subito · '+who,s:itemsText(mv),cash:a,tag:'cassa'};
     case 'tab':return {t:'Sul ticket · '+who,s:itemsText(mv),debt:a,tag:'ticket'};
-    case 'dplus':return {t:'Debito aggiunto · '+who,s:mv.note||'',debt:a,tag:'ticket'};
+    case 'dplus':return {t:(mv.pc?'Preso dalla cassa · ':'Debito aggiunto · ')+who,s:mv.note||'',debt:a,tag:'ticket'};
     case 'dminus':return {t:'Debito tolto · '+who,s:mv.note||'',debt:-a,tag:'ticket'};
     case 'pay':return {t:'Ticket incassato · '+who,s:mv.note||'',cash:a,tag:'cassa'};
     case 'in':return {t:'Entrata',s:mv.note||'',cash:a,tag:'cassa'};
     case 'exp':
+      if(mv.pc)return {t:'Uscito dalla cassa',s:[mv.note,'va sul ticket di chi l’ha preso'].filter(Boolean).join(' · '),cash:-a,tag:'cassa'};
       var by=mv.paidBy&&mv.paidBy!=='cassa'?pName(mv.paidBy):'',how,daCassa=!by||mv.settle==='cassa';
       if(!by)how='pagata dalla cassa';
       else if(mv.settle==='cassa')how='anticipata da '+by+', rimborsata dalla cassa';
@@ -2349,7 +2354,6 @@ function personRow(p,conQuota){
       sotto.length?h('span',{class:'sotto'+(vec?' rosso':'')},sotto.join(' · ')):null),
     h('span',{class:'importo '+(tot>0?'rosso':d<0?'verde':'spento')},tot>0?eur(tot):d<0?'credito '+eur(-d):eur(0))));
 }
-function rigaB(dt,dd,cls){return h('div',null,h('dt',null,dt),h('dd',{class:cls||null},dd));}
 
 /* ---------- vista: Reparto ---------- */
 function vReparto(){
@@ -2781,7 +2785,7 @@ function vTicket(){
       totQ?h('p',{class:'aiuto'},'Di cui quota del locale non pagata: '+eur(totQ)+'. Va nel fondo, non in cassa.'):null,
       h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},list.map(function(p){return personRow(p,true);})),
-      h('p',{class:'aiuto'},'Una tacca per ogni consumazione non ancora pagata. Tocca un nome per incassare, aggiungere o togliere un debito.'),
+      h('p',{class:'aiuto'},'Una tacca per ogni consumazione non ancora pagata. Tocca un nome per incassare o segnare soldi presi dalla cassa.'),
       h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){openPerson(null);}},'+ Visitatore'))));
   return out;
 }
@@ -2813,10 +2817,13 @@ function openCartella(id){
           h('span',{class:'sotto'+(q.scaduta?' rosso':'')},q.scaduta?'scaduta il '+dataBreve(q.scad)+': è nei suoi graffi, a parte':'da portare entro il '+dataBreve(q.scad))),
           h('span',{class:'importo'+(q.scaduta?' rosso':'')},eur(q.resto))));
       })):null,
-      h('div',{class:'azioni tre'},
+      h('div',{class:'azioni'},
         h('button',{class:'pill duo-verde',type:'button',disabled:d<=0&&!qa.length,onclick:function(){openPay(id);}},'Incassa'),
-        h('button',{class:'pill',type:'button',onclick:function(){openDebt(id,1);}},'+ Debito'),
-        h('button',{class:'pill',type:'button',onclick:function(){openDebt(id,-1);}},'− Debito')),
+        h('button',{class:'pill',type:'button','data-k':'prende',onclick:function(){openPrende(id);}},'Prende dalla cassa')),
+      // correzioni a mano del debito, senza soldi: solo l'admin (usate al posto di «Incassa» sballano la cassa)
+      isAdmin()?h('div',{class:'azioni'},
+        h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,1);}},'+ Debito'),
+        h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,-1);}},'− Debito')):null,
       h('div',{class:'azioni'},
         h('button',{class:'pill sm',type:'button',onclick:function(){UI.pos.p=id;closeSheet();go('farmacia');}},'Segna consumazione'),
         h('button',{class:'pill sm',type:'button',onclick:function(){soloAdmin(function(){openPerson(id);});}},'Nome e faccia')),
@@ -2859,6 +2866,22 @@ function openDebt_(id,segno){
     if(!(v>0))return 'Scrivi l’importo, per esempio 3,00.';
     addMove({k:segno>0?'dplus':'dminus',p:id,a:v,note:n.value.trim()},(segno>0?'Debito aggiunto a ':'Debito tolto a ')+pName(id)+': '+eur(v));
   },segno>0?'Aggiungi':'Togli');
+}
+/* prende dalla cassa: soldi che una persona si porta via e deve restituire. Due movimenti insieme (debito a lui,
+   uscita dalla cassa, segnati «pc»), che anche i telefoni non aggiornati contano giusti: la cassa scende, il ticket
+   sale, il previsionale non cambia e non è una spesa del locale. Si annullano insieme. */
+function openPrende(id){conPin(function(){openPrende_(id);},'Prendere soldi dalla cassa');}
+function openPrende_(id){
+  var a=soldi('pr-a'),n=testo('pr-n','Es. pizza',80);
+  formSheet(pName(id)+' prende dalla cassa',[
+    h('p',{class:'aiuto'},'I soldi escono dalla cassa e vanno sul suo ticket: li restituisce con «Incassa».'),
+    campo('Quanto prende',a,'pr-a'),campo('Per cosa',n,'pr-n')],function(){
+    var v=parseEur(a.value),nota=n.value.trim();
+    if(!(v>0))return 'Scrivi quanto prende, per esempio 10,00.';
+    var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
+    S.moves.push(m1,m2);commit();
+    toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
+  },'Prende');
 }
 function openPerson(id,after){
   var p=id?S.people.find(function(x){return x.id===id;}):null;
@@ -3072,7 +3095,7 @@ function vSoldi(){
   if(!tc)av.push(h('li',{class:'rosso'},'La cassa non è mai stata contata: il numero è quello calcolato dall’app, non i soldi veri.'));
   else if(Date.now()-tc>14*864e5)av.push(h('li',{class:'rosso'},'Ultima conta della cassa '+daQuando(tc)+': da allora il conto si basa solo su quello che è stato segnato.'));
   if(P.nonContati)av.push(h('li',{class:'rosso'},P.nonContati+(P.nonContati===1?' prodotto in vendita non è mai stato contato e resta':' prodotti in vendita non sono mai stati contati e restano')+' fuori dal conto.'));
-  if(P.negativi)av.push(h('li',{class:'rosso'},P.negativi+(P.negativi===1?' prodotto risulta':' prodotti risultano')+' sotto zero (venduto più di quanto contato): conta zero finché non rifate l’inventario.'));
+  if(P.negativi)av.push(h('li',{class:'rosso'},P.negativi+(P.negativi===1?' prodotto risulta':' prodotti risultano')+' sotto zero (venduto più di quanto contato): vale in negativo finché non segnate il carico o rifate l’inventario.'));
   av.push(h('li',null,P.nCosto?'Le scorte valgono al prezzo di vendita; il valore a costo vale solo per i prodotti passati da uno scontrino.':'Le scorte valgono al prezzo di vendita: quello che le avete pagate è meno. Con gli scontrini l’app impara anche il costo.'));
   av.push(h('li',null,'Il previsionale conta i graffi per intero: ogni ticket che non viene pagato lo abbassa.'));
   out.push(h('section',{class:'cartella'},
@@ -3101,10 +3124,6 @@ function vSoldi(){
   return out;
 }
 /* ---------- vista: Altro ---------- */
-function voce(titolo,sotto,onclick){
-  return h('li',null,h('button',{type:'button',class:'voce',onclick:onclick},
-    h('span',{class:'cresce'},h('span',{class:'nome'},titolo),sotto?h('span',{class:'sotto'},sotto):null),ic('avanti')));
-}
 function indietro(){var t=UI.tab;return h('button',{type:'button',class:'pill viola sm indietro',onclick:function(){go(t);}},ic('indietro',18),NOMI_TAB[t]||'Indietro');}
 /* ---------- Altro: voci divise in sezioni, con il numero che conta a destra ---------- */
 function voceL(o){
@@ -3161,7 +3180,6 @@ function vAltro(){
 }
 function vCompleanni(){
   var righe=[],sel={};
-  var mesi=h('option',{value:''},'—');
   S.people.filter(function(p){return p.on;}).forEach(function(p){
     var g=h('select',{class:'inp corto3','aria-label':'Giorno, '+p.name},[h('option',{value:''},'—')].concat(Array.from({length:31},function(_,i){return h('option',{value:pad(i+1)},String(i+1));})));
     var m=h('select',{class:'inp corto4','aria-label':'Mese, '+p.name},[h('option',{value:''},'—')].concat(MESI.map(function(n,i){return h('option',{value:pad(i+1)},n);})));
@@ -4009,26 +4027,6 @@ function openPagatoLocale(){
     addMove(mv,'Pagato il locale: '+eur(v)+' dal fondo'+(v>D.fondo?'. Il fondo va sotto zero: qualcuno ha anticipato?':''));
   },'Segna il pagamento');
 }
-/* nel Reparto: la quota da raccogliere (dai 15 giorni prima della scadenza) o in ritardo */
-function cardQuota(){
-  var st=statoQuote(S,D,today()).filter(function(x){return x.mancano.length&&(x.scaduta||giorniA(x.scad)<=15);});
-  if(!st.length)return null;
-  var io=mio(),ritardo=st.some(function(x){return x.scaduta;}),mia=st.find(function(x){return io&&x.mancano.indexOf(io)>=0;});
-  return h('section',{class:'cartella'+(ritardo?' allarme':'')},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Quota del locale'),h('span',{class:'timbro'},ritardo?'In ritardo':'Da raccogliere')),
-    h('div',{class:'riga-tratt'}),
-    st.map(function(x){
-      var g=giorniA(x.scad);
-      return h('div',{class:'quota-voce'},
-        h('p',null,h('b',null,meseNome(x.mese)+': '+eur(x.q.a)+' a testa'),x.scaduta?' · scaduta il '+dataBreve(x.scad):' · entro il '+dataBreve(x.scad)+(g===0?' (oggi)':g===1?' (domani)':' (tra '+g+' giorni)')),
-        x.q.note?h('p',{class:'aiuto'},x.q.note):null,
-        h('p',{class:'aiuto'},(x.scaduta?'In ritardo: ':'Mancano: ')+nomiLista(x.mancano)+'.'));
-    }),
-    h('div',{class:'azioni'},
-      h('button',{class:'pill duo-verde sm',type:'button','data-k':'quota-segna',onclick:function(){openVersaQuota(mia?mia.mese:null,mia?io:null);}},mia?'Segna la mia quota':'Segna una quota'),
-      h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','quota');}},'Dettagli')));
-}
-
 /* ---------- Muroblio del pianto: post-it firmati su un muro condiviso ---------- */
 var COLORI_POSTIT=['Giallo','Rosa','Verde','Lilla','Arancio','Azzurro'];
 function puoModificare(w){return isAdmin()||(!!w.dv&&w.dv===devId());}
@@ -4238,7 +4236,7 @@ function openVerifica(){
   },'Salva la foto');
 }
 var VOCI_VERIFICA=[['carichi','Merce arrivata (carichi, a prezzo di vendita)'],['vendite','Consumazioni fuori listino o a un prezzo diverso'],['spese','Spese'],['entrate','Entrate in cassa'],
-  ['debiti','Debiti aggiunti o tolti a mano'],['prezzi','Cambi di prezzo sulle scorte'],['conte','Differenze trovate contando la cassa'],['inventari','Differenze trovate all’inventario'],['altro','Altro']];
+  ['debiti','Debiti aggiunti o tolti a mano'],['prelievi','Presi dalla cassa (sul ticket)'],['prezzi','Cambi di prezzo sulle scorte'],['conte','Differenze trovate contando la cassa'],['inventari','Differenze trovate all’inventario'],['altro','Altro']];
 function openConfronto(id){
   var i=S.verifiche.findIndex(function(x){return x.id===id;});if(i<0)return;
   var v=S.verifiche[i],dopo=S.verifiche[i+1]||null,tFine=dopo?dopo.t:Date.now(),r=spiegaVerifica(S,v,tFine);
