@@ -57,7 +57,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .verde{color:var(--ok)}
 .spento{color:var(--grigio)}
 .vuoto{font-size:14px;line-height:1.4;color:var(--grigio)}
-.cifrona{font:400 clamp(34px,11vw,44px)/1 var(--f-titolo);overflow-wrap:anywhere}
+.cifrona{font:600 clamp(30px,9.5vw,38px)/1.05 var(--f-testo);letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 
 .azioni{display:flex;flex-wrap:wrap;gap:8px}
 .azioni>.pill{flex:1 1 auto}
@@ -73,7 +73,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .pill:disabled{opacity:.45;cursor:not-allowed}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{min-height:44px;padding:0 14px;border:1px solid var(--notte);border-radius:99px;background:var(--panna);color:var(--notte);font:700 14px/1.05 var(--f-etichetta);letter-spacing:.04em;text-transform:uppercase;max-width:100%;overflow-wrap:anywhere}
+.chip{min-height:44px;padding:0 14px;border:1px solid var(--notte);border-radius:99px;background:var(--panna);color:var(--notte);font:700 15px/1.05 var(--f-etichetta);letter-spacing:.01em;max-width:100%;overflow-wrap:anywhere}
 .chip[aria-pressed="true"]{background:var(--acido)}
 .chip:disabled{opacity:.5;cursor:not-allowed}
 .chip[aria-pressed="true"]::before{content:"✓ "}
@@ -100,7 +100,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .posbar{position:fixed;left:10px;right:10px;bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:7;max-width:500px;margin-inline:auto;background:var(--notte);border:1px solid var(--viola-linea);border-radius:18px;box-shadow:0 12px 28px -8px rgba(5,1,14,.75)}
 .posbar-in{padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
 .pos-tot{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
-.pos-who{font:700 14px/1.2 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;color:var(--giallo);min-width:0;overflow-wrap:anywhere}
+.pos-who{font:700 15px/1.2 var(--f-etichetta);letter-spacing:.01em;color:var(--giallo);min-width:0;overflow-wrap:anywhere}
 .pos-tot strong{font-weight:600;white-space:nowrap}
 .pos-btns{display:flex;gap:8px}
 .pos-btns .pill{flex:1;padding:0 8px}
@@ -245,14 +245,14 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .gioc.attivo{border-color:var(--giallo);box-shadow:inset 0 0 0 1px var(--giallo);background:var(--viola-forte)}
 .gioc.vince{background:var(--acido);color:var(--notte);border-color:var(--notte)}
 .gioc-h{display:flex;align-items:center;gap:6px;min-width:0}
-.gioc-n{font:700 13px/1.15 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;min-width:0;overflow-wrap:anywhere}
+.gioc-n{font:700 13.5px/1.15 var(--f-etichetta);letter-spacing:.01em;min-width:0;overflow-wrap:anywhere}
 .gioc-p{font:400 clamp(28px,9.5vw,38px)/1.05 var(--f-titolo);color:var(--giallo)}
 .gioc.vince .gioc-p{color:var(--notte)}
 .gioc-s{font-size:11.5px;color:var(--lilla)}
 .gioc.attivo .gioc-s{color:var(--giallo);font-weight:600}
 .gioc.vince .gioc-s{color:var(--notte);font-weight:700}
 .turno{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.turno-chi{flex:1 1 auto;min-width:0;font:700 15px/1.2 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;color:var(--giallo);overflow-wrap:anywhere}
+.turno-chi{flex:1 1 auto;min-width:0;font:700 16px/1.2 var(--f-etichetta);letter-spacing:.01em;color:var(--giallo);overflow-wrap:anywhere}
 .slots{display:flex;gap:6px}
 .slot{min-width:46px;height:38px;padding:0 6px;border:1px dashed var(--lilla-2);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;color:var(--lilla-2)}
 .slot.pieno{border-style:solid;border-color:var(--giallo);color:var(--giallo)}
@@ -354,7 +354,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .tagli{display:flex;flex-wrap:wrap;gap:8px}
 .resto{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--notte);border-radius:14px;background:var(--bianco);min-height:64px;justify-content:center}
 .resto:empty{display:none}
-.resto-n{font:400 26px/1.1 var(--f-titolo);color:var(--viola-forte)}
+.resto-n{font:600 24px/1.1 var(--f-testo);letter-spacing:-.02em;color:var(--viola-forte)}
 .resto p{font-size:13.5px;line-height:1.35}
 .resto p.aiuto{font-size:13px}
 .importo.blu{color:#1F5FA8}
@@ -383,7 +383,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .c0{background:#FFE680}.c1{background:#FFC2D9}.c2{background:#CDEFA0}.c3{background:#D9C8FF}.c4{background:#FFC89A}.c5{background:#BFE3F2}
 .postit-t{font:500 14.5px/1.4 var(--f-testo);white-space:pre-wrap;overflow-wrap:anywhere}
 .postit-f{display:flex;align-items:center;gap:7px;font-size:11.5px;line-height:1.25;color:#3D3060;min-width:0}
-.postit-f b{font:700 12.5px/1.2 var(--f-etichetta);letter-spacing:.04em;text-transform:uppercase;color:var(--inchiostro)}
+.postit-f b{font:700 13px/1.2 var(--f-etichetta);letter-spacing:.01em;color:var(--inchiostro)}
 .postit-mod{align-self:flex-end;flex:none;min-height:34px;padding:0 9px;border:1px solid var(--inchiostro);border-radius:99px;background:rgba(255,255,255,.6);font:700 11.5px/1 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;color:var(--inchiostro)}
 .postit-annuncio{display:flex;flex-direction:column;gap:8px;padding:14px;color:var(--inchiostro);border:1px solid var(--notte);border-radius:4px 4px 20px 4px;box-shadow:none;transform:rotate(-.6deg)}
 .postit-annuncio .postit-f{font-size:12.5px}
@@ -393,7 +393,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 /* statistiche del mese */
 .numeri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .numero{display:flex;flex-direction:column;gap:2px;padding:8px;border:1px solid var(--notte);border-radius:12px;background:var(--bianco);min-width:0}
-.numero b{font:400 clamp(17px,5vw,22px)/1.1 var(--f-titolo);color:var(--viola-forte);overflow-wrap:anywhere}
+.numero b{font:600 clamp(16px,4.6vw,20px)/1.1 var(--f-testo);letter-spacing:-.02em;color:var(--viola-forte);overflow-wrap:anywhere}
 .numero span{font-size:11.5px;line-height:1.2;color:var(--grigio)}
 .scheda-mese .linea h3{margin:0}
 .scheda-mese .scheda{font-size:13.5px}
@@ -417,7 +417,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 /* verifica del mese */
 .sfuggito-box{padding:10px 12px;border:1px solid var(--ok);border-radius:14px;background:#E6F6EE}
 .sfuggito-box.meno{border-color:var(--rosso);background:#FFE3EE}
-.sfuggito-box b{font:400 20px/1.2 var(--f-titolo)}
+.sfuggito-box b{font:600 19px/1.2 var(--f-testo);letter-spacing:-.02em}
 .sfuggito-box p{font-size:13px;line-height:1.4;color:var(--grigio)}
 .righe.conto>li.sfuggito .nome{color:var(--rosso)}
 
@@ -451,7 +451,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .tessera{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:3px;min-height:92px;padding:10px 12px 11px;border:1px solid var(--notte);border-radius:16px;background:var(--bianco);color:var(--inchiostro);text-align:left;min-width:0}
 .tessera:active{transform:translateY(1px)}
 .tessera-e{font:700 11.5px/1.2 var(--f-etichetta);letter-spacing:.1em;text-transform:uppercase;color:var(--grigio)}
-.tessera-v{font:400 clamp(21px,6.3vw,26px)/1.15 var(--f-titolo);color:var(--inchiostro);overflow-wrap:anywhere}
+.tessera-v{font:600 clamp(19px,5.6vw,23px)/1.15 var(--f-testo);letter-spacing:-.02em;color:var(--inchiostro);overflow-wrap:anywhere}
 .tessera-v.rosso{color:var(--rosso)}
 .tessera-s{font-size:12px;line-height:1.25;color:var(--grigio);overflow-wrap:anywhere}
 .bollettino-note{display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.35}
@@ -463,3 +463,35 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .fare-az{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
 .faccenda .nome{font-size:15px}
 .cartella .pill .ic{flex:none}
+
+/* 0.10 — pazienti della Farmacia su una riga che scorre: faccia sopra, nome sotto */
+.chips.scorre{flex-wrap:nowrap;overflow-x:auto;margin-inline:-16px;padding:2px 16px 6px;scroll-padding-inline:16px;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.chips.scorre::-webkit-scrollbar{display:none}
+.chips.scorre .chip{flex:none;scroll-snap-align:start;max-width:none}
+.chips.scorre .chip.con-ava{flex-direction:column;justify-content:center;gap:5px;min-width:76px;min-height:0;padding:8px 10px 7px;border-radius:18px}
+.chips.scorre .chip.piu{border-radius:18px;min-width:76px;white-space:normal;line-height:1.15;padding:0 10px}
+.chips.scorre .chip[aria-pressed="true"]::before{content:none}
+.chips.scorre .chip[aria-pressed="true"] .ava{box-shadow:0 0 0 2px var(--notte)}
+.chip-n{font-size:13.5px;white-space:nowrap}
+
+/* Ticket: chi è in pari, in un gruppo chiuso */
+.in-pari{border-top:1px solid var(--riga)}
+.in-pari>summary{display:flex;align-items:center;gap:8px;min-height:46px;cursor:pointer;list-style:none;font:700 13px/1.2 var(--f-etichetta);letter-spacing:.08em;text-transform:uppercase;color:var(--grigio)}
+.in-pari>summary::-webkit-details-marker{display:none}
+.in-pari>summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}
+.in-pari[open]>summary::after{transform:rotate(-135deg)}
+.in-pari>summary .tag{margin-left:0}
+.in-pari .riga{min-height:44px}
+.in-pari .ava{width:32px;height:32px}
+
+/* cartella: azioni secondarie, più piccole */
+.azioni.secondarie{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.azioni.secondarie>.pill{min-height:44px;padding:4px 6px;font-size:12px;line-height:1.15;letter-spacing:.03em;white-space:normal}
+
+/* risposta al tocco */
+.pill,.chip,.prod-add,.prod-less,.tessera,.voce,.tri,.tasto,.riga{transition:transform .08s ease-out}
+.pill:active:not(:disabled),.chip:active:not(:disabled),.tri:active,.voce:active{transform:scale(.97)}
+.prod:has(.prod-add:active){transform:scale(.96)}
+.prod{transition:transform .08s ease-out}
+.prod-q.scatta{animation:scatta .22s ease-out}
+@keyframes scatta{0%{transform:scale(1)}45%{transform:scale(1.35)}100%{transform:scale(1)}}

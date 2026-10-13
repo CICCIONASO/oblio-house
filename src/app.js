@@ -1473,7 +1473,10 @@ function renderSoon(){
 }
 function people(all){return S.people.filter(function(p){return all||p.on;});}
 function person(id){return S.people.find(function(x){return x.id===id;});}
-function pName(id){var p=person(id);return p?p.name:'Ex paziente';}
+// nomi da leggere: chi è salvato tutto in maiuscolo si mostra «Peppecarlo» (le sigle corte come PJ restano); il dato salvato resta com'è
+function nomeVis(n){n=String(n==null?'':n);return n.length>3&&n===n.toUpperCase()&&n!==n.toLowerCase()?n.toLowerCase().replace(/(^|[\s'’-])(\S)/g,function(m,a,b){return a+b.toUpperCase();}):n;}
+function nomeP(p){return nomeVis(p.name);}
+function pName(id){var p=person(id);return p?nomeP(p):'Ex paziente';}
 function isVisitor(id){var p=person(id);return !!p&&p.kind==='amico';}
 
 /* ---------- facce ---------- */
@@ -1596,7 +1599,7 @@ function openAdminAccesso(){
 function esciAdmin(){lsSet(KEY+'.admin','');pinFino=0;go('altro');toast('Modalità admin chiusa su questo telefono.');}
 function soloAdmin(azione){if(isAdmin())azione();else toast('Solo l’admin può farlo: Altro › Admin.');}
 function openMio(){
-  var sel=chipSel(people().map(function(p){return {v:p.id,label:p.name,cls:p.kind==='amico'?'amico':''};}),mio()||null,false,true);
+  var sel=chipSel(people().map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null,false,true);
   formSheet('Di chi è questo telefono?',[
     h('p',{class:'aiuto'},'Serve a proporre il tuo nome dove serve: post-it del muro, quota del locale, chi ha segnato un voto. Resta solo su questo telefono.'),
     gruppo('Questo telefono è di',sel)],function(){
@@ -1718,7 +1721,7 @@ function chipSel(opts,val,multi,libero){
   return box;
 }
 function peopleOpts(extraAll){
-  return people(extraAll).map(function(p){return {v:p.id,label:p.name,cls:p.kind==='amico'?'amico':''};});
+  return people(extraAll).map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};});
 }
 
 /* ---------- navigazione ---------- */
@@ -1843,7 +1846,7 @@ function personRow(p,conQuota){
   return h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openCartella(p.id);}},
     ava(p.id),
     h('span',{class:'cresce'},
-      h('span',{class:'nome'},p.name,p.kind==='amico'?h('span',{class:'tag'},'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso'),vec?h('span',{class:'tag rosso'},'vecchio'):null),
+      h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso'),vec?h('span',{class:'tag rosso'},'vecchio'):null),
       d>0?tally(u):null,
       sotto.length?h('span',{class:'sotto'+(vec?' rosso':'')},sotto.join(' · ')):null),
     h('span',{class:'importo '+(tot>0?'rosso':d<0?'verde':'spento')},tot>0?eur(tot):d<0?'credito '+eur(-d):eur(0))));
@@ -2049,8 +2052,8 @@ function cardTriage(){
   var grid=h('div',{class:'tri-grid'},cand.map(function(p){
     var n=sm.tally[p.id]||0,testa=n>0&&n===sm.max;
     return h('button',{type:'button',class:'tri'+(p.kind==='amico'?' amico':'')+(testa?' testa':''),'data-k':'tri-'+p.id,
-      'aria-label':'Vota '+p.name+(n?', '+n+(n===1?' voto':' voti'):''),onclick:function(){openVoto(p.id);}},
-      ava(p.id,'tri-ava'),h('span',{class:'tri-n'},p.name),h('span',{class:'tri-v'},n?n+(n===1?' voto':' voti'):'—'));
+      'aria-label':'Vota '+nomeP(p)+(n?', '+n+(n===1?' voto':' voti'):''),onclick:function(){openVoto(p.id);}},
+      ava(p.id,'tri-ava'),h('span',{class:'tri-n'},nomeP(p)),h('span',{class:'tri-v'},n?n+(n===1?' voto':' voti'):'—'));
   }),h('button',{type:'button',class:'tri piu',onclick:function(){openPerson(null);}},h('span',{class:'tri-n'},'+ Visitatore')));
   var testa=null;
   if(sm.n)testa=sm.winners.length>1?'Pari: '+nomiLista(sm.winners)+' con '+sm.max+(sm.max===1?' voto':' voti')+'.':'In testa '+pName(sm.winners[0])+' con '+sm.max+(sm.max===1?' voto':' voti')+'.';
@@ -2084,7 +2087,7 @@ function openVoto(per){
       var altri=suoi.filter(function(c){return c!==per;});
       return h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'vt-'+p.id,'aria-pressed':String(gia),disabled:bloccato,
         onclick:function(){closeSheet();vota(p.id,per,syv);}},
-        ava(p.id,'xs'),p.name,
+        ava(p.id,'xs'),nomeP(p),
         pieno?h('small',{class:'chip-s'},'ha già '+max+' voti'):altri.length?h('small',{class:'chip-s'},(gia?'e anche ':'ha votato ')+altri.map(pName).join(', ')):null);
     }));
     var spiega=max>1?'Ognuno può votare fino a '+max+' persone a serata: chi le ha già votate tutte toglie un voto da «Vedi i voti».':'Chi ha già votato stasera cambia il suo voto.';
@@ -2127,12 +2130,13 @@ function openVoti(){
 /* ---------- vista: Farmacia ---------- */
 function prodTile(p){
   var n=UI.pos.qty[p.id]||0,st=D.stock[p.id];
+  var bump=UI.bump===p.id;if(bump)UI.bump=null;
   return h('div',{class:'prod'+(n?' on':'')},
-    h('button',{type:'button',class:'prod-add','data-k':'add-'+p.id,onclick:function(){UI.pos.qty[p.id]=n+1;render();}},
+    h('button',{type:'button',class:'prod-add','data-k':'add-'+p.id,onclick:function(){tocco();UI.bump=p.id;UI.pos.qty[p.id]=n+1;render();}},
       h('span',{class:'prod-n'},p.name),h('span',{class:'prod-p'},eur(p.price)),
       st!=null?h('span',{class:'prod-s'+(st<=0?' zero':p.min!=null&&st<=p.min?' poco':'')},st<=0?'finito':p.min!=null&&st<=p.min?'ultimi '+st+' pz':st+' pz'):null),
     n?h('button',{type:'button',class:'prod-less','data-k':'less-'+p.id,'aria-label':'Togli uno: '+p.name,onclick:function(){if(n<=1)delete UI.pos.qty[p.id];else UI.pos.qty[p.id]=n-1;render();}},'−'):null,
-    n?h('span',{class:'prod-q'},String(n)):null);
+    n?h('span',{class:'prod-q'+(bump?' scatta':'')},String(n)):null);
 }
 function posClear(){UI.pos={p:null,qty:{},extra:[]};render();}
 function contoAperto(){return !!UI.pos.p||posTotal().n>0;}
@@ -2148,13 +2152,14 @@ function riprendiConto(){
 /* registra il conto. kind: 'tab' (sul ticket), 'sale' (paga in contanti).
    dato: quanto ha dato in contanti. modo: 'resto' (gli si dà il resto), 'tieni' (la differenza scala i graffi o va in credito),
    'misto' (dà meno del conto: il resto va sul ticket) */
+function tocco(ms){try{if(navigator.vibrate)navigator.vibrate(ms||8);}catch(e){}}
 function posSave(kind,dato,modo){
   var pos=UI.pos,items=[],a=0;
   S.products.forEach(function(p){var q=pos.qty[p.id]||0;if(q){items.push({id:p.id,n:p.name,q:q,pr:p.price});a+=q*p.price;}});
   pos.extra.forEach(function(x){items.push({n:x.n,q:1,pr:x.pr});a+=x.pr;});
   if(!pos.p||!items.length)return;
   var who=pName(pos.p),chi=pos.p,t=Date.now(),g='g'+rid();
-  UI.pos={p:null,qty:{},extra:[]};
+  UI.pos={p:null,qty:{},extra:[]};tocco([12,40,12]);
   function due(m1,m2,msg){
     S.moves.push(m1,m2);commit();
     toast(msg,function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
@@ -2215,12 +2220,14 @@ function openHaDato(){
 }
 function vFarmacia(){
   var pos=UI.pos,out=[h('h2',{class:'titolo'},'Farmacia')];
-  var chips=h('div',{class:'chips',role:'group','aria-label':'Paziente'});
+  var chips=h('div',{class:'chips scorre',role:'group','aria-label':'Paziente'});
   people().forEach(function(p){
-    chips.append(h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'chi-'+p.id,'aria-pressed':String(pos.p===p.id),onclick:function(){pos.p=pos.p===p.id?null:p.id;render();}},ava(p.id,'xs'),p.name));
+    chips.append(h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'chi-'+p.id,'aria-pressed':String(pos.p===p.id),onclick:function(){tocco();pos.p=pos.p===p.id?null:p.id;render();}},ava(p.id,'sm'),h('span',{class:'chip-n'},nomeP(p))));
   });
   chips.append(h('button',{type:'button',class:'chip piu',onclick:function(){openPerson(null,function(id){UI.pos.p=id;});}},'+ Visitatore'));
   out.push(h('section',{class:'blocco'},h('h3',{class:'etichetta chiara'},'Chi è il paziente?'),chips));
+  // il paziente scelto resta in vista nella riga che scorre
+  if(pos.p)requestAnimationFrame(function(){var b=chips.querySelector('[aria-pressed="true"]'),x=b?b.offsetLeft-chips.offsetLeft:0;if(b&&(x<chips.scrollLeft||x+b.offsetWidth>chips.scrollLeft+chips.clientWidth))chips.scrollLeft=Math.max(0,x-16);});
   cats().forEach(function(c){
     var list=S.products.filter(function(p){return p.on&&p.cat===c;});
     if(!list.length)return;
@@ -2262,6 +2269,8 @@ function vTicket(){
   var list=people(true).filter(function(p){return p.on||(D.debt[p.id]||0)!==0||arretrato(p.id)>0;});
   list.sort(function(a,b){return (dovuto(b)-dovuto(a))||((D.debt[b.id]||0)-(D.debt[a.id]||0));});
   var tot=list.reduce(function(s,p){return s+dovuto(p);},0),totQ=list.reduce(function(s,p){return s+arretrato(p.id);},0);
+  // chi non deve niente e non è in credito va in fondo, nel gruppo «In pari»
+  var aperti=list.filter(function(p){return dovuto(p)>0||(D.debt[p.id]||0)<0;}),pari=list.filter(function(p){return aperti.indexOf(p)<0;});
   var vecchi=people(true).filter(function(p){return x.v[p.id];}).sort(function(a,b){return x.v[b.id].a-x.v[a.id].a;});
   var out=[h('h2',{class:'titolo'},'Ticket')];
   if(vecchi.length)out.push(h('section',{class:'cartella allarme'},
@@ -2270,7 +2279,7 @@ function vTicket(){
     h('ul',{class:'righe'},vecchi.map(function(p){
       var v=x.v[p.id];
       return h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openCartella(p.id);}},ava(p.id,'sm'),
-        h('span',{class:'cresce'},h('span',{class:'nome'},p.name),h('span',{class:'sotto'},'il più vecchio è del '+dShortT(v.da)+', '+v.giorni+' giorni fa')),
+        h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p)),h('span',{class:'sotto'},'il più vecchio è del '+dShortT(v.da)+', '+v.giorni+' giorni fa')),
         h('span',{class:'importo rosso'},eur(v.a))));
     })),
     h('p',{class:'aiuto'},'Contano dal più vecchio: chi paga chiude prima questi.')));
@@ -2278,7 +2287,9 @@ function vTicket(){
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ticket non pagati'),h('strong',{class:'importo '+(tot?'rosso':'spento')},eur(tot))),
       totQ?h('p',{class:'aiuto'},'Di cui quota del locale non pagata: '+eur(totQ)+'. Va nel fondo, non in cassa.'):null,
       h('div',{class:'riga-tratt'}),
-      h('ul',{class:'righe'},list.map(function(p){return personRow(p,true);})),
+      h('ul',{class:'righe'},aperti.map(function(p){return personRow(p,true);})),
+      pari.length?h('details',{class:'in-pari'},h('summary',null,'In pari',h('span',{class:'tag'},String(pari.length))),
+        h('ul',{class:'righe'},pari.map(function(p){return personRow(p,true);}))):null,
       h('p',{class:'aiuto'},'Una tacca per ogni consumazione non ancora pagata. Tocca un nome per incassare o segnare soldi presi dalla cassa.'),
       h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){openPerson(null);}},'+ Visitatore'))));
   return out;
@@ -2293,7 +2304,7 @@ function openCartella(id){
     var foto=imgSrc(p,true);
     return [
       h('div',{class:'cart-top'},
-        foto?h('figure',{class:'segnaletica'},h('img',{src:foto,alt:'Caricatura di '+p.name})):ava(id,'grande'),
+        foto?h('figure',{class:'segnaletica'},h('img',{src:foto,alt:'Caricatura di '+nomeP(p)})):ava(id,'grande'),
         h('dl',{class:'scheda'},
           h('dt',null,'Codici rossi'),h('dd',null,re&&re.rossi?String(re.rossi):'nessuno'),
           h('dt',null,'Freccette'),h('dd',null,fr&&fr.gare?fr.vinte+(fr.vinte===1?' vinta su ':' vinte su ')+fr.gare:'mai giocato'),
@@ -2311,14 +2322,13 @@ function openCartella(id){
           h('span',{class:'sotto'+(q.scaduta?' rosso':'')},q.scaduta?'scaduta il '+dataBreve(q.scad)+': è nei suoi graffi, a parte':'da portare entro il '+dataBreve(q.scad))),
           h('span',{class:'importo'+(q.scaduta?' rosso':'')},eur(q.resto))));
       })):null,
-      h('div',{class:'azioni'},
-        h('button',{class:'pill duo-verde',type:'button',disabled:d<=0&&!qa.length,onclick:function(){openPay(id);}},'Incassa'),
-        h('button',{class:'pill',type:'button','data-k':'prende',onclick:function(){openPrende(id);}},'Prende dalla cassa')),
+      h('button',{class:'pill duo-verde largo',type:'button',disabled:d<=0&&!qa.length,onclick:function(){openPay(id);}},'Incassa'),
       // correzioni a mano del debito, senza soldi: solo l'admin (usate al posto di «Incassa» sballano la cassa)
       isAdmin()?h('div',{class:'azioni'},
         h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,1);}},'+ Debito'),
         h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,-1);}},'− Debito')):null,
-      h('div',{class:'azioni'},
+      h('div',{class:'azioni secondarie'},
+        h('button',{class:'pill sm',type:'button','data-k':'prende',onclick:function(){openPrende(id);}},'Prende dalla cassa'),
         h('button',{class:'pill sm',type:'button',onclick:function(){UI.pos.p=id;closeSheet();go('farmacia');}},'Segna consumazione'),
         h('button',{class:'pill sm',type:'button',onclick:function(){soloAdmin(function(){openPerson(id);});}},'Nome e faccia')),
       h('div',{class:'riga-tratt'}),
@@ -2383,7 +2393,7 @@ function openPerson(id,after){
   var kind=chipSel([{v:'paziente',label:'Paziente'},{v:'amico',label:'Visitatore'}],p?p.kind:'amico');
   var on=h('input',{type:'checkbox',id:'pe-on',checked:p?p.on:true});
   var faccia=sceltaFaccia(p);
-  formSheet(p?'Modifica '+p.name:'Nuovo visitatore',[
+  formSheet(p?'Modifica '+nomeP(p):'Nuovo visitatore',[
     campo('Nome',n,'pe-n'),
     gruppo('Tipo',kind),
     h('div',{class:'campo'},h('span',{class:'lab'},'Faccia'),faccia,
@@ -2679,7 +2689,7 @@ function vCompleanni(){
     var m=h('select',{class:'inp corto4','aria-label':'Mese, '+p.name},[h('option',{value:''},'—')].concat(MESI.map(function(n,i){return h('option',{value:pad(i+1)},n);})));
     if(p.nato){g.value=p.nato.slice(3,5);m.value=p.nato.slice(0,2);}
     sel[p.id]={g:g,m:m};
-    righe.push(h('li',null,ava(p.id,'xs'),h('span',{class:'cresce1 nome'},p.name),g,m));
+    righe.push(h('li',null,ava(p.id,'xs'),h('span',{class:'cresce1 nome'},nomeP(p)),g,m));
   });
   var f=formPagina(function(){
     var bad='';
@@ -2687,7 +2697,7 @@ function vCompleanni(){
       var x=sel[id],p=person(id);if(!p)return;
       if(!x.g.value&&!x.m.value){delete p.nato;return;}
       var v=normNato(x.m.value+'-'+x.g.value);
-      if(!v){bad=bad||p.name;return;}
+      if(!v){bad=bad||nomeP(p);return;}
       p.nato=v;
     });
     if(bad)return 'Data che non esiste per '+bad+'.';
@@ -3081,7 +3091,7 @@ function vPersone(){
       h('ul',{class:'righe'},S.people.map(function(p){
         return h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openPerson(p.id);}},
           ava(p.id),
-          h('span',{class:'cresce'},h('span',{class:'nome'},p.name,p.kind==='amico'?h('span',{class:'tag'},'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso')),
+          h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso')),
             p.img?null:h('span',{class:'sotto'},'senza faccia: tocca per sceglierla')),
           h('span',{class:'importo spento'},h('small',null,'modifica'))));
       })),
@@ -3253,9 +3263,9 @@ function vNuovaPartita(){
   var gioc=h('div',{class:'chips'},chi.map(function(p){
     var i=st.players.indexOf(p.id);
     return h('button',{type:'button',class:'chip con-ava num'+(p.kind==='amico'?' amico':''),'data-k':'gioc-'+p.id,'aria-pressed':String(i>=0),
-      'aria-label':p.name+(i>=0?', tira per '+(i===0?'primo':i===1?'secondo':i===2?'terzo':(i+1)+'°'):''),
+      'aria-label':nomeP(p)+(i>=0?', tira per '+(i===0?'primo':i===1?'secondo':i===2?'terzo':(i+1)+'°'):''),
       onclick:function(){if(i>=0)st.players.splice(i,1);else if(st.players.length<8)st.players.push(p.id);render();}},
-      i>=0?h('span',{class:'ordine'},String(i+1)):ava(p.id,'xs'),p.name);
+      i>=0?h('span',{class:'ordine'},String(i+1)):ava(p.id,'xs'),nomeP(p));
   }),h('button',{type:'button',class:'chip piu',onclick:function(){openPerson(null,function(id){if(st.players.length<8)st.players.push(id);});}},'+ Visitatore'));
   var regola=st.mode==='orologio'
     ?'Dall’1 al 20 in ordine: conta solo il numero di turno. Il doppio fa avanzare di 2, il triplo di 3. Niente centro alla fine: vince chi supera il 20 per primo.'
@@ -3540,7 +3550,7 @@ function vMuro(){
 function openPostit(id){
   var w=id?S.muro.find(function(x){return x.id===id;}):null;
   if(w&&!puoModificare(w)){toast('Lo può cambiare solo chi l’ha scritto, dal suo telefono, o l’admin.');return;}
-  var chi=w?null:chipSel(people().map(function(p){return {v:p.id,label:p.name,cls:p.kind==='amico'?'amico':''};}),mio()||null);
+  var chi=w?null:chipSel(people().map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null);
   var ta=h('textarea',{class:'inp',id:'pi-t',rows:5,maxlength:300,placeholder:'Scrivi qui. Massimo 300 caratteri.'});ta.value=w?w.testo:'';
   var conta=h('p',{class:'aiuto conta','aria-live':'polite'});
   function c(){conta.textContent=ta.value.length+'/300';}

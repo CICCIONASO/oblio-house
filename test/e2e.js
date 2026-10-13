@@ -185,7 +185,7 @@ const fail = (m) => {
   if (!/3,30/.test(tot)) fail('totale atteso 3,30, trovato: ' + tot);
   await page.click('.posbar .pill:has-text("Sul ticket")');
   await page.waitForTimeout(100);
-  if (!/ticket di PESCE/.test(await text('#toast'))) fail('toast ticket mancante: ' + (await text('#toast')));
+  if (!/ticket di PESCE/i.test(await text('#toast'))) fail('toast ticket mancante: ' + (await text('#toast')));
 
   // CICCIO paga subito una Coca Cola; importo fuori listino per CONTI
   await page.click('.chip:has-text("CICCIO")');
@@ -647,7 +647,7 @@ const fail = (m) => {
   await shot('16-voto-per-pesce');
   await page.click('#foglio [data-k="vt-pj"]');
   await page.waitForTimeout(80);
-  if (!/PJ vota PESCE/.test(await text('#toast'))) fail('toast del voto mancante: ' + (await text('#toast')));
+  if (!/PJ vota PESCE/i.test(await text('#toast'))) fail('toast del voto mancante: ' + (await text('#toast')));
   await page.click('[data-k="tri-pesce"]');
   await page.click('#foglio .chip:has-text("Urla strazianti")');
   await page.click('#foglio .chip:has-text("Silenzio assordante")');
@@ -664,16 +664,16 @@ const fail = (m) => {
   await page.click('#foglio .chip:has-text("Gigi")');
   await page.waitForTimeout(60);
   let tri = await text('.triage');
-  if (!/In testa PESCE con 3 voti/.test(tri)) fail('triage: atteso PESCE in testa con 3 voti: ' + tri);
+  if (!/In testa PESCE con 3 voti/i.test(tri)) fail('triage: atteso PESCE in testa con 3 voti: ' + tri);
   // PJ vota anche CICCIO: è il suo secondo voto, il primo resta
   await page.click('[data-k="tri-ciccio"]');
   await page.waitForTimeout(60);
-  if (!/ha votato PESCE/.test(await text('#foglio [data-k="vt-pj"]'))) fail('nel foglio non si vede chi ha già votato');
+  if (!/ha votato PESCE/i.test(await text('#foglio [data-k="vt-pj"]'))) fail('nel foglio non si vede chi ha già votato');
   await page.click('#foglio [data-k="vt-pj"]');
   await page.waitForTimeout(80);
-  if (!/PJ vota CICCIO \(2° voto\)/.test(await text('#toast'))) fail('secondo voto di PJ: ' + (await text('#toast')));
+  if (!/PJ vota CICCIO \(2° voto\)/i.test(await text('#toast'))) fail('secondo voto di PJ: ' + (await text('#toast')));
   tri = await text('.triage');
-  if (!/In testa PESCE con 3 voti/.test(tri) || !/PJ → PESCE, CICCIO/.test(tri)) fail('dopo il secondo voto di PJ: ' + tri);
+  if (!/In testa PESCE con 3 voti/i.test(tri) || !/PJ → PESCE, CICCIO/i.test(tri)) fail('dopo il secondo voto di PJ: ' + tri);
   // terzo voto a CONTI; il quarto non si può
   await page.click('[data-k="tri-conti"]');
   await page.click('#foglio [data-k="vt-pj"]');
@@ -694,7 +694,7 @@ const fail = (m) => {
   await page.click('.triage .pill:has-text("Vedi i voti")');
   await page.waitForTimeout(80);
   await shot('18-voti');
-  if (!/CICCIO → PESCE\s*Silenzio assordante, Urla strazianti/.test(await text('#foglio')))
+  if (!/CICCIO → PESCE\s*Silenzio assordante, Urla strazianti/i.test(await text('#foglio')))
     fail('in «Vedi i voti» mancano i due sintomi: ' + (await text('#foglio')).slice(0, 300));
   await page.click('#foglio li:has-text("Gigi → PESCE") button');
   await page.waitForTimeout(80);
@@ -702,7 +702,7 @@ const fail = (m) => {
   await page.waitForTimeout(80);
   await page.click('#foglio-x');
   tri = await text('.triage');
-  if (!/Pari: .*con 2 voti/.test(tri) || /CONTI1|CONTI1 voto/.test(tri.replace(/\s/g, ''))) fail('dopo aver tolto due voti: ' + tri);
+  if (!/Pari: .*con 2 voti/.test(tri) || /CONTI1|CONTI1 voto/i.test(tri.replace(/\s/g, ''))) fail('dopo aver tolto due voti: ' + tri);
   // regola: niente voto a se stessi
   await tab('Altro');
   await page.click('.voce:has-text("Regole")');
@@ -751,7 +751,7 @@ const fail = (m) => {
   await page.click('[data-k="n-0"]');
   await dart(3, 20);
   if (!/Sballato/.test(await text('#toast'))) fail('sballato non segnalato');
-  if ((await punti())[0] !== '40' || !/Tocca a PESCE/.test(await text('.turno'))) fail('dopo lo sballo PJ resta a 40 e tocca a PESCE');
+  if ((await punti())[0] !== '40' || !/Tocca a PESCE/i.test(await text('.turno'))) fail('dopo lo sballo PJ resta a 40 e tocca a PESCE');
   await dart(1, 1);
   await dart(1, 1);
   await dart(1, 1);
@@ -765,7 +765,7 @@ const fail = (m) => {
   await dart(2, 20);
   await page.click('.pill:has-text("Rivincita")');
   await page.waitForTimeout(80);
-  if (!/Tocca a PESCE/.test(await text('.turno'))) fail('nella rivincita deve cominciare PESCE');
+  if (!/Tocca a PESCE/i.test(await text('.turno'))) fail('nella rivincita deve cominciare PESCE');
   await page.click('.pill:has-text("Abbandona")');
   await page.click('#foglio .pill:has-text("Sì, abbandona")');
   await page.waitForTimeout(80);
@@ -781,7 +781,7 @@ const fail = (m) => {
   await page.waitForTimeout(80);
   await shot('23-orologio');
   await overflow('orologio');
-  if (!/Tocca a PESCE/.test(await text('.turno'))) fail('dopo tre freccette tocca a PESCE');
+  if (!/Tocca a PESCE/i.test(await text('.turno'))) fail('dopo tre freccette tocca a PESCE');
   await page.click('.pill:has-text("Abbandona")');
   await page.click('#foglio .pill:has-text("Sì, abbandona")');
   await page.waitForTimeout(80);
@@ -799,7 +799,7 @@ const fail = (m) => {
   if (!/Nessuna serata votata/.test(cl)) fail('re dell’oblio: la serata in corso non deve contare ancora');
   if (!/1 vinta/.test(cl)) fail('classifica freccette senza la vittoria di PJ');
   const primoConsumi = await page.$eval('section:has(h3:text("Consumi")) .classifica li:first-child .nome', (e) => e.textContent);
-  if (!/PESCE/.test(primoConsumi)) fail('consumi: primo atteso PESCE, trovato ' + primoConsumi);
+  if (!/PESCE/i.test(primoConsumi)) fail('consumi: primo atteso PESCE, trovato ' + primoConsumi);
   if (!/subito/.test(await page.textContent('section:has(h3:text("Migliori pagatori"))')))
     fail('migliori pagatori: chi paga subito deve risultare «subito»');
   if (!/Freccette/.test(await text('.indietro'))) fail('dalla classifica il tasto indietro deve tornare alle Freccette');
@@ -936,7 +936,7 @@ const fail = (m) => {
   if (!(await page.$('[data-k="riprendi-conto"]'))) fail('il Reparto non mostra il conto in sospeso');
   await page.click('[data-k="riprendi-conto"]');
   await page.waitForTimeout(60);
-  if (!/CICCIO/.test(await text('.pos-who'))) fail('riprendendo il conto non torna CICCIO');
+  if (!/CICCIO/i.test(await text('.pos-who'))) fail('riprendendo il conto non torna CICCIO');
   await page.click('.posbar .pill-x');
   // bozza: un modulo lasciato a metà
   await cassa();
@@ -1007,7 +1007,7 @@ const fail = (m) => {
   await page.click('#foglio .chip:has-text("CONTI")');
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
-  if ((await page.$$('.postit')).length !== 1 || !/CONTI/.test(await text('.postit'))) fail('il post-it non è sul muro');
+  if ((await page.$$('.postit')).length !== 1 || !/CONTI/i.test(await text('.postit'))) fail('il post-it non è sul muro');
   await page.click('.postit-mod');
   await page.fill('#pi-t', 'Ho perso a freccette QUATTRO volte di fila');
   await page.click('#foglio button[type=submit]');
@@ -1028,7 +1028,7 @@ const fail = (m) => {
   await page.click('button:has-text("Salva i compleanni")');
   await page.waitForTimeout(80);
   await tab('Reparto');
-  if (!/Oggi compie gli anni PESCE/.test(await text('.festa'))) fail('il Reparto non festeggia il compleanno');
+  if (!/Oggi compie gli anni PESCE/i.test(await text('.festa'))) fail('il Reparto non festeggia il compleanno');
   await page.locator('.festa').screenshot({ path: path.join(shots, '49-compleanno.png') });
   // storico dei prezzi
   await tab('Altro');
@@ -1189,10 +1189,10 @@ const fail = (m) => {
   await p2.clock.fastForward('03:00');
   await p2.waitForTimeout(150);
   const dopo = await p2.textContent('.triage');
-  if (!/Codice rosso di ieri sera: CICCIO/.test(dopo)) fail('alle 6:01 manca il verdetto della serata: ' + dopo);
+  if (!/Codice rosso di ieri sera: CICCIO/i.test(dopo)) fail('alle 6:01 manca il verdetto della serata: ' + dopo);
   if (!/Diagnosi: dormire al locale, giocare alle slot\./.test(dopo)) fail('alle 6:01 la diagnosi non ha i due sintomi: ' + dopo);
   if (!/0 voti/.test(dopo)) fail('alle 6:01 il triage deve ripartire da zero: ' + dopo);
-  if (!/Re dell’oblio di ottobre: CICCIO/.test(dopo)) fail('re dell’oblio del mese non aggiornato: ' + dopo);
+  if (!/Re dell’oblio di ottobre: CICCIO/i.test(dopo)) fail('re dell’oblio del mese non aggiornato: ' + dopo);
   await p2.locator('.triage').screenshot({ path: path.join(shots, '35-triage-dopo-le-6.png') });
   await p2.click('[data-k="pul-fatta"]');
   await p2.selectOption('#pu-q', '13');
