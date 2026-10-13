@@ -1,5 +1,7 @@
 # The Oblio House
 
+[![Prove](https://github.com/CICCIONASO/oblio-house/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/CICCIONASO/oblio-house/actions/workflows/test.yml)
+
 L'app del reparto: il bar di casa, i debiti di ognuno, la cassa, la quota del locale, le faccende e un po' di sana competizione (freccette, classifiche, medaglie). Si installa sul telefono come un'app vera, funziona anche senza rete e tiene gli stessi dati su tutti i telefoni del locale.
 
 **App:** https://ciccionaso.github.io/oblio-house/
@@ -29,24 +31,26 @@ La usano i «pazienti» del reparto, cioè chi frequenta il locale, più qualche
 
 La barra in basso ha cinque sezioni:
 
-| Sezione | A cosa serve |
-| --- | --- |
-| **Reparto** | La schermata principale: il bollettino a riquadri (cassa, ticket aperti, soldi del locale, fondo della quota o scorte), la scheda «Faccende e cose da fare», il triage, l'ultimo post-it del muro e le ultime somministrazioni. |
-| **Farmacia** | Il bar. Tocchi chi prende, poi i prodotti, poi scegli «Sul ticket» o «Paga subito» (con resto o pagamento misto se serve). |
-| **Ticket** | I debiti di ognuno. Tocchi un nome per aprire la sua cartella e incassare, tutto o in parte. |
-| **Freccette** | Partite, punteggi e record. |
-| **Altro** | Tutto il resto, diviso in quattro gruppi: **Soldi** (cassa, soldi del locale, quota e fondo, scorte e spesa), **Il reparto** (classifiche, statistiche, medaglie, muro), **Telefono e app** (di chi è il telefono, telefoni collegati, guida, backup, installa) e **Admin**. |
+| Sezione       | A cosa serve                                                                                                                                                                                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reparto**   | La schermata principale: il bollettino a riquadri (cassa, ticket aperti, soldi del locale, fondo della quota o scorte), la scheda «Faccende e cose da fare», il triage, l'ultimo post-it del muro e le ultime somministrazioni.                                              |
+| **Farmacia**  | Il bar. Tocchi chi prende, poi i prodotti, poi scegli «Sul ticket» o «Paga subito» (con resto o pagamento misto se serve).                                                                                                                                                   |
+| **Ticket**    | I debiti di ognuno. Tocchi un nome per aprire la sua cartella e incassare, tutto o in parte.                                                                                                                                                                                 |
+| **Freccette** | Partite, punteggi e record.                                                                                                                                                                                                                                                  |
+| **Altro**     | Tutto il resto, diviso in quattro gruppi: **Soldi** (cassa, soldi del locale, quota e fondo, scorte e spesa), **Il reparto** (classifiche, statistiche, medaglie, muro), **Telefono e app** (di chi è il telefono, telefoni collegati, guida, backup, installa) e **Admin**. |
 
 Due regole d'oro: si segna sempre a nome di chi consuma, anche se lo segna un altro; e se esci dalla Farmacia senza registrare, il conto resta in sospeso nelle Faccende finché non lo riprendi o lo scarti.
 
 ### Installarla sul telefono
 
 **iPhone**
+
 1. Apri il link con Safari.
 2. Tocca Condividi, poi «Aggiungi alla schermata Home».
 3. Da lì in poi usa sempre l'icona: l'app installata non vede i dati segnati in Safari.
 
 **Android**
+
 1. Apri il link con Chrome.
 2. Menu ⋮, poi «Installa app».
 
@@ -65,7 +69,7 @@ La prima apertura va fatta con internet. Quando esce una versione nuova compare 
 ```bash
 git clone https://github.com/CICCIONASO/oblio-house.git
 cd oblio-house
-npm install          # scarica sharp (icone) e playwright (prova a schermo)
+npm install          # strumenti di sviluppo: sharp, playwright, c8, ESLint, Prettier
 npm run build        # monta l'app in docs/
 ```
 
@@ -79,6 +83,7 @@ python3 -m http.server 8000 --directory docs
 Va aperta da `http://localhost`, non facendo doppio clic su `index.html`: il service worker (installazione e funzionamento offline) non parte da `file://`.
 
 Cosa produce `npm run build`:
+
 - `docs/`: l'app pubblicata (`index.html`, `sw.js`, `manifest.webmanifest`, icone, `guida.html`, caricature, motore OCR). È la cartella servita da GitHub Pages, quindi va committata solo quando si pubblica una versione.
 - `preview.html`: un'anteprima in un file solo, ignorata da git.
 
@@ -110,6 +115,7 @@ Per collegare un progetto Firebase tuo:
    ```
 
    `room` è il nome del «locale»: tutti i telefoni con la stessa stanza vedono gli stessi dati.
+
 5. In `firestore.rules` sostituisci il nome della stanza (`oblio-0awwk6pqgkvr8o1x`) con il tuo e pubblica le regole dalla console Firebase (Firestore › Regole) o con la Firebase CLI.
 6. `npm run build`: nel riepilogo deve comparire «sincronizzazione attiva».
 
@@ -117,21 +123,26 @@ Le regole permettono di leggere e scrivere solo dentro la stanza indicata e solo
 
 ## Come contribuire
 
-Le prove sono due famiglie:
+I comandi da conoscere:
 
 ```bash
-npm test             # calcoli, novità, sincronizzazione e compatibilità tra versioni
+npm test             # calcoli, novità, sincronizzazione, compatibilità tra versioni e numero di versione
+npm run coverage     # le stesse prove, con la copertura del blocco PURE di src/app.js
 npm run test:e2e     # monta l'app e la prova a schermo con Playwright (Chromium)
+npm run lint         # ESLint
+npm run format       # sistema la formattazione con Prettier (format:check la controlla soltanto)
 ```
 
-- `npm test` non ha bisogno di browser né di rete: prova i calcoli (`test/pure.test.js`), le novità della 0.7.0 (`test/novita.test.js`), la sincronizzazione (`test/sync.test.js`) e la convivenza con le versioni vecchie dell'app sullo stesso locale (`test/compat.test.js`, con le versioni 0.4.4, 0.5.0, 0.5.1, 0.6.0 e 0.7.0 in `test/fixtures/`).
+- `npm test` non ha bisogno di browser né di rete: prova i calcoli (`test/pure.test.js`), le novità della 0.7.0 (`test/novita.test.js`), la sincronizzazione (`test/sync.test.js`), la convivenza con le versioni vecchie dell'app sullo stesso locale (`test/compat.test.js`, con le versioni 0.4.4, 0.5.0, 0.5.1, 0.6.0 e 0.7.0 in `test/fixtures/`) e che la versione coincida tra `package.json`, app e tag git (`test/versione.test.js`).
+- `npm run coverage` usa c8; le righe sono numerate come nell'originale di `src/app.js`.
 - `npm run test:e2e` usa un finto server di sincronizzazione al posto di Firebase, quindi non tocca il database vero. Simula i flussi principali a larghezza telefono, la lettura di scontrini di prova (`test/fixtures/ocr/`), la chiusura della serata e la riapertura senza rete. Gli screenshot finiscono in `test/shots/`. La prima volta potrebbe servire `npx playwright install chromium`.
 
-Entrambe girano da sole su GitHub Actions a ogni pull request e a ogni push su `main` (`.github/workflows/test.yml`).
+Su GitHub Actions (`.github/workflows/test.yml`), a ogni pull request e a ogni push su `main`, girano `npm audit` (si ferma solo per vulnerabilità critiche), lint e formattazione, le prove con la copertura (percentuali nel riepilogo del giro) e la prova a schermo. Il badge in cima dice se l'ultimo giro su `main` è verde.
 
 Qualche consiglio:
+
 - Lavora su un ramo e apri una pull request verso `main`; i rami vengono cancellati da soli dopo il merge.
-- Lancia `npm test` prima di aprire la PR.
+- Prima di aprire la PR lancia `npm test`, `npm run lint` e `npm run format:check`.
 - I dati condivisi sono documenti `raccolta~id` (persone, prodotti, movimenti, voti, partite, rifiuti, pulizie, quote, muro, verifiche, regole). I campi che una versione non conosce devono restare com'erano, così un telefono non aggiornato non cancella i dati nuovi: se aggiungi un campo, aggiungi anche una prova in `test/compat.test.js`.
 - Se cambi qualcosa che si vede, aggiorna anche la guida (`src/guida.html`).
 
@@ -142,7 +153,7 @@ Qualche consiglio:
 - **Cloud Firestore** (Firebase JS SDK 10.12.2, caricato da gstatic) per la sincronizzazione tra telefoni; i dati locali stanno nel `localStorage` del telefono.
 - **OCR sul telefono**: [tesseract.js-core](https://github.com/naptha/tesseract.js-core) 6.1.2 in WebAssembly con il modello italiano di tessdata (4.0.0_best_int). Il lettore (`src/ocr/lettore.js`) è nostro; motore e modello sono di terzi, con licenza Apache-2.0 (testi in `src/ocr/`). Vengono scaricati la prima volta che servono e poi restano in cache.
 - **GitHub Pages** per la pubblicazione (ramo `main`, cartella `/docs`) e **GitHub Actions** per le prove.
-- **Playwright** per la prova a schermo.
+- **Playwright** per la prova a schermo, **c8** per la copertura, **ESLint** e **Prettier** per lo stile del codice.
 - Caratteri: IBM Plex Sans per i testi, IBM Plex Mono per i numeri, Shrikhand per i titoli (da Google Fonts).
 
 ## Com'è fatta
