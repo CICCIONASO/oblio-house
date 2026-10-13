@@ -4,10 +4,22 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']
 
 jobs:
-  calcoli:
-    name: npm test
+  sicurezza:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # fallisce solo con vulnerabilità critiche; le altre restano nel log
+      - run: npm audit --audit-level=critical
+
+  controllo:
+    name: lint e formattazione
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,10 +28,34 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
+      - run: npm run lint
+      - run: npm run format:check
+
+  calcoli:
+    name: npm test
+    needs: controllo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # npm test sotto c8: copertura del blocco PURE di src/app.js, riportata nel riepilogo del giro
+      # shell: bash aggiunge pipefail, così una prova che fallisce non viene coperta da tee
+      - run: npm run coverage | tee copertura.txt
+        shell: bash
+      - name: Copertura nel riepilogo
+        run: |
+          echo '### Copertura (blocco PURE di src/app.js)' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Statements|Branches|Functions|Lines) ' copertura.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
   schermo:
     name: npm run test:e2e
+    needs: controllo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
