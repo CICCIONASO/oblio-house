@@ -4,12 +4,10 @@ process.env.TZ = 'Europe/Rome';
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
-const m = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(js);
-const A = new Function(m[1] + `
-return {seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,
+const pure = require('./pure.js');
+const A = pure(`{seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,
   candidatiVoto,sintomiPer,metiVoto,voteSummary,sintomiDi,serateChiuse,statMese,recordFreccette,medaglie,MEDAGLIE,alboOro,
-  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe};`)();
+  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe}`);
 
 const DAY = 864e5;
 const T0 = Date.parse('2026-11-02T20:00:00+01:00');   // lunedì 2 novembre 2026, sera

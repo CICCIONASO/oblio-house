@@ -6,21 +6,21 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 
-const carica = (src) => new Function(src + `
-return {seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,normEnt,APP_V,
+const RITORNO = `{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,normEnt,APP_V,
   syncNuovaVersione: typeof syncNuovaVersione === 'function' ? syncNuovaVersione : null,
   metiSintomi: typeof metiSintomi === 'function' ? metiSintomi : null,
-  sintomiVoto: typeof sintomiVoto === 'function' ? sintomiVoto : null};`)();
-const pure = (file) => /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(fs.readFileSync(file, 'utf8'))[1];
-const NUOVA = carica(pure(path.join(__dirname, '..', 'src', 'app.js')));
+  sintomiVoto: typeof sintomiVoto === 'function' ? sintomiVoto : null}`;
+const carica = (src) => new Function(src + '\nreturn ' + RITORNO + ';')();
+const pure = require('./pure.js');   // src/app.js; le versioni vecchie restano con carica()
+const NUOVA = pure(RITORNO);
 const V044 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.4.4.js'), 'utf8'));
 const V050 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.0.js'), 'utf8'));
 const V051 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.1.js'), 'utf8'));
 const V060 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.6.0.js'), 'utf8'));
 const V070 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.7.0.js'), 'utf8'));
 assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1'); assert.strictEqual(V060.APP_V, '0.6.0'); assert.strictEqual(V070.APP_V, '0.7.0');
-const N7 = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn {metiVoto,candidatiVoto,sintomiPer,cambiaPrezzo,impronta};')();
-const VOTI_DAL = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn VOTI_DAL;')();
+const N7 = pure('{metiVoto,candidatiVoto,sintomiPer,cambiaPrezzo,impronta}');
+const VOTI_DAL = pure('VOTI_DAL');
 const sintomi = (v) => NUOVA.sintomiVoto(v);
 
 // finto server: ultimo che scrive vince, con un contatore come ora del server

@@ -3,9 +3,8 @@ process.env.TZ = 'Europe/Rome';
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
-const m = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(js);
-const A_ = new Function(m[1] + '\nreturn {seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt};')();
+const pure = require('./pure.js');
+const A_ = pure('{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt}');
 const { seedState, normState, derive, canon, hashStr, entita, syncDiff, syncApply, normEnt } = A_;
 
 // impronta canonica: l'ordine delle chiavi non conta
