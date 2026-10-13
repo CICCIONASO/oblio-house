@@ -1,7 +1,9 @@
 // Scontrini finti per le prove del lettore: testo come quello dei registratori telematici italiani,
 // disegnato come una foto da telefono (carta un po' grigia, leggermente storta e sfocata, tavolo scuro intorno).
 const path = require('path');
-const sharp = require(path.join('/opt/npm-tools/node_modules/sharp'));
+// moduli da node_modules (npm install) o, se mancano, da /opt/npm-tools (sandbox di Claude)
+const richiedi = (m) => { try { return require(m); } catch (e) { return require('/opt/npm-tools/node_modules/' + m); } };
+const sharp = richiedi('sharp');
 
 const DESPAR = [
   '         DESPAR ALTAMURA',

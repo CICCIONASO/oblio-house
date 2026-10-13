@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installa le dipendenze
+        run: npm ci
+
+      - name: Prove dei calcoli, sincronizzazione e compatibilità
+        run: npm test
+
+      - name: Installa Chromium per la prova a schermo
+        run: npx playwright install --with-deps chromium
+
+      - name: Prova a schermo
+        run: npm run test:e2e
+
+      - name: Salva le schermate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schermate
+          path: test/shots/
+          if-no-files-found: ignore

@@ -1,6 +1,8 @@
 // Prova a schermo: flussi principali a larghezza telefono, voto, freccette, classifiche,
 // chiusura della serata alle 6 (orologio finto) e riapertura senza rete.
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+// moduli da node_modules (npm install) o, se mancano, da /opt/npm-tools (sandbox di Claude)
+const richiedi = (m) => { try { return require(m); } catch (e) { return require('/opt/npm-tools/node_modules/' + m); } };
+const { chromium } = richiedi('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

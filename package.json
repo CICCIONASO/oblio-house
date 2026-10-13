@@ -1,0 +1,18 @@
+{
+  "name": "oblio-house",
+  "version": "0.8.0",
+  "private": true,
+  "description": "L'app del reparto (The Oblio House)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test/pure.test.js && node test/novita.test.js && node test/sync.test.js && node test/compat.test.js",
+    "test:e2e": "node build.js && node test/e2e.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "sharp": "0.34.5"
+  }
+}
