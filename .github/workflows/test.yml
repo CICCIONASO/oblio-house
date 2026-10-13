@@ -28,7 +28,9 @@ jobs:
           cache: npm
       - run: npm ci
       # npm test sotto c8: copertura del blocco PURE di src/app.js, riportata nel riepilogo del giro
+      # shell: bash aggiunge pipefail, così una prova che fallisce non viene coperta da tee
       - run: npm run coverage | tee copertura.txt
+        shell: bash
       - name: Copertura nel riepilogo
         run: |
           echo '### Copertura (blocco PURE di src/app.js)' >> "$GITHUB_STEP_SUMMARY"
