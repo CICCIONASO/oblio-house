@@ -1,0 +1,22 @@
+{
+  "name": "oblio-house",
+  "version": "0.8.0",
+  "private": true,
+  "description": "L'app del reparto: farmacia, ticket, cassa, scorte, freccette e classifiche.",
+  "scripts": {
+    "build": "node build.js",
+    "test": "npm run test:pure && npm run test:novita && npm run test:sync && npm run test:compat",
+    "test:pure": "node test/pure.test.js",
+    "test:novita": "node test/novita.test.js",
+    "test:sync": "node test/sync.test.js",
+    "test:compat": "node test/compat.test.js",
+    "test:e2e": "node build.js && node test/e2e.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "sharp": "^0.35.5"
+  }
+}

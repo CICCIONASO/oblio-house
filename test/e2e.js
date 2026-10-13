@@ -1,6 +1,6 @@
 // Prova a schermo: flussi principali a larghezza telefono, voto, freccette, classifiche,
 // chiusura della serata alle 6 (orologio finto) e riapertura senza rete.
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
