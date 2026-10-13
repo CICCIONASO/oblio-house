@@ -61,6 +61,14 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = 'http://127.0.0.1:' + server.address().port + '/app/';
   const browser = await chromium.launch();
+  // niente Firebase vero durante la prova: il pacchetto in docs/ porta la configurazione del locale,
+  // e senza questo blocco la prova scriverebbe i suoi movimenti finti nei dati veri
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (o) => {
+    const c = await newContext(o);
+    await c.route(/gstatic\.com\/firebasejs|firestore\.googleapis\.com|firebaseio\.com|firebaseapp\.com/, (r) => r.abort());
+    return c;
+  };
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: 'it-IT', timezoneId: 'Europe/Rome', acceptDownloads: true });
   const page = await ctx.newPage();
   const ascolta = (pg) => {
