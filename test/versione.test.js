@@ -12,7 +12,11 @@ assert.ok(app, 'APP_V non trovata in src/app.js');
 assert.strictEqual(pkg, app, 'package.json dice ' + pkg + ', src/app.js dice ' + app);
 
 if (process.env.GITHUB_REF_TYPE === 'tag') {
-  assert.strictEqual(process.env.GITHUB_REF_NAME, 'v' + pkg, 'il tag ' + process.env.GITHUB_REF_NAME + ' non corrisponde alla versione ' + pkg);
+  assert.strictEqual(
+    process.env.GITHUB_REF_NAME,
+    'v' + pkg,
+    'il tag ' + process.env.GITHUB_REF_NAME + ' non corrisponde alla versione ' + pkg
+  );
 }
 
 console.log('versione ok:', pkg);

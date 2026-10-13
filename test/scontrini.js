@@ -47,23 +47,51 @@ const CONAD = [
   '13/10/2026 18:05',
 ];
 
-function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 async function foto(righe, file, opz = {}) {
-  const font = opz.font || 'DejaVu Sans Mono', fs = opz.size || 22, lh = Math.round(fs * 1.45);
-  const w = Math.round(fs * 0.62 * 40) + 60, h = righe.length * lh + 80;
-  const testo = righe.map((r, i) => `<text x="30" y="${50 + i * lh}" font-family="${font}" font-size="${fs}" fill="#2b2b2b" xml:space="preserve">${esc(r)}</text>`).join('');
-  const carta = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#f1eee6"/>${testo}</svg>`);
+  const font = opz.font || 'DejaVu Sans Mono',
+    fs = opz.size || 22,
+    lh = Math.round(fs * 1.45);
+  const w = Math.round(fs * 0.62 * 40) + 60,
+    h = righe.length * lh + 80;
+  const testo = righe
+    .map(
+      (r, i) =>
+        `<text x="30" y="${50 + i * lh}" font-family="${font}" font-size="${fs}" fill="#2b2b2b" xml:space="preserve">${esc(r)}</text>`
+    )
+    .join('');
+  const carta = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="100%" height="100%" fill="#f1eee6"/>${testo}</svg>`
+  );
   let img = sharp(carta).rotate(opz.storto == null ? 1.2 : opz.storto, { background: '#3a3530' });
   const meta = await img.toBuffer({ resolveWithObject: true });
-  const W = meta.info.width + 160, H = meta.info.height + 200;
+  const W = meta.info.width + 160,
+    H = meta.info.height + 200;
   const pieno = await sharp({ create: { width: W, height: H, channels: 3, background: '#3a3530' } })
-    .composite([{ input: meta.data, left: 80, top: 100 }]).png().toBuffer();
+    .composite([{ input: meta.data, left: 80, top: 100 }])
+    .png()
+    .toBuffer();
   let base = sharp(pieno);
-  if (opz.ombra) {   // luce storta: un lato in ombra, come sotto una lampada
-    const g = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs><linearGradient id="o" x1="0" y1="0" x2="1" y2="0.3"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#${opz.ombra}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#o)"/></svg>`);
-    base = sharp(await base.composite([{ input: g, blend: 'multiply' }]).png().toBuffer());
+  if (opz.ombra) {
+    // luce storta: un lato in ombra, come sotto una lampada
+    const g = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs><linearGradient id="o" x1="0" y1="0" x2="1" y2="0.3"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#${opz.ombra}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#o)"/></svg>`
+    );
+    base = sharp(
+      await base
+        .composite([{ input: g, blend: 'multiply' }])
+        .png()
+        .toBuffer()
+    );
   }
-  await base.blur(opz.sfoca || 0.7).modulate({ brightness: opz.luce || 0.95 }).resize({ width: Math.round(W * (opz.scala || 1.6)) }).jpeg({ quality: 78 }).toFile(file);
+  await base
+    .blur(opz.sfoca || 0.7)
+    .modulate({ brightness: opz.luce || 0.95 })
+    .resize({ width: Math.round(W * (opz.scala || 1.6)) })
+    .jpeg({ quality: 78 })
+    .toFile(file);
   return file;
 }
 module.exports = { DESPAR, CONAD, foto };

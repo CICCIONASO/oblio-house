@@ -6,14 +6,16 @@ const path = require('path');
 const assert = require('assert');
 const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
 const m = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(js);
-const A = new Function(m[1] + `
+const A = new Function(
+  m[1] +
+    `
 return {seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,
   candidatiVoto,sintomiPer,metiVoto,voteSummary,sintomiDi,serateChiuse,statMese,recordFreccette,medaglie,MEDAGLIE,alboOro,
-  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe};`)();
+  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe};`
+)();
 
 const DAY = 864e5;
-const T0 = Date.parse('2026-11-02T20:00:00+01:00');   // lunedì 2 novembre 2026, sera
-const oggi = (t) => A.ymd(new Date(t));
+const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, sera
 
 /* ---------- prezzi storici ---------- */
 {
@@ -33,7 +35,10 @@ const oggi = (t) => A.ymd(new Date(t));
   assert.strictEqual(A.prezzoAl(birra, T0 + 6000), 150);
   assert.strictEqual(A.prezzoAl(birra, T0 + 1), 100);
   const N = A.normState(JSON.parse(JSON.stringify(S)));
-  assert.deepStrictEqual(N.products.find((p) => p.id === birra.id).ph, [{ t: T0 + 5000, da: 100 }, { t: T0 + 9000, da: 150 }]);
+  assert.deepStrictEqual(N.products.find((p) => p.id === birra.id).ph, [
+    { t: T0 + 5000, da: 100 },
+    { t: T0 + 9000, da: 150 },
+  ]);
   // la consumazione dopo il cambio usa il prezzo nuovo, quelle di prima restano com'erano
   S.moves.push({ id: 't2', t: T0 + 10000, k: 'tab', p: 'pesce', a: 120, items: [{ id: birra.id, n: 'Birra', q: 1, pr: 120 }] });
   assert.strictEqual(A.derive(S).debt.pesce, 320);
@@ -50,7 +55,10 @@ const oggi = (t) => A.ymd(new Date(t));
   S.moves.sort((x, y) => x.t - y.t);
   S.moves.push({ id: 'f', t: T0 - 1 * DAY, k: 'pay', p: 'pj', a: 100 });
   const D = A.derive(S);
-  assert.deepStrictEqual(D.open.conti, [{ rem: 150, t: T0 - 35 * DAY }, { rem: 150, t: T0 - 5 * DAY }]);
+  assert.deepStrictEqual(D.open.conti, [
+    { rem: 150, t: T0 - 35 * DAY },
+    { rem: 150, t: T0 - 5 * DAY },
+  ]);
   const v = A.graffiVecchi(D, T0, 30);
   assert.deepStrictEqual(v.conti, { a: 150, da: T0 - 35 * DAY, giorni: 35 });
   assert.ok(!v.pj, 'chi ha saldato non compare');
@@ -91,7 +99,11 @@ const oggi = (t) => A.ymd(new Date(t));
   assert.strictEqual(D.fondo, 3000);
   assert.strictEqual(D.cash, 100);
   // normalizzazione: una sola quota per mese, id fisso
-  const N = A.normState(Object.assign(JSON.parse(JSON.stringify(S)), { quote: [S.quote[0], { mese: '2026-11', a: 6500, chi: sei, t: T0 }, { mese: 'boh', a: 1, chi: sei }] }));
+  const N = A.normState(
+    Object.assign(JSON.parse(JSON.stringify(S)), {
+      quote: [S.quote[0], { mese: '2026-11', a: 6500, chi: sei, t: T0 }, { mese: 'boh', a: 1, chi: sei }],
+    })
+  );
   assert.strictEqual(N.quote.length, 1);
   assert.strictEqual(N.quote[0].a, 6500, 'vince la più recente');
   assert.strictEqual(N.quote[0].id, 'q2026-11');
@@ -100,7 +112,8 @@ const oggi = (t) => A.ymd(new Date(t));
 
 /* ---------- voto a più persone ---------- */
 {
-  const k = '2026-11-02', t = Math.max(T0, A.VOTI_DAL + 1);
+  const k = '2026-11-02',
+    t = Math.max(T0, A.VOTI_DAL + 1);
   const v1 = { id: 'v' + k + '_pj', s: k, v: 'pj', t };
   A.metiVoto(v1, ['pesce', 'conti', 'chicco'], { pesce: ['Urla strazianti'], chicco: ['Dormire al locale', 'Stato depressivo'] });
   assert.strictEqual(v1.c, 'pesce', 'il primo votato resta in «c» per i telefoni vecchi');
@@ -118,18 +131,23 @@ const oggi = (t) => A.ymd(new Date(t));
   assert.deepStrictEqual(sm.by.pj, ['pesce', 'conti', 'chicco']);
   assert.deepStrictEqual(sm.sint.chicco, { 'Dormire al locale': 1, 'Stato depressivo': 1 });
   // normalizzazione stabile
-  const S = A.seedState(1); S.votes.push(v1, v2);
+  const S = A.seedState(1);
+  S.votes.push(v1, v2);
   const N = A.normState(JSON.parse(JSON.stringify(S)));
   assert.strictEqual(A.canon(N.votes), A.canon(S.votes.slice().sort((a, b) => a.t - b.t)));
   assert.deepStrictEqual(A.sintomiDi(N, 'chicco'), { 'Dormire al locale': 1, 'Stato depressivo': 1 });
   // un telefono non aggiornato cambia il voto: tocca solo «c» e «y»; il nuovo votato va primo, gli altri restano
-  const vecchio = JSON.parse(JSON.stringify(v1)); vecchio.c = 'ciccio'; vecchio.y = 'Grida silenziose';
+  const vecchio = JSON.parse(JSON.stringify(v1));
+  vecchio.c = 'ciccio';
+  vecchio.y = 'Grida silenziose';
   const n1 = A.normState(Object.assign(A.seedState(1), { votes: [vecchio] })).votes[0];
   assert.deepStrictEqual(A.candidatiVoto(n1), ['ciccio', 'conti', 'chicco']);
   assert.deepStrictEqual(A.sintomiPer(n1, 'ciccio'), ['Grida silenziose']);
   assert.deepStrictEqual(A.sintomiPer(n1, 'chicco'), ['Dormire al locale', 'Stato depressivo']);
   // ... o sceglie uno già votato: passa primo
-  const vecchio2 = JSON.parse(JSON.stringify(v1)); vecchio2.c = 'chicco'; delete vecchio2.y;
+  const vecchio2 = JSON.parse(JSON.stringify(v1));
+  vecchio2.c = 'chicco';
+  delete vecchio2.y;
   const n2 = A.normState(Object.assign(A.seedState(1), { votes: [vecchio2] })).votes[0];
   assert.deepStrictEqual(A.candidatiVoto(n2), ['chicco', 'pesce', 'conti']);
   assert.deepStrictEqual(A.sintomiPer(n2, 'chicco'), [], 'i sintomi del primo sono quelli di «y»');
@@ -148,19 +166,38 @@ const oggi = (t) => A.ymd(new Date(t));
   const sera = (g, ora) => Date.parse('2026-10-' + String(g).padStart(2, '0') + 'T' + (ora || '22:00') + ':00+02:00');
   const birra = S.products.find((p) => p.name === 'Birra').id;
   // ottobre: PESCE beve 120 birre (medaglia «cento»), CONTI segna sul ticket
-  for (let i = 0; i < 12; i++) S.moves.push({ id: 'b' + i, t: sera(13 + i), k: 'sale', p: 'pesce', a: 1000, items: [{ id: birra, n: 'Birra', q: 10, pr: 100 }] });
+  for (let i = 0; i < 12; i++)
+    S.moves.push({ id: 'b' + i, t: sera(13 + i), k: 'sale', p: 'pesce', a: 1000, items: [{ id: birra, n: 'Birra', q: 10, pr: 100 }] });
   S.moves.push({ id: 'c1', t: sera(14), k: 'tab', p: 'conti', a: 300, items: [{ id: birra, n: 'Birra', q: 3, pr: 100 }] });
-  S.moves.push({ id: 'c2', t: sera(15, '02:00') + DAY, k: 'tab', p: 'conti', a: 200, items: [{ n: 'Panino', q: 1, pr: 200 }] });   // alle 2 di notte: serata del 15
+  S.moves.push({ id: 'c2', t: sera(15, '02:00') + DAY, k: 'tab', p: 'conti', a: 200, items: [{ n: 'Panino', q: 1, pr: 200 }] }); // alle 2 di notte: serata del 15
   S.moves.sort((a, b) => a.t - b.t);
   // voti (dopo l'azzeramento): due serate
-  const vt = (s, v, cs, t) => { const o = { id: 'v' + s + '_' + v, s, v, t }; A.metiVoto(o, cs, {}); S.votes.push(o); };
+  const vt = (s, v, cs, t) => {
+    const o = { id: 'v' + s + '_' + v, s, v, t };
+    A.metiVoto(o, cs, {});
+    S.votes.push(o);
+  };
   vt('2026-10-14', 'pj', ['pesce', 'conti'], sera(14, '23:00'));
   vt('2026-10-14', 'ciccio', ['pesce'], sera(14, '23:10'));
   vt('2026-10-15', 'pj', ['conti', 'chicco', 'pesce'], sera(15, '23:00'));
   vt('2026-10-15', 'pesce', ['conti'], sera(15, '23:05'));
   // freccette: PJ vince due 301 di fila contro PESCE con un 180
-  const g1 = { id: 'g1', t: sera(14, '21:00'), mode: '301', players: ['pj', 'pesce'], d: ['T20', 'T20', 'T20', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'T20', 'S18', 'D20'], end: 1 };
-  const g2 = { id: 'g2', t: sera(15, '21:00'), mode: '301', players: ['pj', 'pesce'], d: ['T20', 'T20', 'T20', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'T20', 'S18', 'D20'], end: 1 };
+  const g1 = {
+    id: 'g1',
+    t: sera(14, '21:00'),
+    mode: '301',
+    players: ['pj', 'pesce'],
+    d: ['T20', 'T20', 'T20', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'T20', 'S18', 'D20'],
+    end: 1,
+  };
+  const g2 = {
+    id: 'g2',
+    t: sera(15, '21:00'),
+    mode: '301',
+    players: ['pj', 'pesce'],
+    d: ['T20', 'T20', 'T20', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'S1', 'T20', 'S18', 'D20'],
+    end: 1,
+  };
   S.games.push(g1, g2);
   S.trash.push({ id: 'r1', s: '2026-10-14', p: ['ciccio'], f: ['vetro'], t: sera(14) });
   const N = A.normState(JSON.parse(JSON.stringify(S)));
@@ -188,7 +225,7 @@ const oggi = (t) => A.ymd(new Date(t));
   assert.strictEqual(R.chiusura.v, 118);
   assert.strictEqual(R.veloce301.v, 9);
   assert.deepStrictEqual(R.serie, { v: 2, p: 'pj' });
-  assert.ok(Math.abs(R.media.v - 301 / 9 * 3) < 1e-9);
+  assert.ok(Math.abs(R.media.v - (301 / 9) * 3) < 1e-9);
   // medaglie (ottobre finito: siamo a novembre)
   const md = A.medaglie(N, Date.parse('2026-11-02T20:00:00+01:00'), cut, ok);
   assert.strictEqual(md.pesce.cento, 1);
@@ -210,7 +247,10 @@ const oggi = (t) => A.ymd(new Date(t));
   assert.deepStrictEqual(voce('consumi').chi, ['pesce']);
   assert.deepStrictEqual(voce('pagatore').chi, ['pesce'], 'paga subito: zero giorni');
   assert.deepStrictEqual(voce('spazzino').chi, ['ciccio']);
-  assert.deepStrictEqual(A.alboOro(N, '2025', cut, ok, Date.now()).every((x) => !x.chi.length), true);
+  assert.deepStrictEqual(
+    A.alboOro(N, '2025', cut, ok, Date.now()).every((x) => !x.chi.length),
+    true
+  );
 }
 
 /* ---------- fedina pulita e puntuale ---------- */
@@ -229,9 +269,9 @@ const oggi = (t) => A.ymd(new Date(t));
   S.quote.push({ id: 'q2026-07', mese: '2026-07', a: 1000, chi: sei, t: t0 });
   S.quote.push({ id: 'q2026-08', mese: '2026-08', a: 1000, chi: sei, t: t0 });
   S.moves.push({ id: 'qa', t: Date.parse('2026-06-25T20:00:00+02:00'), k: 'qin', p: 'pj', a: 1000, mese: '2026-07' });
-  S.moves.push({ id: 'qb', t: Date.parse('2026-08-01T23:30:00+02:00'), k: 'qin', p: 'pj', a: 1000, mese: '2026-08' });   // ultimo giorno utile
+  S.moves.push({ id: 'qb', t: Date.parse('2026-08-01T23:30:00+02:00'), k: 'qin', p: 'pj', a: 1000, mese: '2026-08' }); // ultimo giorno utile
   S.moves.push({ id: 'qc', t: Date.parse('2026-06-25T20:00:00+02:00'), k: 'qin', p: 'pesce', a: 1000, mese: '2026-07' });
-  S.moves.push({ id: 'qd', t: Date.parse('2026-08-02T10:00:00+02:00'), k: 'qin', p: 'pesce', a: 1000, mese: '2026-08' });   // in ritardo
+  S.moves.push({ id: 'qd', t: Date.parse('2026-08-02T10:00:00+02:00'), k: 'qin', p: 'pesce', a: 1000, mese: '2026-08' }); // in ritardo
   S.moves.sort((a, b) => a.t - b.t);
   const md = A.medaglie(A.normState(JSON.parse(JSON.stringify(S))), t0 + 120 * DAY, 6, '2026-09-29');
   assert.strictEqual(md.ciccio.pulito, 1, '99 giorni a zero con 6 consumazioni');
@@ -247,7 +287,14 @@ const oggi = (t) => A.ymd(new Date(t));
   S.people.find((p) => p.id === 'conti').nato = '01-15';
   S.people.find((p) => p.id === 'pj').nato = '02-29';
   const l = A.prossimiCompleanni(S, '2026-11-02');
-  assert.deepStrictEqual(l.map((x) => [x.p, x.giorni]), [['pesce', 0], ['conti', 74], ['pj', 118]]);
+  assert.deepStrictEqual(
+    l.map((x) => [x.p, x.giorni]),
+    [
+      ['pesce', 0],
+      ['conti', 74],
+      ['pj', 118],
+    ]
+  );
   assert.strictEqual(l[2].data, '2027-02-28', '29 febbraio negli anni normali: il 28');
   assert.strictEqual(A.normNato('02-30'), '');
   assert.strictEqual(A.normNato('12-31'), '12-31');
@@ -262,28 +309,60 @@ const oggi = (t) => A.ymd(new Date(t));
   const birra = S.products.find((p) => p.name === 'Birra');
   const coca = S.products.find((p) => p.name === 'Coca Cola lattina');
   let t = Date.parse('2026-10-01T20:00:00+02:00');
-  const mv = (o) => { const x = Object.assign({ id: 'm' + t, t: t += 60000 }, o); S.moves.push(x); return x; };
+  const mv = (o) => {
+    const x = Object.assign({ id: 'm' + t, t: (t += 60000) }, o);
+    S.moves.push(x);
+    return x;
+  };
   mv({ k: 'in', a: 5000, note: 'fondo' });
-  mv({ k: 'inv', a: 0, items: [{ id: birra.id, n: 'Birra', q: 20, pr: 100 }, { id: coca.id, n: 'Coca', q: 5, pr: 120 }] });
+  mv({
+    k: 'inv',
+    a: 0,
+    items: [
+      { id: birra.id, n: 'Birra', q: 20, pr: 100 },
+      { id: coca.id, n: 'Coca', q: 5, pr: 120 },
+    ],
+  });
   mv({ k: 'tab', p: 'pesce', a: 300, items: [{ id: birra.id, n: 'Birra', q: 3, pr: 100 }] });
-  const D0 = A.derive(S), P0 = A.previsione(S, D0);
-  const foto = { id: 'k1', t: t + 1, cassa: P0.cassa, scorte: P0.scorte, incassare: P0.incassare, restituire: P0.restituire, previsionale: P0.previsionale, fondo: 0 };
+  const D0 = A.derive(S),
+    P0 = A.previsione(S, D0);
+  const foto = {
+    id: 'k1',
+    t: t + 1,
+    cassa: P0.cassa,
+    scorte: P0.scorte,
+    incassare: P0.incassare,
+    restituire: P0.restituire,
+    previsionale: P0.previsionale,
+    fondo: 0,
+  };
   t += 1000;
-  mv({ k: 'sale', p: 'pj', a: 100, items: [{ id: birra.id, n: 'Birra', q: 1, pr: 100 }] });            // neutra
-  mv({ k: 'sale', p: 'pj', a: 250, items: [{ n: 'Panino', q: 1, pr: 250 }] });                        // fuori listino: +2,50
-  mv({ k: 'exp', a: 1200, paidBy: 'cassa', cat: 'Rifornimento bar' });                                 // −12,00
-  mv({ k: 'load', a: 0, items: [{ id: birra.id, n: 'Birra', q: 24, pr: 100 }] });                       // +24,00
-  mv({ k: 'pay', p: 'pesce', a: 300 });                                                               // neutro
-  mv({ k: 'count', a: -150, counted: 4700, expected: 4850 });                                          // ammanco −1,50
-  mv({ k: 'inv', a: 0, items: [{ id: coca.id, n: 'Coca', q: 4, pr: 120 }] });                           // una coca sparita −1,20
-  A.cambiaPrezzo(birra, 150, t += 60000);                                                               // 40 birre +0,50 = +20,00
-  mv({ k: 'qin', p: 'pj', a: 6000, mese: '2026-11' });                                                 // fondo: fuori dal previsionale
-  const D1 = A.derive(S), P1 = A.previsione(S, D1);
+  mv({ k: 'sale', p: 'pj', a: 100, items: [{ id: birra.id, n: 'Birra', q: 1, pr: 100 }] }); // neutra
+  mv({ k: 'sale', p: 'pj', a: 250, items: [{ n: 'Panino', q: 1, pr: 250 }] }); // fuori listino: +2,50
+  mv({ k: 'exp', a: 1200, paidBy: 'cassa', cat: 'Rifornimento bar' }); // −12,00
+  mv({ k: 'load', a: 0, items: [{ id: birra.id, n: 'Birra', q: 24, pr: 100 }] }); // +24,00
+  mv({ k: 'pay', p: 'pesce', a: 300 }); // neutro
+  mv({ k: 'count', a: -150, counted: 4700, expected: 4850 }); // ammanco −1,50
+  mv({ k: 'inv', a: 0, items: [{ id: coca.id, n: 'Coca', q: 4, pr: 120 }] }); // una coca sparita −1,20
+  A.cambiaPrezzo(birra, 150, (t += 60000)); // 40 birre +0,50 = +20,00
+  mv({ k: 'qin', p: 'pj', a: 6000, mese: '2026-11' }); // fondo: fuori dal previsionale
+  const D1 = A.derive(S),
+    P1 = A.previsione(S, D1);
   const r = A.spiegaVerifica(S, foto, t + 1);
   assert.strictEqual(r.correzioni, 0);
   assert.strictEqual(r.adesso, P1.previsionale, 'il ricalcolo arriva al previsionale di adesso');
   assert.strictEqual(r.diff, P1.previsionale - P0.previsionale);
-  assert.deepStrictEqual(r.cat, { carichi: 2400, vendite: 250, spese: -1200, entrate: 0, debiti: 0, conte: -150, inventari: -120, prezzi: 2000, altro: 0 });
+  assert.deepStrictEqual(r.cat, {
+    carichi: 2400,
+    vendite: 250,
+    spese: -1200,
+    entrate: 0,
+    debiti: 0,
+    conte: -150,
+    inventari: -120,
+    prezzi: 2000,
+    altro: 0,
+  });
   assert.strictEqual(r.somma, r.diff, 'tutta la differenza è spiegata');
   assert.strictEqual(r.sfuggito, -270);
   // un movimento di prima della foto annullato dopo: finisce nelle correzioni
@@ -303,12 +382,28 @@ const oggi = (t) => A.ymd(new Date(t));
   const S = A.seedState(1);
   S.muro.push({ id: 'w1', t: T0, p: 'pesce', testo: '  Aiuto, ho finito le cartine  ', col: 9, dv: 'd123' });
   S.muro.push({ id: 'w2', t: T0, p: '', testo: 'anonimo' });
-  S.verifiche.push({ id: 'k1', t: T0, cassa: 100, scorte: 200, incassare: 50, restituire: 0, previsionale: 350, fondo: 0, nota: 'festa di ottobre' });
+  S.verifiche.push({
+    id: 'k1',
+    t: T0,
+    cassa: 100,
+    scorte: 200,
+    incassare: 50,
+    restituire: 0,
+    previsionale: 350,
+    fondo: 0,
+    nota: 'festa di ottobre',
+  });
   const N = A.normState(JSON.parse(JSON.stringify(S)));
-  assert.deepStrictEqual(N.muro, [{ id: 'w1', t: T0, p: 'pesce', testo: 'Aiuto, ho finito le cartine', col: 5, dv: 'd123' }], 'i post-it anonimi non entrano');
+  assert.deepStrictEqual(
+    N.muro,
+    [{ id: 'w1', t: T0, p: 'pesce', testo: 'Aiuto, ho finito le cartine', col: 5, dv: 'd123' }],
+    'i post-it anonimi non entrano'
+  );
   assert.strictEqual(N.verifiche[0].previsionale, 350);
   assert.strictEqual(A.normEnt('muro', S.muro[0]).testo, 'Aiuto, ho finito le cartine');
   assert.strictEqual(A.normEnt('quote', { mese: '2026-12', a: 5000, chi: ['pj'], t: 1 }).id, 'q2026-12');
 }
 
-console.log('novità 0.7.0: tutto torna (prezzi, graffi vecchi, quota, voto a più persone, statistiche, record, medaglie, albo, compleanni, verifica)');
+console.log(
+  'novità 0.7.0: tutto torna (prezzi, graffi vecchi, quota, voto a più persone, statistiche, record, medaglie, albo, compleanni, verifica)'
+);

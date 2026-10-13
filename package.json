@@ -5,6 +5,9 @@
   "description": "L'app del reparto: farmacia, ticket, cassa, scorte, freccette e classifiche.",
   "scripts": {
     "build": "node build.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test:pure && npm run test:novita && npm run test:sync && npm run test:compat && npm run test:versione",
     "test:pure": "node test/pure.test.js",
     "test:novita": "node test/novita.test.js",
@@ -17,7 +20,11 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
     "playwright": "1.56.1",
+    "prettier": "^3.9.10",
     "sharp": "^0.35.5"
   }
 }

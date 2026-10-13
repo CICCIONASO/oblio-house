@@ -1,0 +1,15 @@
+# generati da build.js
+docs/
+preview.html
+preview-files.json
+test/shots/
+# copie congelate di versioni vecchie e testi OCR: vanno lasciati come sono
+test/fixtures/
+# motore OCR di terze parti
+src/ocr/tesseract-core-*.js
+# scritti a mano in forma compatta; build.js e i test li leggono con espressioni regolari (APP_V='…', var SDK='…', blocco PURE)
+src/app.js
+src/ocr/lettore.js
+package-lock.json
+src/app.css
+src/*.html
