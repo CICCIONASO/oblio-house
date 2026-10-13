@@ -664,8 +664,8 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   add({ k: 'exp', a: 900, paidBy: 'chicco', settle: 'debito' }); // CHICCO in credito di 9 €
   const pr = previsione(P0, derive(P0));
   assert.strictEqual(pr.cassa, 5240);
-  assert.strictEqual(pr.scorte, 7 * 100 + 4 * 150, 'la coca sotto zero vale zero, non meno');
-  assert.strictEqual(pr.attuale, 5240 + 1300, 'attuale: cassa + scorte, senza graffi');
+  assert.strictEqual(pr.scorte, 7 * 100 + 4 * 150 - 120, 'la coca sotto zero vale in negativo');
+  assert.strictEqual(pr.attuale, 5240 + 1180, 'attuale: cassa + scorte, senza graffi');
   assert.strictEqual(pr.incassare, 300);
   assert.strictEqual(pr.nInc, 1);
   assert.strictEqual(pr.restituire, 900);
@@ -676,6 +676,7 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
     [
       ['Birra', 7, 700],
       ['Kit Kat', 4, 600],
+      ['Coca Cola lattina', -1, -120],
     ],
     'ordinate per valore'
   );
@@ -692,7 +693,7 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   assert.strictEqual(prC.attuale, pr.attuale, 'il totale resta a prezzo di vendita');
   // un prodotto fuori listino ma ancora in magazzino conta; uno fuori listino mai contato non è «da contare»
   P0.products.find((p) => p.id === k).on = false;
-  assert.strictEqual(previsione(P0, derive(P0)).scorte, 1300);
+  assert.strictEqual(previsione(P0, derive(P0)).scorte, 1180);
   P0.products.find((p) => p.id === id('Mars')).on = false;
   assert.strictEqual(previsione(P0, derive(P0)).nonContati, P0.products.length - 3 - 1);
   // annullare il graffio: niente da incassare, le birre tornano in magazzino
@@ -700,7 +701,13 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   const pr2 = previsione(P0, derive(P0));
   assert.strictEqual(pr2.incassare, 0);
   assert.strictEqual(pr2.nInc, 0);
-  assert.strictEqual(pr2.scorte, 10 * 100 + 4 * 150);
+  assert.strictEqual(pr2.scorte, 10 * 100 + 4 * 150 - 120);
+  // vendere a listino non cambia il previsionale, anche oltre le scorte segnate
+  const prima = previsione(P0, derive(P0)).previsionale;
+  add({ k: 'sale', p: 'conti', a: 240, items: [{ id: c, n: 'Coca Cola lattina', q: 2, pr: 120 }] }); // coca a −3
+  add({ k: 'tab', p: 'conti', a: 120, items: [{ id: c, n: 'Coca Cola lattina', q: 1, pr: 120 }] }); // coca a −4
+  assert.strictEqual(previsione(P0, derive(P0)).previsionale, prima, 'vendite sotto zero: il previsionale non si muove');
+  assert.strictEqual(previsione(P0, derive(P0)).negativi, 1);
   // cassa in rosso: i totali possono essere negativi, nessuna somma nascosta
   add({ k: 'exp', a: 20000, paidBy: 'cassa' });
   const pr4 = previsione(P0, derive(P0));

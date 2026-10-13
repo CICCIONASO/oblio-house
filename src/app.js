@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.8.0';
+var APP_V='0.9.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: quante persone può votare ognuno in una serata; graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -224,15 +224,17 @@ function sintomiDi(S,id){
   return conta;
 }
 /* soldi del locale. Attuale: cassa + scorte a prezzo di vendita. Previsionale, a parte: in più i graffi da incassare,
-   meno i crediti da restituire. Le scorte valgono anche a costo d'acquisto, per i prodotti che ce l'hanno (dagli scontrini). */
+   meno i crediti da restituire. Le scorte valgono anche a costo d'acquisto, per i prodotti che ce l'hanno (dagli scontrini).
+   Una scorta sotto zero vale in negativo: così vendere a listino non cambia mai il previsionale, nemmeno senza merce
+   segnata (prima contava zero e ogni vendita lo alzava). L'inventario la rimette a posto. */
 function previsione(S,D){
   var o={cassa:D.cash,incassare:0,restituire:0,nInc:0,nRes:0,scorte:0,scorteCosto:0,margine:0,nCosto:0,righe:[],nonContati:0,negativi:0};
   Object.keys(D.debt).forEach(function(p){var d=D.debt[p];if(d>0){o.incassare+=d;o.nInc++;}else if(d<0){o.restituire-=d;o.nRes++;}});
   S.products.forEach(function(p){
     if(!(p.id in D.stock)){if(p.on)o.nonContati++;return;}
-    if(toInt(D.stock[p.id])<0)o.negativi++;
-    var q=Math.max(0,toInt(D.stock[p.id]));
-    if(q<=0)return;
+    var q=toInt(D.stock[p.id]);
+    if(q<0)o.negativi++;
+    if(!q)return;
     var r={id:p.id,n:p.name,q:q,pr:p.price,v:q*p.price};
     if(p.cost!=null){r.c=p.cost;r.vc=q*p.cost;o.scorteCosto+=r.vc;o.margine+=r.v-r.vc;o.nCosto++;}
     o.scorte+=r.v;o.righe.push(r);
@@ -760,9 +762,9 @@ function prossimiCompleanni(S,oggi){
    previsionale = cassa + graffi (al netto dei crediti) + scorte contate × prezzo di quel momento.
    «correzioni»: quello che è cambiato nel passato dopo la foto (annullamenti, movimenti segnati in ritardo). */
 function spiegaVerifica(S,snap,tFine){
-  var prod={},stock={},cash=0,debt=0,cat={carichi:0,vendite:0,spese:0,entrate:0,debiti:0,conte:0,inventari:0,prezzi:0,altro:0};
+  var prod={},stock={},cash=0,debt=0,cat={carichi:0,vendite:0,spese:0,entrate:0,debiti:0,prelievi:0,conte:0,inventari:0,prezzi:0,altro:0};
   S.products.forEach(function(p){prod[p.id]=p;});
-  function vp(id,t){return (id in stock)&&prod[id]?Math.max(0,stock[id])*prezzoAl(prod[id],t):0;}
+  function vp(id,t){return (id in stock)&&prod[id]?stock[id]*prezzoAl(prod[id],t):0;}
   function valore(t){var v=cash+debt;Object.keys(stock).forEach(function(id){v+=vp(id,t);});return v;}
   var ev=[];
   S.moves.forEach(function(m){if(m&&!m.x&&toInt(m.t)<=tFine)ev.push({t:toInt(m.t),m:m});});
@@ -772,7 +774,7 @@ function spiegaVerifica(S,snap,tFine){
   function fuori(m){(m.items||[]).forEach(function(it){if(it&&it.id&&(it.id in stock))stock[it.id]-=toInt(it.q);});}
   function applica(e){
     if(!e.m){   // cambio di prezzo: le scorte di quel prodotto cambiano valore
-      var p=e.p,dopo=prezzoAl(p,e.x.t),q=(p.id in stock)?Math.max(0,stock[p.id]):0;
+      var p=e.p,dopo=prezzoAl(p,e.x.t),q=(p.id in stock)?stock[p.id]:0;
       return {k:'prezzi',d:q*(dopo-e.x.da)};
     }
     var m=e.m,a=m.k==='count'?toInt(m.a):Math.max(0,toInt(m.a)),ids={},prima=0,dopo2=0,k='altro';
@@ -782,7 +784,7 @@ function spiegaVerifica(S,snap,tFine){
     switch(m.k){
       case 'sale':cash+=a;fuori(m);k='vendite';break;
       case 'tab':if(m.p)debt+=a;fuori(m);k='vendite';break;
-      case 'dplus':if(m.p)debt+=a;k='debiti';break;
+      case 'dplus':if(m.p)debt+=a;k=m.pc?'prelievi':'debiti';break;
       case 'dminus':if(m.p)debt-=a;k='debiti';break;
       case 'pay':cash+=a;if(m.p)debt-=a;break;
       case 'in':cash+=a;k='entrate';break;
@@ -790,7 +792,7 @@ function spiegaVerifica(S,snap,tFine){
         if(!m.paidBy||m.paidBy==='cassa'||m.settle==='cassa')cash-=a;
         else if(m.settle==='dividi'){debt-=a;var sh=m.shares||{};Object.keys(sh).forEach(function(p){debt+=toInt(sh[p]);});}
         else debt-=a;
-        k='spese';break;
+        k=m.pc?'prelievi':'spese';break;
       case 'count':cash+=a;k='conte';break;
       case 'load':(m.items||[]).forEach(function(it){if(it&&it.id)stock[it.id]=(stock[it.id]||0)+toInt(it.q);});k='carichi';break;
       case 'inv':(m.items||[]).forEach(function(it){if(it&&it.id)stock[it.id]=toInt(it.q);});k='inventari';break;
@@ -879,7 +881,7 @@ var NOTI={
   cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH'],
   people:['id','name','kind','on','img','nato'],
   products:['id','name','cat','price','min','on','cost','al','ph'],
-  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da'],
   quote:['id','mese','a','chi','scad','note','t'],
   muro:['id','t','p','testo','col','dv','mod'],
@@ -974,6 +976,7 @@ function normState(raw){
     if(m.x)o.x={t:toInt(m.x.t)};
     if(m.xm)o.xm=str(m.xm,120);                     // motivo dell'annullamento
     if(m.g)o.g=str(m.g,40);                         // movimenti che vanno insieme (pagamento misto, resto in più)
+    if(m.pc)o.pc=1;                                 // preso dalla cassa: debito + uscita, non è una spesa del locale
     if(m.mese&&/^\d{4}-\d{2}$/.test(String(m.mese)))o.mese=String(m.mese);   // quota del locale: di che mese
     S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
@@ -1777,11 +1780,12 @@ function moveInfo(mv){
   switch(mv.k){
     case 'sale':return {t:'Pagato subito · '+who,s:itemsText(mv),cash:a,tag:'cassa'};
     case 'tab':return {t:'Sul ticket · '+who,s:itemsText(mv),debt:a,tag:'ticket'};
-    case 'dplus':return {t:'Debito aggiunto · '+who,s:mv.note||'',debt:a,tag:'ticket'};
+    case 'dplus':return {t:(mv.pc?'Preso dalla cassa · ':'Debito aggiunto · ')+who,s:mv.note||'',debt:a,tag:'ticket'};
     case 'dminus':return {t:'Debito tolto · '+who,s:mv.note||'',debt:-a,tag:'ticket'};
     case 'pay':return {t:'Ticket incassato · '+who,s:mv.note||'',cash:a,tag:'cassa'};
     case 'in':return {t:'Entrata',s:mv.note||'',cash:a,tag:'cassa'};
     case 'exp':
+      if(mv.pc)return {t:'Uscito dalla cassa',s:[mv.note,'va sul ticket di chi l’ha preso'].filter(Boolean).join(' · '),cash:-a,tag:'cassa'};
       var by=mv.paidBy&&mv.paidBy!=='cassa'?pName(mv.paidBy):'',how,daCassa=!by||mv.settle==='cassa';
       if(!by)how='pagata dalla cassa';
       else if(mv.settle==='cassa')how='anticipata da '+by+', rimborsata dalla cassa';
@@ -2333,14 +2337,38 @@ function openPay(id){
   },'Incassa');
 }
 function openDebt(id,segno){conPin(function(){openDebt_(id,segno);},segno>0?'Aggiungere un debito a mano':'Togliere un debito a mano');}
+/* debito a mano. Si chiede sempre se si muovono soldi in cassa, così un pagamento non diventa un «debito tolto»
+   (soldi in cassa non contati) e un prelievo non diventa un «debito aggiunto» (cassa più alta del vero).
+   Preso dalla cassa: due movimenti insieme (debito a lui, spesa dalla cassa con «pc»), che anche i telefoni
+   non aggiornati contano giusti; il previsionale non cambia e non è una spesa del locale. */
 function openDebt_(id,segno){
-  var a=soldi('db-a'),n=testo('db-n','Es. vecchio conto, scommessa persa',80);
+  var a=soldi('db-a'),n=testo('db-n',segno>0?'Es. pizza, vecchio conto':'Es. scommessa persa, regalo',80);
+  var cassa=chipSel(segno>0?[{v:'no',label:'No, solo debito'},{v:'si',label:'Sì, li ha presi dalla cassa'}]
+    :[{v:'si',label:'Sì, ha pagato'},{v:'no',label:'No, debito condonato'}],null);
+  var aiuto=h('p',{class:'aiuto'});
+  function sync(){
+    var x=cassa.get();
+    aiuto.textContent=segno>0
+      ?(x==='si'?'La cassa scende e il suo ticket sale della stessa cifra: il previsionale non cambia.':x==='no'?'Il debito sale senza toccare la cassa.':'')
+      :(x==='si'?'Diventa un incasso: i soldi entrano in cassa e il ticket scende.':x==='no'?'Il debito scende e in cassa non entra niente: il previsionale scende.':'');
+  }
+  cassa.addEventListener('change',sync);sync();
   formSheet((segno>0?'Aggiungi debito a ':'Togli debito a ')+pName(id),[
-    h('p',{class:'aiuto'},segno>0?'Il debito sale senza toccare la cassa.':'Il debito scende senza che entrino soldi in cassa: per un pagamento usa «Incassa».'),
-    campo('Importo',a,'db-a'),campo('Motivo',n,'db-n')],function(){
-    var v=parseEur(a.value);
+    campo('Importo',a,'db-a'),
+    gruppo(segno>0?'I soldi sono usciti dalla cassa?':'Sono entrati soldi in cassa?',cassa),aiuto,
+    campo('Motivo',n,'db-n')],function(){
+    var v=parseEur(a.value),x=cassa.get(),nota=n.value.trim();
     if(!(v>0))return 'Scrivi l’importo, per esempio 3,00.';
-    addMove({k:segno>0?'dplus':'dminus',p:id,a:v,note:n.value.trim()},(segno>0?'Debito aggiunto a ':'Debito tolto a ')+pName(id)+': '+eur(v));
+    if(!x)return segno>0?'Scegli se i soldi sono usciti dalla cassa.':'Scegli se sono entrati soldi in cassa.';
+    if(segno<0&&x==='si'){addMove({k:'pay',p:id,a:v,note:nota},'Incassati '+eur(v)+' da '+pName(id));return;}
+    if(segno<0&&nota.length<3)return 'Scrivi il motivo: senza soldi in cassa serve sapere perché.';
+    if(segno>0&&x==='si'){
+      var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
+      S.moves.push(m1,m2);commit();
+      toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
+      return;
+    }
+    addMove({k:segno>0?'dplus':'dminus',p:id,a:v,note:nota},(segno>0?'Debito aggiunto a ':'Debito tolto a ')+pName(id)+': '+eur(v));
   },segno>0?'Aggiungi':'Togli');
 }
 function openPerson(id,after){
@@ -2555,7 +2583,7 @@ function vSoldi(){
   if(!tc)av.push(h('li',{class:'rosso'},'La cassa non è mai stata contata: il numero è quello calcolato dall’app, non i soldi veri.'));
   else if(Date.now()-tc>14*864e5)av.push(h('li',{class:'rosso'},'Ultima conta della cassa '+daQuando(tc)+': da allora il conto si basa solo su quello che è stato segnato.'));
   if(P.nonContati)av.push(h('li',{class:'rosso'},P.nonContati+(P.nonContati===1?' prodotto in vendita non è mai stato contato e resta':' prodotti in vendita non sono mai stati contati e restano')+' fuori dal conto.'));
-  if(P.negativi)av.push(h('li',{class:'rosso'},P.negativi+(P.negativi===1?' prodotto risulta':' prodotti risultano')+' sotto zero (venduto più di quanto contato): conta zero finché non rifate l’inventario.'));
+  if(P.negativi)av.push(h('li',{class:'rosso'},P.negativi+(P.negativi===1?' prodotto risulta':' prodotti risultano')+' sotto zero (venduto più di quanto contato): vale in negativo finché non segnate il carico o rifate l’inventario.'));
   av.push(h('li',null,P.nCosto?'Le scorte valgono al prezzo di vendita; il valore a costo vale solo per i prodotti passati da uno scontrino.':'Le scorte valgono al prezzo di vendita: quello che le avete pagate è meno. Con gli scontrini l’app impara anche il costo.'));
   av.push(h('li',null,'Il previsionale conta i graffi per intero: ogni ticket che non viene pagato lo abbassa.'));
   out.push(h('section',{class:'cartella'},
@@ -3696,7 +3724,7 @@ function openVerifica(){
   },'Salva la foto');
 }
 var VOCI_VERIFICA=[['carichi','Merce arrivata (carichi, a prezzo di vendita)'],['vendite','Consumazioni fuori listino o a un prezzo diverso'],['spese','Spese'],['entrate','Entrate in cassa'],
-  ['debiti','Debiti aggiunti o tolti a mano'],['prezzi','Cambi di prezzo sulle scorte'],['conte','Differenze trovate contando la cassa'],['inventari','Differenze trovate all’inventario'],['altro','Altro']];
+  ['debiti','Debiti aggiunti o tolti a mano'],['prelievi','Presi dalla cassa (sul ticket)'],['prezzi','Cambi di prezzo sulle scorte'],['conte','Differenze trovate contando la cassa'],['inventari','Differenze trovate all’inventario'],['altro','Altro']];
 function openConfronto(id){
   var i=S.verifiche.findIndex(function(x){return x.id===id;});if(i<0)return;
   var v=S.verifiche[i],dopo=S.verifiche[i+1]||null,tFine=dopo?dopo.t:Date.now(),r=spiegaVerifica(S,v,tFine);

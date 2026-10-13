@@ -237,6 +237,11 @@ const fail = (m) => {
   await page.waitForTimeout(80);
   await page.fill('#db-a', '5');
   await page.fill('#db-n', 'Scommessa persa');
+  // bisogna dire se i soldi escono dalla cassa: senza scelta il debito non si salva
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(60);
+  if (!(await page.$('#db-a'))) fail('«+ Debito» salvato senza dire se i soldi sono usciti dalla cassa');
+  await page.click('#foglio .chip:has-text("No, solo debito")');
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
 
