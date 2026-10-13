@@ -1,7 +1,7 @@
 // Monta l'app: anteprima per Claude (un solo file senza <html>) e pacchetto installabile (dist/).
 const fs = require('fs');
 const path = require('path');
-const sharp = require('/opt/npm-tools/node_modules/sharp');
+const sharp = require('sharp');
 
 const root = __dirname;
 const src = (f) => fs.readFileSync(path.join(root, 'src', f), 'utf8');
