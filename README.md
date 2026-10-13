@@ -84,7 +84,7 @@ Va aperta da `http://localhost`, non facendo doppio clic su `index.html`: il ser
 
 Cosa produce `npm run build`:
 
-- `docs/`: l'app pubblicata (`index.html`, `sw.js`, `manifest.webmanifest`, icone, `guida.html`, caricature, motore OCR). È la cartella servita da GitHub Pages, quindi va committata solo quando si pubblica una versione.
+- `docs/`: l'app pubblicata (`index.html`, `sw.js`, `manifest.webmanifest`, icone, `guida.html`, caricature, motore OCR). Non serve committarla a mano: a ogni push su `main` il workflow `.github/workflows/pages.yml` rifà le prove, rimonta `docs/` e la pubblica su GitHub Pages (Settings › Pages › Source: GitHub Actions).
 - `preview.html`: un'anteprima in un file solo, ignorata da git.
 
 ### La sincronizzazione con Firebase
@@ -152,7 +152,7 @@ Qualche consiglio:
 - **PWA**: manifest, icone generate con [sharp](https://sharp.pixelplumbing.com/) e un service worker (`src/sw.js`) che tiene l'app in cache per l'uso offline.
 - **Cloud Firestore** (Firebase JS SDK 10.12.2, caricato da gstatic) per la sincronizzazione tra telefoni; i dati locali stanno nel `localStorage` del telefono.
 - **OCR sul telefono**: [tesseract.js-core](https://github.com/naptha/tesseract.js-core) 6.1.2 in WebAssembly con il modello italiano di tessdata (4.0.0_best_int). Il lettore (`src/ocr/lettore.js`) è nostro; motore e modello sono di terzi, con licenza Apache-2.0 (testi in `src/ocr/`). Vengono scaricati la prima volta che servono e poi restano in cache.
-- **GitHub Pages** per la pubblicazione (ramo `main`, cartella `/docs`) e **GitHub Actions** per le prove.
+- **GitHub Pages** per la pubblicazione e **GitHub Actions** per le prove e per pubblicare da sole ogni push su `main`.
 - **Playwright** per la prova a schermo, **c8** per la copertura, **ESLint** e **Prettier** per lo stile del codice.
 - Caratteri: IBM Plex Sans per i testi, IBM Plex Mono per i numeri, Shrikhand per i titoli (da Google Fonts).
 
@@ -167,7 +167,7 @@ src/
   ocr/                         lettore di scontrini (motore e modello inclusi)
   sync-config.json             configurazione della sincronizzazione (facoltativa)
 build.js                       monta l'app in docs/
-docs/                          app pubblicata (GitHub Pages)
+docs/                          app montata da build.js (pubblicata su GitHub Pages)
 firestore.rules                regole del database
 test/                          prove automatiche e scontrini di prova
 ```
