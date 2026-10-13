@@ -6,13 +6,17 @@
   --giallo:#FFD23F; --acido:#9BE22D; --rosa:#FF4D97; --rosa-chiaro:#FF9DB5; --arancio:#FF7A1A; --rosso:#C81E1E; --ok:#0A7D55;
   --f-titolo:"Shrikhand",Georgia,"Times New Roman",serif;
   --f-testo:"IBM Plex Mono","Courier New",ui-monospace,monospace;
+  --f-corpo:"IBM Plex Sans","Helvetica Neue",system-ui,sans-serif;
   --f-etichetta:"IBM Plex Sans Condensed","Arial Narrow","Roboto Condensed",sans-serif;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--viola);color:var(--panna);font:500 15px/1.4 var(--f-testo);-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--viola);color:var(--panna);font:400 15px/1.45 var(--f-corpo);-webkit-tap-highlight-color:transparent}
+/* numeri e importi: carattere da modulo clinico; i testi: carattere da leggere */
+.importo,.ora,.voce-val,.inp.soldi,.inp.corto,.inp.pin,.prod-p,.tri-v,.slot,.turno-tot,.sc-pre,.pos-tot strong,.bollettino dd,.scheda dd{font-family:var(--f-testo)}
+.importo,.voce-val,.scheda dd{font-variant-numeric:tabular-nums}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 h1,h2,h3,p,dl,dd,dt,ul,ol{margin:0;padding:0}
@@ -57,7 +61,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .azioni{display:flex;flex-wrap:wrap;gap:8px}
 .azioni>.pill{flex:1 1 auto}
 .azioni.tre{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
-.azioni.tre>.pill{padding:0 6px;font-size:14px}
+.azioni.tre>.pill{padding:0 6px;font-size:14px;gap:5px}
 .pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border:3px solid var(--notte);border-radius:99px;background:var(--carta);color:var(--notte);font:700 15px/1.05 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;text-align:center}
 .pill.duo-verde{background:linear-gradient(90deg,var(--acido) 0,var(--acido) 50%,var(--giallo) 50%,var(--giallo) 100%)}
 .pill.duo-rosa{background:linear-gradient(90deg,var(--rosa) 0,var(--rosa) 50%,var(--arancio) 50%,var(--arancio) 100%)}
@@ -352,7 +356,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .quota-voce p{font-size:14px;line-height:1.4}
 .righe.quota-righe .riga{min-height:42px}
 .sezione-admin{margin-top:8px}
-.menu.admin .voce{border-color:var(--giallo);background:var(--viola-forte)}
+
 .inp.corto3{width:72px;padding-inline:6px}
 .inp.corto4{width:128px;padding-inline:6px}
 .storico-prezzi{padding:6px 10px;border-left:3px solid var(--viola-forte);background:#EFE7FF;border-radius:0 10px 10px 0}
@@ -405,3 +409,46 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .sfuggito-box b{font:400 20px/1.2 var(--f-titolo)}
 .sfuggito-box p{font-size:13px;line-height:1.4;color:var(--grigio)}
 .righe.conto>li.sfuggito .nome{color:var(--rosso)}
+
+/* 0.8 — Altro: sezioni, voci con icona e numero a destra */
+.gruppo{display:flex;flex-direction:column;gap:8px}
+.gruppo-t{font:700 13px/1.2 var(--f-etichetta);letter-spacing:.12em;text-transform:uppercase;color:var(--lilla);padding-left:4px}
+.menu.lista{gap:0;background:var(--viola-3);border:2px solid var(--viola-bordo);border-radius:20px;overflow:hidden}
+.menu.lista>li+li{border-top:1px solid rgba(201,182,240,.22)}
+.menu.lista .voce{border:0;border-radius:0;background:none;min-height:66px;padding:11px 12px 11px 12px}
+.menu.lista .voce:active{background:var(--viola-forte)}
+.menu.lista.admin{border-color:var(--giallo)}
+.voce-ic{flex:none;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;border:2px solid var(--notte)}
+.voce .voce-ic .ic,.voce-ic .ic{color:var(--notte)}
+.c-soldi{background:var(--acido)}.c-reparto{background:var(--rosa)}.c-app{background:var(--lilla)}.c-admin{background:var(--giallo)}
+.voce .nome{font-size:15.5px}
+.voce .sotto{font-size:12.5px;line-height:1.3}
+.voce .sotto.rosso,.voce-val.rosso{color:var(--rosa-chiaro)}
+.voce-val{flex:none;max-width:40%;font-weight:600;font-size:14px;line-height:1.2;color:var(--panna);text-align:right;overflow-wrap:anywhere}
+.menu.lista .voce>.ic:last-child{color:var(--lilla-2)}
+.tris{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.tessera-app{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 6px;background:none;border:0;color:var(--panna);text-align:center;min-width:0}
+.tessera-app+.tessera-app{border-left:1px solid rgba(201,182,240,.22)}
+.tessera-app:active{background:var(--viola-forte)}
+.tessera-app .nome{font-size:14.5px}
+.tessera-app .sotto{font-size:11.5px;line-height:1.25;color:var(--lilla)}
+.tessera-app .sotto.rosso{color:var(--rosa-chiaro);font-weight:600}
+.esci-riga{padding:12px}
+
+/* Reparto: il bollettino in quattro riquadri */
+.cruscotto{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tessera{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:3px;min-height:92px;padding:10px 12px 11px;border:2.5px solid var(--notte);border-radius:16px;background:var(--bianco);color:var(--inchiostro);text-align:left;min-width:0}
+.tessera:active{transform:translateY(1px)}
+.tessera-e{font:700 11.5px/1.2 var(--f-etichetta);letter-spacing:.1em;text-transform:uppercase;color:var(--grigio)}
+.tessera-v{font:400 clamp(21px,6.3vw,26px)/1.15 var(--f-titolo);color:var(--inchiostro);overflow-wrap:anywhere}
+.tessera-v.rosso{color:var(--rosso)}
+.tessera-s{font-size:12px;line-height:1.25;color:var(--grigio);overflow-wrap:anywhere}
+.bollettino-note{display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.35}
+.bollettino-note li{display:flex;align-items:center;gap:8px}
+.bollettino-note .ic{flex:none;color:var(--viola-forte)}
+/* faccende e cose da fare: icona, testo, azione */
+.fare-ic{flex:none;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#E8E2F5;color:var(--viola-forte)}
+.fare-ic.acceso{background:var(--rosa);color:var(--notte)}
+.fare-az{flex:none;display:flex;flex-direction:column;align-items:center;gap:4px}
+.faccenda .nome{font-size:15px}
+.cartella .pill .ic{flex:none}

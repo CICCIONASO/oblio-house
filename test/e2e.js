@@ -219,7 +219,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.fill('#adm-c', '0101'); await page.click('#foglio button[type=submit]'); await page.waitForTimeout(100);
   if (!(await page.$('.menu.admin .voce:has-text("Listino")'))) fail('dopo il codice admin il Listino non compare');
   await shot('11b-altro-admin', true); await overflow('altro admin');
-  await page.click('.voce:has-text("Scorte e lista")');
+  await page.click('.voce:has-text("Scorte e spesa")');
   await page.click('.pill:has-text("Inventario")');
   await page.fill('#iv-p2', '3');
   await page.fill('#iv-p3', '12');
@@ -310,7 +310,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
     if (centesimi(await text('[data-k="cassa-soldi"]')) !== P.attuale) fail('cassa: collegamento ai soldi del locale sbagliato');
     note('soldi del locale: adesso ' + (P.attuale / 100).toFixed(2) + ' € (cassa ' + P.cassa / 100 + ', scorte ' + P.scorte / 100 + '), previsionale ' + (P.previsionale / 100).toFixed(2) + ' € (graffi ' + P.incassare / 100 + ', crediti ' + P.restituire / 100 + ')');
   }
-  await tab('Altro'); await page.click('.voce:has-text("Scorte e lista")');
+  await tab('Altro'); await page.click('.voce:has-text("Scorte e spesa")');
 
   // ---------- Scontrino: foto letta sul telefono (motore vero, foto di prova), conferma riga per riga ----------
   {
@@ -602,7 +602,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
 
   // Backup: scarica, poi controlla che contenga voti e partite
   await tab('Altro');
-  await page.click('.voce:has-text("Backup")');
+  await page.click('[data-k="apri-backup"]');
   await shot('26-backup', true); await overflow('backup');
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }), page.click('.pill:has-text("Scarica backup")')]);
   const bkPath = path.join(shots, 'backup.json');
@@ -612,7 +612,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   if (bk.state.votes.length !== 3 || bk.state.games.length !== 2) fail('backup: attesi 3 voti e 2 partite, trovati ' + bk.state.votes.length + ' e ' + bk.state.games.length);
   note('backup: ' + bk.state.moves.length + ' movimenti, ' + bk.state.votes.length + ' voti, ' + bk.state.games.length + ' partite, ' + bk.state.people.length + ' persone');
   await page.click('.indietro');
-  await page.click('.voce:has-text("Installa")');
+  await page.click('[data-k="apri-installa"]');
   await shot('27-installa', true);
 
   // ricarica: i dati restano
@@ -686,7 +686,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('.chip:has-text("CICCIO")'); await page.click('.prod-add:has-text("Birra")');
   await tab('Reparto');
   if (!/non è registrato/.test(await text('#toast'))) fail('uscendo dalla Farmacia con un conto aperto manca l’avviso');
-  if (!(await page.$('.cartella.sospeso'))) fail('il Reparto non mostra il conto in sospeso');
+  if (!(await page.$('[data-k="riprendi-conto"]'))) fail('il Reparto non mostra il conto in sospeso');
   await page.click('[data-k="riprendi-conto"]'); await page.waitForTimeout(60);
   if (!/CICCIO/.test(await text('.pos-who'))) fail('riprendendo il conto non torna CICCIO');
   await page.click('.posbar .pill-x');
@@ -706,7 +706,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('#foglio-x');
   // quota del locale: l'admin la imposta (scaduta ieri, per provare il ritardo), ognuno la segna, chi è in ritardo la trova nei graffi
   await tab('Altro');
-  await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")');
+  await page.click('.menu:not(.admin) .voce:has-text("Quota e fondo")');
   await page.click('[data-k="nuova-quota"]');
   await page.fill('#qm-a', '20');
   await page.fill('#qm-s', await ymdPagina(-1));
@@ -731,7 +731,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
   D1 = await conti();
   if (D1.cash !== D0.cash || D1.fondo - D0.fondo !== 2000) fail('la quota incassata deve andare nel fondo, non in cassa');
-  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")');
+  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota e fondo")');
   await page.click('[data-k="pagato-locale"]');
   await page.fill('#pl-a', '30');
   await page.click('#foglio button[type=submit]'); await page.waitForTimeout(80);
@@ -820,11 +820,11 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   await tab('Altro'); await page.click('.voce:has-text("Muroblio")'); await overflow('muro 320'); await shot('33e-muro-320', true);
   await tab('Altro'); await page.click('.voce:has-text("Statistiche del mese")'); await overflow('statistiche 320');
   await tab('Altro'); await page.click('.voce:has-text("Medaglie")'); await overflow('medaglie 320');
-  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota del locale")'); await overflow('quota 320'); await shot('33f-quota-320', true);
+  await tab('Altro'); await page.click('.menu:not(.admin) .voce:has-text("Quota e fondo")'); await overflow('quota 320'); await shot('33f-quota-320', true);
   await tab('Farmacia'); await page.click('.chip:has-text("CONTI")'); await page.click('.prod-add:has-text("Mars")'); await overflow('farmacia con ha dato 320'); await shot('33d-posbar-320');
   await page.click('[data-k="ha-dato"]'); { const l = await page.$eval('#foglio-b', (b) => [b.scrollWidth, b.clientWidth]); if (l[0] > l[1] + 1) fail('ha dato 320: il foglio scorre di lato'); }
   await page.click('#foglio-x'); await page.click('.posbar .pill-x');
-  await tab('Altro'); await page.click('.voce:has-text("Scorte e lista")'); await page.click('[data-k="nuovo-prodotto"]'); await overflow('nuovo prodotto 320'); await shot('33c-nuovo-prodotto-320'); await page.click('#foglio-x');
+  await tab('Altro'); await page.click('.voce:has-text("Scorte e spesa")'); await page.click('[data-k="nuovo-prodotto"]'); await overflow('nuovo prodotto 320'); await shot('33c-nuovo-prodotto-320'); await page.click('#foglio-x');
   await page.setViewportSize({ width: 1100, height: 800 });
   await cassa(); await shot('34-cassa-desktop'); await overflow('cassa desktop');
 
@@ -867,7 +867,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   if (!/Graffi vecchi/.test(await p2.textContent('#view'))) fail('dopo 31 giorni il graffio non risulta vecchio');
   await p2.screenshot({ path: path.join(shots, '37-graffi-vecchi.png') });
   await p2.click('.tab:has-text("Reparto")'); await p2.waitForTimeout(60);
-  if (!/Graffi vecchi/.test(await p2.textContent('.bollettino'))) fail('il bollettino non segnala i graffi vecchi');
+  if (!/Graffi vecchi/.test(await p2.textContent('#view'))) fail('il Reparto non segnala i graffi vecchi');
   note('graffi vecchi: dopo 30 giorni in rosso nei Ticket e nel bollettino');
   note('chiusura alle 6: verdetto e nuova serata ok');
   await ctx2.close();
@@ -875,7 +875,7 @@ const fail = (m) => { problems.push(m); console.log('PROBLEMA: ' + m); };
   // ---------- guida all'uso: si apre da Altro, si legge bene sul telefono, funziona senza rete ----------
   await page.setViewportSize({ width: 390, height: 844 });
   await tab('Altro');
-  await Promise.all([page.waitForNavigation(), page.click('.voce:has-text("Guida all’uso")')]);
+  await Promise.all([page.waitForNavigation(), page.click('[data-k="apri-guida"]')]);
   if (!/guida\.html$/.test(page.url())) fail('la voce Guida non apre guida.html: ' + page.url());
   if (!/Guida all'uso del reparto/.test(await page.textContent('h2.titolo'))) fail('guida senza titolo');
   if ((await page.$$('section.cartella')).length !== 18) fail('la guida non ha 18 capitoli');

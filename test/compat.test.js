@@ -17,7 +17,8 @@ const V044 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.4.4
 const V050 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.0.js'), 'utf8'));
 const V051 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.5.1.js'), 'utf8'));
 const V060 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.6.0.js'), 'utf8'));
-assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1'); assert.strictEqual(V060.APP_V, '0.6.0');
+const V070 = carica(fs.readFileSync(path.join(__dirname, 'fixtures', 'pure-0.7.0.js'), 'utf8'));
+assert.strictEqual(V044.APP_V, '0.4.4'); assert.strictEqual(V050.APP_V, '0.5.0'); assert.strictEqual(V051.APP_V, '0.5.1'); assert.strictEqual(V060.APP_V, '0.6.0'); assert.strictEqual(V070.APP_V, '0.7.0');
 const N7 = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn {metiVoto,candidatiVoto,sintomiPer,cambiaPrezzo,impronta};')();
 const VOTI_DAL = new Function(pure(path.join(__dirname, '..', 'src', 'app.js')) + '\nreturn VOTI_DAL;')();
 const sintomi = (v) => NUOVA.sintomiVoto(v);
@@ -238,4 +239,23 @@ uguali(A, P2);
   assert.strictEqual(quiete(X, Y, Z), 0);
 }
 
-console.log('compatibilità: tutto torna (0.4.4, 0.5.0, 0.5.1, 0.6.0 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)');
+// 8. 0.7.0 e la versione nuova: stessi dati, nessun rimbalzo; aggiornandosi la 0.7.0 non rimanda niente
+{
+  const srv4 = new Server();
+  clock = Date.parse('2026-11-03T21:00:00+01:00');
+  const Y = new Phone('Y', NUOVA, NUOVA.seedState(21)), X = new Phone('X', V070, V070.seedState(22));
+  Y.giro(srv4); tick(); X.giro(srv4); Y.giro(srv4);
+  tick(); const v = { id: 'v2026-11-03_pj', s: '2026-11-03', v: 'pj', t: clock };
+  N7.metiVoto(v, ['pesce', 'conti'], { conti: ['Stato depressivo'] }); X.S.votes.push(v);
+  X.S.quote.push({ id: 'q2026-12', mese: '2026-12', a: 5000, chi: ['pj', 'pesce'], t: clock });
+  X.S.moves.push({ id: 'z1', t: clock, k: 'qin', p: 'pesce', a: 5000, mese: '2026-12' });
+  X.S.muro.push({ id: 'w9', t: clock, p: 'conti', testo: 'Tutto bene', col: 1, dv: 'X' });
+  X.giro(srv4); Y.giro(srv4); X.giro(srv4);
+  assert.strictEqual(quiete(X, Y), 0, '0.7.0 e versione nuova insieme: nessun rimbalzo');
+  uguali(X, Y, '0.7.0 e versione nuova: stessi dati');
+  const X2 = X.aggiorna(NUOVA);
+  assert.strictEqual(X2.push(srv4), 0, 'aggiornandosi la 0.7.0 non rimanda niente');
+  X2.pull(srv4); uguali(X2, Y);
+}
+
+console.log('compatibilità: tutto torna (0.4.4, 0.5.0, 0.5.1, 0.6.0, 0.7.0 e ' + NUOVA.APP_V + ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)');

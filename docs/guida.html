@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#2A0E4F">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@600;700&amp;family=Shrikhand&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Sans+Condensed:wght@600;700&amp;family=Shrikhand&amp;display=swap">
 <style>
 /* Stessa grafica dell'app: fondo viola, «cartelle» di carta, titoli da insegna, testo da modulo clinico. */
 :root{
@@ -18,13 +18,14 @@
   --giallo:#FFD23F; --acido:#9BE22D; --rosa:#FF4D97; --arancio:#FF7A1A; --rosso:#C81E1E;
   --f-titolo:"Shrikhand",Georgia,"Times New Roman",serif;
   --f-testo:"IBM Plex Mono","Courier New",ui-monospace,monospace;
+  --f-corpo:"IBM Plex Sans","Helvetica Neue",system-ui,sans-serif;
   --f-etichetta:"IBM Plex Sans Condensed","Arial Narrow","Roboto Condensed",sans-serif;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;padding-top:env(safe-area-inset-top,0px)}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-body{margin:0;background:var(--viola);color:var(--panna);font:500 15px/1.5 var(--f-testo)}
+body{margin:0;background:var(--viola);color:var(--panna);font:400 15.5px/1.55 var(--f-corpo)}
 h1,h2,h3,p,ul,ol{margin:0}
 a{color:inherit}
 :focus-visible{outline:3px solid var(--rosa);outline-offset:2px}
@@ -137,12 +138,12 @@ a{color:inherit}
   <section class="cartella" id="reparto">
     <h2><span>3</span>Reparto, la schermata principale</h2>
     <ul>
-      <li><strong>Bollettino</strong>: cassa, ticket aperti, graffi vecchi (in rosso), soldi del locale, fondo della quota, scorte, prossimo compleanno, telefoni e backup. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
+      <li><strong>Bollettino</strong>: quattro riquadri da toccare, cassa, ticket aperti, soldi del locale e fondo della quota (o le scorte, finché non c'è una quota). Sotto, se c'è, la partita in corso e il prossimo compleanno. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
       <li><strong>Compleanno</strong>: il giorno del compleanno di uno di voi, in cima compare la festa.</li>
-      <li><strong>Conto in sospeso</strong>: se hai lasciato una consumazione in Farmacia senza registrarla, qui c'è il promemoria con <span class="t">Riprendi</span> o <span class="t">Scarta</span>.</li>
-      <li><strong>Quota del locale</strong>: dai 15 giorni prima della scadenza, quanto mettere a testa e chi manca (capitolo 7).</li>
-      <li><strong>Faccende</strong>, <strong>Triage</strong>, l'ultimo <strong>post-it</strong> del muro, i <strong>Ticket più salati</strong> e le <strong>Ultime somministrazioni</strong>.</li>
+      <li><strong>Faccende e cose da fare</strong>: tutto quello che c'è da fare, in una scheda sola, con prima le cose urgenti: un conto lasciato in Farmacia senza registrarlo (<span class="t">Riprendi</span> o <span class="t">Scarta</span>), i rifiuti di stasera, le pulizie, la quota del locale dai 15 giorni prima della scadenza, le scorte da ricomprare, i graffi vecchi, il backup. Sotto, in grigio, quello che è a posto.</li>
+      <li><strong>Triage</strong>, l'ultimo <strong>post-it</strong> del muro, i <strong>Ticket più salati</strong> e le <strong>Ultime somministrazioni</strong>.</li>
     </ul>
+    <p class="nota">Tutto il resto sta in <span class="t">Altro</span>, diviso in quattro sezioni: <strong>Soldi</strong> (cassa, soldi del locale, quota e fondo, scorte e spesa), <strong>Il reparto</strong> (classifiche, statistiche, medaglie, muro), <strong>Telefono e app</strong> (di chi è il telefono, telefoni collegati, guida, backup, installa) e <strong>Admin</strong>.</p>
   </section>
 
   <section class="cartella" id="farmacia">
@@ -217,7 +218,7 @@ a{color:inherit}
     <p>L'affitto e le bollette li pagate voi sei, con una quota a testa. I soldi delle quote stanno in un <strong>fondo a parte</strong>, separato dalla cassa: si vede chi ha messo quanto e quando.</p>
     <ol>
       <li>Tra il <strong>20 e il 25</strong> del mese l'admin imposta la quota del mese dopo: quanto a testa, chi la paga, cosa comprende (affitto, luce, acqua…) e la scadenza, di solito il <strong>1° del mese</strong>.</li>
-      <li>Ognuno, quando porta la sua quota, la segna da sé: <span class="t">Altro</span> › <span class="t">Quota del locale</span> › <span class="t">Segna una quota</span>, oppure dal Reparto con <span class="t">Segna la mia quota</span>.</li>
+      <li>Ognuno, quando porta la sua quota, la segna da sé: <span class="t">Altro</span> › <span class="t">Quota e fondo</span> › <span class="t">Segna una quota</span>, oppure dal Reparto, nelle cose da fare, con <span class="t">La mia</span>.</li>
       <li>Dal giorno dopo la scadenza, chi non l'ha versata se la ritrova nei <strong>graffi</strong>, come voce a parte. Quando la porta, chi incassa sceglie «Quota» e i soldi vanno nel fondo.</li>
       <li>Quando pagate il locale, l'admin tocca <span class="t">Pagato il locale</span>: i soldi escono dal fondo e resta lo <strong>storico</strong> con la data.</li>
     </ol>
@@ -358,7 +359,7 @@ a{color:inherit}
 
   <footer class="piede">
     <a class="pill" href="./">Apri l'app</a>
-    <p>The Oblio House · guida per la versione 0.7.0</p>
+    <p>The Oblio House · guida per la versione 0.8.0</p>
   </footer>
 </div>
 </body>
