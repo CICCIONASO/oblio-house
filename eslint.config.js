@@ -4,7 +4,16 @@ const globals = require('globals');
 
 module.exports = [
   {
-    ignores: ['docs/', 'preview.html', 'test/shots/', 'test/fixtures/', 'src/ocr/tesseract-core-*.js', 'node_modules/'],
+    ignores: [
+      'docs/',
+      'preview.html',
+      'test/shots/',
+      'test/fixtures/',
+      'src/ocr/tesseract-core-*.js',
+      'node_modules/',
+      '.copertura/',
+      'coverage/',
+    ],
   },
   js.configs.recommended,
   {

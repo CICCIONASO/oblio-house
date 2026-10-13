@@ -3,13 +3,10 @@ process.env.TZ = 'Europe/Rome';
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
-const m = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(js);
-if (!m) throw new Error('blocco PURE non trovato');
-const api = new Function(
-  m[1] +
-    '\nreturn {parseEur,splitShares,derive,seedState,normState,unitsOf,ymd,toInt,serata,prevMonth,inPer,voteSummary,serateChiuse,dartVal,playDarts,statRe,statConsumi,statFreccette,statPagatori,applyImg0,normImg,IMG0,rifiutiSerata,calPieno,prossimiRifiuti,statSpazzatura,pulizieStato,normCfg};'
-)();
+const pure = require('./pure.js');
+const api = pure(
+  `{parseEur,splitShares,derive,seedState,normState,unitsOf,ymd,toInt,serata,prevMonth,inPer,voteSummary,serateChiuse,dartVal,playDarts,statRe,statConsumi,statFreccette,statPagatori,applyImg0,normImg,IMG0,rifiutiSerata,calPieno,prossimiRifiuti,statSpazzatura,pulizieStato,normCfg}`
+);
 const { parseEur, splitShares, derive, seedState, normState } = api;
 const {
   serata,
@@ -28,10 +25,9 @@ const {
   IMG0,
 } = api;
 const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
-const extra = new Function(
-  m[1] +
-    '\nreturn {applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,metiSintomi,sintomiDi,applySintomi0,previsione,VOTI_DAL,leggiScontrino,propostaScontrino,abbinaRiga,applicaScontrino,confezione,nomeProposto,ricordaAlias,chiaveScontrino,rifiutiSerata,BUTTIAMO0};'
-)();
+const extra = pure(
+  `{applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,metiSintomi,sintomiDi,applySintomi0,previsione,VOTI_DAL,leggiScontrino,propostaScontrino,abbinaRiga,applicaScontrino,confezione,nomeProposto,ricordaAlias,chiaveScontrino,rifiutiSerata,BUTTIAMO0}`
+);
 const TV = extra.VOTI_DAL; // i voti più vecchi di questo istante sono stati azzerati alla 0.6.0
 
 // importi

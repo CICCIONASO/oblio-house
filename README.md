@@ -1,5 +1,7 @@
 # The Oblio House
 
+[![Prove](https://github.com/CICCIONASO/oblio-house/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/CICCIONASO/oblio-house/actions/workflows/test.yml)
+
 L'app del reparto: farmacia (bar, con resto e pagamento misto), ticket, cassa, quota del locale con il suo fondo, scorte,
 triage della serata, freccette con i record, classifiche, statistiche del mese, medaglie, albo d'oro, Muroblio del pianto,
 rifiuti e pulizie. Funziona anche senza rete; i dati sono condivisi tra i telefoni del locale (backup da Altro › Backup).
@@ -26,6 +28,7 @@ giallo se ci sono modifiche da inviare. Le regole del database sono in `firestor
 - `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`); se c'è `src/sync-config.json` accende la sincronizzazione.
 - `src/ocr/`: lettore di scontrini che gira sul telefono. `lettore.js` è nostro; il motore (`tesseract-core-*`, da tesseract.js-core 6.1.2) e il modello italiano (`ita.traineddata.gz`, tessdata 4.0.0_best_int) sono di terzi, con licenza Apache-2.0 (testi nella stessa cartella).
 - `src/guida.html`: guida all'uso, pubblicata accanto all'app.
-- `package.json`: dipendenze di sviluppo (`sharp` per le icone e gli scontrini di prova, `playwright` per la prova a schermo). Prima volta: `npm install`; poi `npm run build`, `npm test` (calcoli, novità, sincronizzazione, compatibilità) e `npm run test:e2e` (monta l'app e fa la prova a schermo).
+- `package.json`: dipendenze di sviluppo (`sharp` per le icone e gli scontrini di prova, `playwright` per la prova a schermo, `c8` per la copertura). Prima volta: `npm install`; poi `npm run build`, `npm test` (calcoli, novità, sincronizzazione, compatibilità), `npm run coverage` (le stesse prove, con la copertura del blocco PURE di `src/app.js`, righe numerate come nell'originale) e `npm run test:e2e` (monta l'app e fa la prova a schermo).
+- `.github/workflows/test.yml`: a ogni push su `main` e a ogni PR gira `npm audit` (si ferma solo per vulnerabilità critiche), le prove con la copertura (percentuali nel riepilogo del giro) e la prova a schermo.
 - `test/`: prova dei calcoli (`node test/pure.test.js` e, per le novità della 0.7.0, `node test/novita.test.js`), della sincronizzazione (`node test/sync.test.js`), della compatibilità tra versioni dell'app sullo stesso locale (`node test/compat.test.js`, con le versioni vecchie 0.4.4, 0.5.0, 0.5.1, 0.6.0 e 0.7.0 in `test/fixtures/`; letture vere di scontrini di prova in `test/fixtures/ocr/`) e prova a schermo (`node test/e2e.js`, dopo `node build.js`).
 - Dati condivisi: ogni cosa segnata è un documento `raccolta~id` (persone, prodotti, movimenti, voti, partite, rifiuti, pulizie, quote, muro, verifiche, regole). I campi che una versione non conosce restano com'erano, così un telefono non aggiornato non cancella i dati nuovi.
