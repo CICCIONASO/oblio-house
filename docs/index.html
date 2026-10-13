@@ -2785,7 +2785,7 @@ function vTicket(){
       totQ?h('p',{class:'aiuto'},'Di cui quota del locale non pagata: '+eur(totQ)+'. Va nel fondo, non in cassa.'):null,
       h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},list.map(function(p){return personRow(p,true);})),
-      h('p',{class:'aiuto'},'Una tacca per ogni consumazione non ancora pagata. Tocca un nome per incassare, aggiungere o togliere un debito.'),
+      h('p',{class:'aiuto'},'Una tacca per ogni consumazione non ancora pagata. Tocca un nome per incassare o segnare soldi presi dalla cassa.'),
       h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){openPerson(null);}},'+ Visitatore'))));
   return out;
 }
@@ -2817,10 +2817,13 @@ function openCartella(id){
           h('span',{class:'sotto'+(q.scaduta?' rosso':'')},q.scaduta?'scaduta il '+dataBreve(q.scad)+': è nei suoi graffi, a parte':'da portare entro il '+dataBreve(q.scad))),
           h('span',{class:'importo'+(q.scaduta?' rosso':'')},eur(q.resto))));
       })):null,
-      h('div',{class:'azioni tre'},
+      h('div',{class:'azioni'},
         h('button',{class:'pill duo-verde',type:'button',disabled:d<=0&&!qa.length,onclick:function(){openPay(id);}},'Incassa'),
-        h('button',{class:'pill',type:'button',onclick:function(){openDebt(id,1);}},'+ Debito'),
-        h('button',{class:'pill',type:'button',onclick:function(){openDebt(id,-1);}},'− Debito')),
+        h('button',{class:'pill',type:'button','data-k':'prende',onclick:function(){openPrende(id);}},'Prende dalla cassa')),
+      // correzioni a mano del debito, senza soldi: solo l'admin (usate al posto di «Incassa» sballano la cassa)
+      isAdmin()?h('div',{class:'azioni'},
+        h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,1);}},'+ Debito'),
+        h('button',{class:'pill sm',type:'button',onclick:function(){openDebt(id,-1);}},'− Debito')):null,
       h('div',{class:'azioni'},
         h('button',{class:'pill sm',type:'button',onclick:function(){UI.pos.p=id;closeSheet();go('farmacia');}},'Segna consumazione'),
         h('button',{class:'pill sm',type:'button',onclick:function(){soloAdmin(function(){openPerson(id);});}},'Nome e faccia')),
@@ -2854,39 +2857,31 @@ function openPay(id){
   },'Incassa');
 }
 function openDebt(id,segno){conPin(function(){openDebt_(id,segno);},segno>0?'Aggiungere un debito a mano':'Togliere un debito a mano');}
-/* debito a mano. Si chiede sempre se si muovono soldi in cassa, così un pagamento non diventa un «debito tolto»
-   (soldi in cassa non contati) e un prelievo non diventa un «debito aggiunto» (cassa più alta del vero).
-   Preso dalla cassa: due movimenti insieme (debito a lui, spesa dalla cassa con «pc»), che anche i telefoni
-   non aggiornati contano giusti; il previsionale non cambia e non è una spesa del locale. */
 function openDebt_(id,segno){
-  var a=soldi('db-a'),n=testo('db-n',segno>0?'Es. pizza, vecchio conto':'Es. scommessa persa, regalo',80);
-  var cassa=chipSel(segno>0?[{v:'no',label:'No, solo debito'},{v:'si',label:'Sì, li ha presi dalla cassa'}]
-    :[{v:'si',label:'Sì, ha pagato'},{v:'no',label:'No, debito condonato'}],null);
-  var aiuto=h('p',{class:'aiuto'});
-  function sync(){
-    var x=cassa.get();
-    aiuto.textContent=segno>0
-      ?(x==='si'?'La cassa scende e il suo ticket sale della stessa cifra: il previsionale non cambia.':x==='no'?'Il debito sale senza toccare la cassa.':'')
-      :(x==='si'?'Diventa un incasso: i soldi entrano in cassa e il ticket scende.':x==='no'?'Il debito scende e in cassa non entra niente: il previsionale scende.':'');
-  }
-  cassa.addEventListener('change',sync);sync();
+  var a=soldi('db-a'),n=testo('db-n','Es. vecchio conto, scommessa persa',80);
   formSheet((segno>0?'Aggiungi debito a ':'Togli debito a ')+pName(id),[
-    campo('Importo',a,'db-a'),
-    gruppo(segno>0?'I soldi sono usciti dalla cassa?':'Sono entrati soldi in cassa?',cassa),aiuto,
-    campo('Motivo',n,'db-n')],function(){
-    var v=parseEur(a.value),x=cassa.get(),nota=n.value.trim();
+    h('p',{class:'aiuto'},segno>0?'Il debito sale senza toccare la cassa.':'Il debito scende senza che entrino soldi in cassa: per un pagamento usa «Incassa».'),
+    campo('Importo',a,'db-a'),campo('Motivo',n,'db-n')],function(){
+    var v=parseEur(a.value);
     if(!(v>0))return 'Scrivi l’importo, per esempio 3,00.';
-    if(!x)return segno>0?'Scegli se i soldi sono usciti dalla cassa.':'Scegli se sono entrati soldi in cassa.';
-    if(segno<0&&x==='si'){addMove({k:'pay',p:id,a:v,note:nota},'Incassati '+eur(v)+' da '+pName(id));return;}
-    if(segno<0&&nota.length<3)return 'Scrivi il motivo: senza soldi in cassa serve sapere perché.';
-    if(segno>0&&x==='si'){
-      var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
-      S.moves.push(m1,m2);commit();
-      toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
-      return;
-    }
-    addMove({k:segno>0?'dplus':'dminus',p:id,a:v,note:nota},(segno>0?'Debito aggiunto a ':'Debito tolto a ')+pName(id)+': '+eur(v));
+    addMove({k:segno>0?'dplus':'dminus',p:id,a:v,note:n.value.trim()},(segno>0?'Debito aggiunto a ':'Debito tolto a ')+pName(id)+': '+eur(v));
   },segno>0?'Aggiungi':'Togli');
+}
+/* prende dalla cassa: soldi che una persona si porta via e deve restituire. Due movimenti insieme (debito a lui,
+   uscita dalla cassa, segnati «pc»), che anche i telefoni non aggiornati contano giusti: la cassa scende, il ticket
+   sale, il previsionale non cambia e non è una spesa del locale. Si annullano insieme. */
+function openPrende(id){conPin(function(){openPrende_(id);},'Prendere soldi dalla cassa');}
+function openPrende_(id){
+  var a=soldi('pr-a'),n=testo('pr-n','Es. pizza',80);
+  formSheet(pName(id)+' prende dalla cassa',[
+    h('p',{class:'aiuto'},'I soldi escono dalla cassa e vanno sul suo ticket: li restituisce con «Incassa».'),
+    campo('Quanto prende',a,'pr-a'),campo('Per cosa',n,'pr-n')],function(){
+    var v=parseEur(a.value),nota=n.value.trim();
+    if(!(v>0))return 'Scrivi quanto prende, per esempio 10,00.';
+    var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
+    S.moves.push(m1,m2);commit();
+    toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
+  },'Prende');
 }
 function openPerson(id,after){
   var p=id?S.people.find(function(x){return x.id===id;}):null;

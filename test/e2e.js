@@ -224,9 +224,11 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   await page.click('.riga:has-text("CONTI")');
-  await page.click('#foglio .pill:has-text("+ Debito")');
+  // senza admin + e − debito non ci sono: resta solo «Prende dalla cassa»
+  if (await page.$('#foglio .pill:has-text("+ Debito")')) fail('«+ Debito» visibile senza admin');
+  await page.click('#foglio [data-k="prende"]');
   // azione sensibile: il PIN compare sopra la cartella; sbagliato → errore, giusto → si apre il modulo (e per 10 minuti basta)
-  if (!(await page.$('#foglio .pin-box'))) fail('«+ Debito» senza richiesta del PIN');
+  if (!(await page.$('#foglio .pin-box'))) fail('«Prende dalla cassa» senza richiesta del PIN');
   await page.fill('#pin-c', '1234');
   await page.click('#foglio [data-k="pin-ok"]');
   await page.waitForTimeout(60);
@@ -235,13 +237,8 @@ const fail = (m) => {
   await page.fill('#pin-c', '1010');
   await page.click('#foglio [data-k="pin-ok"]');
   await page.waitForTimeout(80);
-  await page.fill('#db-a', '5');
-  await page.fill('#db-n', 'Scommessa persa');
-  // bisogna dire se i soldi escono dalla cassa: senza scelta il debito non si salva
-  await page.click('#foglio button[type=submit]');
-  await page.waitForTimeout(60);
-  if (!(await page.$('#db-a'))) fail('«+ Debito» salvato senza dire se i soldi sono usciti dalla cassa');
-  await page.click('#foglio .chip:has-text("No, solo debito")');
+  await page.fill('#pr-a', '5');
+  await page.fill('#pr-n', 'Pizza');
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
 
@@ -261,12 +258,12 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   const cassaTxt = await text('.cifrona');
-  // 1,20 (coca) + 2,00 (pesce) + 50,00 = 53,20
-  if (!/53,20/.test(cassaTxt)) fail('cassa attesa 53,20, trovata: ' + cassaTxt);
+  // 1,20 (coca) + 2,00 (pesce) − 5,00 (presi da CONTI) + 50,00 = 48,20
+  if (!/48,20/.test(cassaTxt)) fail('cassa attesa 48,20, trovata: ' + cassaTxt);
   await page.click('.pill:has-text("Conta cassa")');
   await page.fill('#ct-a', '53');
   await page.waitForTimeout(60);
-  if (!/Mancano/.test(await text('#foglio'))) fail('differenza conta cassa non mostrata');
+  if (!/in più/.test(await text('#foglio'))) fail('differenza conta cassa non mostrata');
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   await shot('08-cassa', true);
