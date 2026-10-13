@@ -1,0 +1,40 @@
+name: Release automatica
+
+# A ogni push su main: se la versione di package.json non ha ancora il suo tag vX.Y.Z,
+# crea il tag e la release su GitHub. Così nessuno deve farlo a mano.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: tag e release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # package.json e APP_V devono coincidere, altrimenti niente release
+      - run: node test/versione.test.js
+      - name: crea il tag se manca
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="v$(node -p "require('./package.json').version")"
+          if git rev-parse -q --verify "refs/tags/$V" >/dev/null; then
+            echo "$V esiste già: niente da fare"
+            exit 0
+          fi
+          gh release create "$V" --target "$GITHUB_SHA" --title "$V" --generate-notes
+          echo "creata la release $V"
