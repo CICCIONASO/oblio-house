@@ -216,6 +216,7 @@ function topSintomi(conta,quanti){
   var max=Math.max.apply(null,ks.map(function(s){return conta[s];}));
   return ks.filter(function(s){return conta[s]===max;}).slice(0,quanti||3);
 }
+// eslint-disable-next-line no-unused-vars -- usata dai test (blocco PURE)
 function topSintomo(conta){return topSintomi(conta,1)[0]||null;}
 function sintomiDi(S,id){
   var conta={};
@@ -245,7 +246,7 @@ function previsione(S,D){
 function normUp(s){return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();}
 function chiaveScontrino(d){return normUp(d).replace(/[^A-Z0-9]+/g,' ').trim().slice(0,40);}
 var SC_PREZZO=/^(.*?)\s*[€]?\s*([-–—~]?)\s*(\d{1,4})\s?[,.]\s?(\d{2})\d?\s*(?:€|EUR|[A-Z*]{1,2})?\s*$/;
-var SC_QTA=/^(?:N\.?\s*)?(\d{1,3})\s*(?:PZ\.?\s*)?[X×*\/]+[^0-9]{0,3}(\d{1,4})\s?[,.]\s?(\d{2})(?:\s+(\d{1,4})\s?[,.]\s?(\d{2}))?/;
+var SC_QTA=/^(?:N\.?\s*)?(\d{1,3})\s*(?:PZ\.?\s*)?[X×*/]+[^0-9]{0,3}(\d{1,4})\s?[,.]\s?(\d{2})(?:\s+(\d{1,4})\s?[,.]\s?(\d{2}))?/;
 var SC_SCONTO=/^(SCONTO|SCONT|SC\.|PROMO|OFFERTA|RIDUZ|STORNO|ABBUONO|BUONO SCONTO|COUPON|RIBASSO)/;
 var SC_NO=/^(SUB ?TOTALE|TOTALE|TOT\b|TOT\.|DI CUI|IVA\b|IMPONIBILE|CONTANT|PAGAMENT|PAGATO|IMPORTO|RESTO|CARTA|BANCOMAT|ELETTRONIC|POS\b|CREDITO|DEBITO|BUONI?\b|ARROTOND|SALDO|PUNTI|N\.? ?PEZZI|NUMERO|DOCUMENTO|DOC\b|SCONTRINO|CASSA|CASSIERE|OPERATORE|P\.? ?IVA|C\.? ?F\b|TEL\b|DESCRIZIONE|PREZZO|EURO\b|EUR\b|GRAZIE|RT\b|MATRICOLA|RESO\b|ACCONTO|NON RISCOSSO)/;
 function scCent(n,d,neg){var v=parseInt(n,10)*100+parseInt(d,10);return neg?-v:v;}
@@ -259,7 +260,7 @@ function leggiScontrino(testo){
   var out={righe:[],totale:null,somma:0,coerente:false,negozio:'',data:''},cand={},qPend=null,descPend=null,ultima=null,prima=-1;
   String(testo||'').split(/\r?\n/).forEach(function(raw,i){
     var l=normUp(raw).replace(/\s+/g,' ').trim();if(!l)return;
-    if(!out.data){var md=/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2}|\d{2})\b/.exec(l);if(md&&+md[1]>=1&&+md[1]<=31&&+md[2]>=1&&+md[2]<=12)out.data=(md[1].length<2?'0':'')+md[1]+'/'+(md[2].length<2?'0':'')+md[2]+'/'+(md[3].length===2?'20'+md[3]:md[3]);}
+    if(!out.data){var md=/(\d{1,2})[-/.](\d{1,2})[-/.](20\d{2}|\d{2})\b/.exec(l);if(md&&+md[1]>=1&&+md[1]<=31&&+md[2]>=1&&+md[2]<=12)out.data=(md[1].length<2?'0':'')+md[1]+'/'+(md[2].length<2?'0':'')+md[2]+'/'+(md[3].length===2?'20'+md[3]:md[3]);}
     if(!out.negozio&&prima<0&&/[A-Z]{3}/.test(l)&&!/^(VIA|V\.LE|VIALE|C\.?SO|CORSO|PIAZZA|P\.? ?IVA|TEL|DOCUMENTO)/.test(l)&&!SC_PREZZO.test(l))out.negozio=l.replace(/[^A-Z0-9 &'.-]/g,'').trim().slice(0,30);
     if(/^\d+[,.]\d{3}\s*KG/.test(l))return;                       // riga del peso: informazione, non articolo
     var q=SC_QTA.exec(l);
@@ -1832,7 +1833,6 @@ function personRow(p,conQuota){
       sotto.length?h('span',{class:'sotto'+(vec?' rosso':'')},sotto.join(' · ')):null),
     h('span',{class:'importo '+(tot>0?'rosso':d<0?'verde':'spento')},tot>0?eur(tot):d<0?'credito '+eur(-d):eur(0))));
 }
-function rigaB(dt,dd,cls){return h('div',null,h('dt',null,dt),h('dd',{class:cls||null},dd));}
 
 /* ---------- vista: Reparto ---------- */
 function vReparto(){
@@ -2584,10 +2584,6 @@ function vSoldi(){
   return out;
 }
 /* ---------- vista: Altro ---------- */
-function voce(titolo,sotto,onclick){
-  return h('li',null,h('button',{type:'button',class:'voce',onclick:onclick},
-    h('span',{class:'cresce'},h('span',{class:'nome'},titolo),sotto?h('span',{class:'sotto'},sotto):null),ic('avanti')));
-}
 function indietro(){var t=UI.tab;return h('button',{type:'button',class:'pill viola sm indietro',onclick:function(){go(t);}},ic('indietro',18),NOMI_TAB[t]||'Indietro');}
 /* ---------- Altro: voci divise in sezioni, con il numero che conta a destra ---------- */
 function voceL(o){
@@ -2644,7 +2640,6 @@ function vAltro(){
 }
 function vCompleanni(){
   var righe=[],sel={};
-  var mesi=h('option',{value:''},'—');
   S.people.filter(function(p){return p.on;}).forEach(function(p){
     var g=h('select',{class:'inp corto3','aria-label':'Giorno, '+p.name},[h('option',{value:''},'—')].concat(Array.from({length:31},function(_,i){return h('option',{value:pad(i+1)},String(i+1));})));
     var m=h('select',{class:'inp corto4','aria-label':'Mese, '+p.name},[h('option',{value:''},'—')].concat(MESI.map(function(n,i){return h('option',{value:pad(i+1)},n);})));
@@ -3492,26 +3487,6 @@ function openPagatoLocale(){
     addMove(mv,'Pagato il locale: '+eur(v)+' dal fondo'+(v>D.fondo?'. Il fondo va sotto zero: qualcuno ha anticipato?':''));
   },'Segna il pagamento');
 }
-/* nel Reparto: la quota da raccogliere (dai 15 giorni prima della scadenza) o in ritardo */
-function cardQuota(){
-  var st=statoQuote(S,D,today()).filter(function(x){return x.mancano.length&&(x.scaduta||giorniA(x.scad)<=15);});
-  if(!st.length)return null;
-  var io=mio(),ritardo=st.some(function(x){return x.scaduta;}),mia=st.find(function(x){return io&&x.mancano.indexOf(io)>=0;});
-  return h('section',{class:'cartella'+(ritardo?' allarme':'')},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Quota del locale'),h('span',{class:'timbro'},ritardo?'In ritardo':'Da raccogliere')),
-    h('div',{class:'riga-tratt'}),
-    st.map(function(x){
-      var g=giorniA(x.scad);
-      return h('div',{class:'quota-voce'},
-        h('p',null,h('b',null,meseNome(x.mese)+': '+eur(x.q.a)+' a testa'),x.scaduta?' · scaduta il '+dataBreve(x.scad):' · entro il '+dataBreve(x.scad)+(g===0?' (oggi)':g===1?' (domani)':' (tra '+g+' giorni)')),
-        x.q.note?h('p',{class:'aiuto'},x.q.note):null,
-        h('p',{class:'aiuto'},(x.scaduta?'In ritardo: ':'Mancano: ')+nomiLista(x.mancano)+'.'));
-    }),
-    h('div',{class:'azioni'},
-      h('button',{class:'pill duo-verde sm',type:'button','data-k':'quota-segna',onclick:function(){openVersaQuota(mia?mia.mese:null,mia?io:null);}},mia?'Segna la mia quota':'Segna una quota'),
-      h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','quota');}},'Dettagli')));
-}
-
 /* ---------- Muroblio del pianto: post-it firmati su un muro condiviso ---------- */
 var COLORI_POSTIT=['Giallo','Rosa','Verde','Lilla','Arancio','Azzurro'];
 function puoModificare(w){return isAdmin()||(!!w.dv&&w.dv===devId());}

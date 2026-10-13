@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']
 
 jobs:
   sicurezza:
@@ -17,8 +18,22 @@ jobs:
       # fallisce solo con vulnerabilità critiche; le altre restano nel log
       - run: npm audit --audit-level=critical
 
+  controllo:
+    name: lint e formattazione
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
   calcoli:
     name: npm test
+    needs: controllo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +55,7 @@ jobs:
 
   schermo:
     name: npm run test:e2e
+    needs: controllo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

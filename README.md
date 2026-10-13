@@ -11,16 +11,19 @@ Dalla 0.8.0: Altro diviso in sezioni (Soldi, Il reparto, Telefono e app, Admin),
 **App:** https://ciccionaso.github.io/oblio-house/
 
 ## Installarla sull'iPhone
+
 1. Apri il link con Safari.
 2. Tocca Condividi, poi «Aggiungi alla schermata Home».
 3. Da lì in poi usa sempre l'icona: l'app installata non vede i dati segnati in Safari.
 
 ## Più telefoni
+
 I dati sono sincronizzati tra i telefoni tramite Cloud Firestore (progetto `oblio-house-39fd6`, piano gratuito).
 Ogni telefono tiene la sua copia e funziona anche senza rete; il pallino in alto a destra è verde quando è tutto allineato,
 giallo se ci sono modifiche da inviare. Le regole del database sono in `firestore.rules`.
 
 ## Com'è fatta
+
 - `src/`: sorgenti (`app.js`, `app.css`, `body.html`, `sw.js`, icona, caricature in `img/`).
 - `build.js`: monta l'app pubblicata in `docs/` (servita da GitHub Pages, ramo `main`, cartella `/docs`); se c'è `src/sync-config.json` accende la sincronizzazione.
 - `src/ocr/`: lettore di scontrini che gira sul telefono. `lettore.js` è nostro; il motore (`tesseract-core-*`, da tesseract.js-core 6.1.2) e il modello italiano (`ita.traineddata.gz`, tessdata 4.0.0_best_int) sono di terzi, con licenza Apache-2.0 (testi nella stessa cartella).
