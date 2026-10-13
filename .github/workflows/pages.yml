@@ -1,0 +1,35 @@
+name: Pubblica
+
+# Pubblica su GitHub Pages la cartella docs/ così com'è nel repo (montata con build.js, sincronizzazione compresa):
+# stesso risultato del vecchio «deploy from a branch», ma da Actions.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      # senza sincronizzazione i telefoni non si parlano più: meglio non pubblicare
+      - name: Controlla che la sincronizzazione sia accesa
+        run: grep -q 'window.OBLIO_SYNC=window.OBLIO_SYNC||{"room"' docs/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4
