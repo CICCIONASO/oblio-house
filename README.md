@@ -139,6 +139,8 @@ npm run format       # sistema la formattazione con Prettier (format:check la co
 
 Su GitHub Actions (`.github/workflows/test.yml`), a ogni pull request e a ogni push su `main`, girano `npm audit` (si ferma solo per vulnerabilità critiche), lint e formattazione, le prove con la copertura (percentuali nel riepilogo del giro) e la prova a schermo. Il badge in cima dice se l'ultimo giro su `main` è verde.
 
+Per una nuova versione basta cambiare il numero in `package.json` e in `APP_V` (`src/app.js`): dopo il merge su `main`, `.github/workflows/release.yml` crea da solo il tag `vX.Y.Z` e la release su GitHub, se non esistono già.
+
 Qualche consiglio:
 
 - Lavora su un ramo e apri una pull request verso `main`; i rami vengono cancellati da soli dopo il merge.
