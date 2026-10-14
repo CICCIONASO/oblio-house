@@ -58,6 +58,9 @@ a{color:inherit}
 .piede{text-align:center;font-size:12px;color:var(--lilla-2);display:flex;flex-direction:column;align-items:center;gap:12px}
 .piede .pill{align-self:center}
 @media (max-width:360px){.sommario{grid-template-columns:minmax(0,1fr)}}
+.novita{margin:14px 0 4px;padding:12px 14px;border:1px solid var(--giallo);border-radius:14px;background:var(--viola-3,#3B1A6B);font-size:14px;line-height:1.45}
+.novita ul{margin:6px 0 0;padding-left:1.1em}
+.novita li+li{margin-top:4px}
 </style>
 </head>
 <body>
@@ -81,11 +84,23 @@ a{color:inherit}
   <h2 class="titolo">Guida all'uso del reparto</h2>
   <p class="intro">Benvenuto, paziente. Questa è l'app del locale: bar, debiti, cassa, quota del locale, rifiuti, pulizie, il voto di chi sta peggio, freccette, classifiche e il muro dove sfogarsi. Ognuno la usa dal suo telefono e i dati sono gli stessi per tutti. Leggi questa pagina una volta; poi ti basta l'app.</p>
   <a class="pill" href="./">Apri l'app</a>
+  <div class="novita">
+    <p><strong>Novità della versione 0.10.0</strong></p>
+    <ul>
+      <li>In alto a destra c'è una scritta al posto del solo pallino: <strong>Sincronizzato</strong>, <strong>N da inviare</strong> o <strong>Non collegati</strong>.</li>
+      <li>In Farmacia i pazienti stanno su <strong>una riga che scorre</strong> di lato, i prodotti sono più compatti e sotto la soglia compare <strong>«ultimi N pz»</strong> in arancione.</li>
+      <li>Il conto in sospeso è una <strong>scheda galleggiante</strong> sopra le schede in basso.</li>
+      <li>Nei Ticket chi è a 0,00 € sta nel gruppo <strong>In pari</strong>, chiuso in fondo: toccalo per aprirlo.</li>
+      <li>Nella cartella <strong>Incassa</strong> è il pulsante grande; le altre azioni sono più piccole sotto.</li>
+      <li>Soldi del locale si legge come un rendiconto, con il totale evidenziato; gli importi grandi sono scritti in cifre più leggibili e i nomi in maiuscolo/minuscolo.</li>
+      <li>Su Android il telefono vibra appena quando tocchi un prodotto e quando registri un conto.</li>
+    </ul>
+  </div>
 
   <nav aria-label="Sommario">
     <ul class="sommario">
       <li><a href="#installa"><b>1</b>Installarla</a></li>
-      <li><a href="#pallino"><b>2</b>Il pallino e la rete</a></li>
+      <li><a href="#pallino"><b>2</b>Sincronizzato e la rete</a></li>
       <li><a href="#reparto"><b>3</b>Reparto</a></li>
       <li><a href="#farmacia"><b>4</b>Farmacia, resto e misto</a></li>
       <li><a href="#ticket"><b>5</b>Ticket e debiti</a></li>
@@ -126,11 +141,12 @@ a{color:inherit}
   </section>
 
   <section class="cartella" id="pallino">
-    <h2><span>2</span>Il pallino in alto a destra</h2>
+    <h2><span>2</span>La scritta in alto a destra</h2>
+    <p>Sotto il nome del locale, a destra, una scritta con un pallino colorato dice se il tuo telefono è allineato con gli altri.</p>
     <ul>
-      <li><span class="pallino p-verde" aria-hidden="true"></span><strong>Verde</strong>: il tuo telefono è allineato con gli altri.</li>
-      <li><span class="pallino p-giallo" aria-hidden="true"></span><strong>Giallo</strong>: ci sono modifiche da inviare, di solito perché manca la rete. Non si perde niente: partono da sole appena torna internet.</li>
-      <li><span class="pallino p-rosa" aria-hidden="true"></span><strong>Rosa</strong>: non collegato. Apri <span class="t">Altro</span> › <span class="t">Telefoni collegati</span> e manda uno screenshot a chi gestisce l'app.</li>
+      <li><span class="pallino p-verde" aria-hidden="true"></span><strong>Sincronizzato</strong>: il tuo telefono è allineato con gli altri.</li>
+      <li><span class="pallino p-giallo" aria-hidden="true"></span><strong>2 da inviare</strong> (o un altro numero): ci sono modifiche da inviare, di solito perché manca la rete. Non si perde niente: partono da sole appena torna internet. <strong>Mi collego…</strong> compare per un attimo all'apertura.</li>
+      <li><span class="pallino p-rosa" aria-hidden="true"></span><strong>Non collegati</strong>: il telefono non riesce a collegarsi. Apri <span class="t">Altro</span> › <span class="t">Telefoni collegati</span> e manda uno screenshot a chi gestisce l'app.</li>
     </ul>
     <p class="nota">Senza rete puoi segnare tutto come sempre: quello che fai resta sul telefono e si allinea dopo.</p>
   </section>
@@ -149,10 +165,10 @@ a{color:inherit}
   <section class="cartella" id="farmacia">
     <h2><span>4</span>Farmacia: segnare cosa prendi</h2>
     <ol>
-      <li>In alto tocca <strong>chi prende</strong>. Un amico di passaggio si aggiunge con <span class="t">+ Visitatore</span>.</li>
-      <li>Tocca i prodotti: ogni tocco è un pezzo, <span class="t">−</span> ne toglie uno.</li>
+      <li>In alto tocca <strong>chi prende</strong>: i pazienti sono su una riga, scorrila di lato col dito per vedere gli altri. Chi è scelto diventa verde. Un amico di passaggio si aggiunge con <span class="t">+ Visitatore</span>, l'ultima casella della riga.</li>
+      <li>Tocca i prodotti: ogni tocco è un pezzo e il numerino giallo sale; <span class="t">−</span>, sotto il prodotto scelto, ne toglie uno. Se un prodotto è sotto la sua soglia, sotto il prezzo leggi <strong>«ultimi N pz»</strong> in arancione.</li>
       <li>Roba fuori listino (un panino, un giro offerto): <span class="t">Altro importo</span>.</li>
-      <li>In basso scegli:
+      <li>Nella scheda scura che compare in basso, sopra le schede, scegli:
         <ul>
           <li><span class="t">Sul ticket</span>: va sul suo debito, la cassa non cambia.</li>
           <li><span class="t">Paga subito</span>: paga giusto, i soldi entrano in cassa.</li>
@@ -170,12 +186,12 @@ a{color:inherit}
 
   <section class="cartella" id="ticket">
     <h2><span>5</span>Ticket: i debiti</h2>
-    <p>Ogni nome ha il suo debito. Le <strong>tacche</strong> sono le consumazioni non ancora pagate. Tocca un nome per aprire la sua <strong>cartella</strong>:</p>
+    <p>Ogni nome ha il suo debito. Le <strong>tacche</strong> sono le consumazioni non ancora pagate. In vista ci sono solo chi deve qualcosa e chi è in credito; chi è a 0,00 € sta in fondo, nel gruppo <strong>In pari</strong>: toccalo per aprirlo. Tocca un nome per aprire la sua <strong>cartella</strong>:</p>
     <ul>
-      <li><span class="t">Incassa</span>: paga, tutto o in parte. Se ha anche la quota del locale da versare, scegli <strong>per cosa sono i soldi</strong>: le consumazioni vanno in cassa, la quota va nel fondo. Se porta soldi per tutte e due, fai due incassi.</li>
-      <li><span class="t">Prende dalla cassa</span>: qualcuno prende soldi dalla cassa per sé (per esempio la pizza). La cassa scende e i soldi vanno sul suo ticket. Serve il PIN.</li>
+      <li><span class="t">Incassa</span>, il pulsante grande: paga, tutto o in parte. Se ha anche la quota del locale da versare, scegli <strong>per cosa sono i soldi</strong>: le consumazioni vanno in cassa, la quota va nel fondo. Se porta soldi per tutte e due, fai due incassi.</li>
+      <li>Sotto, più piccoli: <span class="t">Prende dalla cassa</span>, <span class="t">Segna consumazione</span> e <span class="t">Nome e faccia</span>. <span class="t">Prende dalla cassa</span>: qualcuno prende soldi dalla cassa per sé (per esempio la pizza). La cassa scende e i soldi vanno sul suo ticket. Serve il PIN.</li>
       <li><span class="t">+ Debito</span> / <span class="t">− Debito</span>: solo per l’admin, per correggere un debito <strong>senza toccare la cassa</strong> (vecchi conti, scommesse perse, abbuoni).</li>
-      <li><span class="t">Segna consumazione</span>, le sue <strong>medaglie</strong> e la <strong>Storia clinica</strong> con tutti i suoi movimenti.</li>
+      <li>Le sue <strong>medaglie</strong> e la <strong>Storia clinica</strong> con tutti i suoi movimenti.</li>
     </ul>
     <h3>Graffi vecchi e quota non pagata</h3>
     <ul>
