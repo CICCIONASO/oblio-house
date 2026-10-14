@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.9.0';
+var APP_V='0.10.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: quante persone può votare ognuno in una serata; graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
