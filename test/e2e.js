@@ -151,9 +151,17 @@ const fail = (m) => {
     if (r.rotte.length) fail('immagini che non si aprono in ' + where + ': ' + r.rotte.join(', '));
     return r.n;
   };
-  const tab = async (name) => {
-    await page.click('.tab:has-text("' + name + '")');
-    await page.waitForTimeout(80);
+  // 0.11.0: Ticket è una linguetta della Farmacia, le freccette stanno nella Ludoteca
+  const tab = async (name, pg) => {
+    pg = pg || page;
+    const vero = name === 'Ticket' ? 'Farmacia' : name === 'Freccette' ? 'Ludoteca' : name;
+    await pg.click('.tab:has-text("' + vero + '")');
+    await pg.waitForTimeout(80);
+    if (name === 'Ticket') await pg.click('[data-k="farm-ticket"]');
+    else if (name === 'Farmacia') await pg.click('[data-k="farm-banco"]');
+    else if (name === 'Freccette') await pg.click('[data-k="apri-freccette"]');
+    else return;
+    await pg.waitForTimeout(80);
   };
   const text = async (sel) => (await page.textContent(sel)) || '';
   const cassa = async () => {
@@ -162,13 +170,32 @@ const fail = (m) => {
     await page.waitForTimeout(80);
   };
 
+  // dalla 0.11.0 si entra con il proprio nome e un PIN personale (qui CICCIO, PIN 1111)
+  const entra = async (pg, nome, pin) => {
+    pg = pg || page;
+    await pg.waitForSelector('[data-k^="chi-sono-"]');
+    if (await pg.$('.tab:visible')) fail('senza login la barra in basso non deve vedersi');
+    await pg.click('[data-k="chi-sono-' + (nome || 'ciccio') + '"]');
+    if (await pg.$('#lg-n1')) {
+      await pg.fill('#lg-n1', pin || '1111');
+      await pg.fill('#lg-n2', pin || '1111');
+    } else await pg.fill('#lg-pin', pin || '1111');
+    await pg.click('[data-k="lg-ok"]');
+    const regole = await pg.waitForSelector('[data-k="regole-ok"]', { timeout: 3000 }).catch(() => null);
+    if (regole) await regole.click();
+    await pg.waitForSelector('.tab');
+  };
   await page.goto(base);
-  await page.waitForSelector('.tab');
+  await page.waitForSelector('[data-k^="chi-sono-"]');
+  await shot('00-chi-sei', true);
+  await overflow('chi sei');
+  if ((await page.$$('[data-k^="chi-sono-"]')).length !== 7) fail('«Chi sei?»: attese 7 persone (i 6 più ELENA)');
+  const nFacce = await facce('chi sei');
+  if (nFacce < 6) fail('in «Chi sei?» attese 6 caricature, trovate ' + nFacce);
+  await entra();
   await page.waitForTimeout(300);
   await shot('01-reparto-vuoto', true);
   await overflow('reparto');
-  const nFacce = await facce('reparto');
-  if (nFacce < 6) fail('nel triage attese 6 caricature, trovate ' + nFacce);
 
   // Farmacia: PESCE prende 2 birre e un Kinder Bueno, sul ticket
   await tab('Farmacia');
@@ -234,7 +261,7 @@ const fail = (m) => {
   await page.waitForTimeout(60);
   if (!/PIN sbagliato/.test(await text('#foglio .pin-box'))) fail('PIN sbagliato non segnalato');
   await shot('06b-pin');
-  await page.fill('#pin-c', '1010');
+  await page.fill('#pin-c', '1111');
   await page.click('#foglio [data-k="pin-ok"]');
   await page.waitForTimeout(80);
   await page.fill('#pr-a', '5');
@@ -640,69 +667,55 @@ const fail = (m) => {
     fail('pulizie: conto alla rovescia sbagliato: ' + (await text('.cartella:has(h2:text("Faccende"))')));
   await page.locator('.cartella:has(h2:text("Faccende"))').screenshot({ path: path.join(shots, '15d-faccende-fatte.png') });
 
-  // ---------- Triage: voto palese della serata ----------
-  await tab('Reparto');
-  await page.click('[data-k="tri-pesce"]');
+  // ---------- Triage (0.11.0): voto a podio, ognuno dal suo telefono ----------
+  await tab('Ludoteca');
+  if (!/Podio: il 1° vale 3 punti/.test(await text('.triage'))) fail('triage: manca la regola del podio');
+  await page.click('[data-k="vota"]');
   await page.waitForTimeout(80);
-  await shot('16-voto-per-pesce');
-  await page.click('#foglio [data-k="vt-pj"]');
-  await page.waitForTimeout(80);
-  if (!/PJ vota PESCE/i.test(await text('#toast'))) fail('toast del voto mancante: ' + (await text('#toast')));
-  await page.click('[data-k="tri-pesce"]');
-  await page.click('#foglio .chip:has-text("Urla strazianti")');
-  await page.click('#foglio .chip:has-text("Silenzio assordante")');
-  if ((await page.$$('#foglio .chip.sm[aria-pressed="true"]')).length !== 2) fail('nel voto non restano accesi due sintomi');
-  await shot('16b-voto-due-sintomi');
-  await page.click('#foglio [data-k="vt-ciccio"]');
-  await page.waitForTimeout(60);
-  if (!/silenzio assordante, urla strazianti/.test(await text('#toast')))
-    fail('i due sintomi non arrivano nel voto: ' + (await text('#toast')));
-  await page.click('[data-k="tri-ciccio"]');
+  await shot('16-voto-podio');
   await page.click('#foglio [data-k="vt-pesce"]');
+  await page.click('#foglio [data-k="vt-conti"]');
+  await page.click('#foglio [data-k="vt-pj"]');
   await page.waitForTimeout(60);
-  await page.click('[data-k="tri-pesce"]');
-  await page.click('#foglio .chip:has-text("Gigi")');
-  await page.waitForTimeout(60);
+  const posti = await page.$$eval('#foglio .chips .posto', (els) => els.map((e) => e.textContent));
+  if (posti.join() !== '3°,1°,2°') fail('podio: i posti seguono l’ordine dei tocchi: ' + posti);
+  await page.click('#foglio .voto-posto >> nth=0 >> .chip:has-text("Urla strazianti")');
+  await page.click('#foglio .voto-posto >> nth=0 >> .chip:has-text("Silenzio assordante")');
+  await shot('16b-voto-sintomi');
+  await page.click('#foglio [data-k="salva-voto"]');
+  await page.waitForTimeout(80);
+  if (!/CICCIO vota 1° PESCE, 2° CONTI, 3° PJ/i.test(await text('#toast'))) fail('toast del voto: ' + (await text('#toast')));
   let tri = await text('.triage');
-  if (!/In testa PESCE con 3 voti/i.test(tri)) fail('triage: atteso PESCE in testa con 3 voti: ' + tri);
-  // PJ vota anche CICCIO: è il suo secondo voto, il primo resta
-  await page.click('[data-k="tri-ciccio"]');
-  await page.waitForTimeout(60);
-  if (!/ha votato PESCE/i.test(await text('#foglio [data-k="vt-pj"]'))) fail('nel foglio non si vede chi ha già votato');
-  await page.click('#foglio [data-k="vt-pj"]');
+  if (!/PESCE\s*3 punti/i.test(tri) || !/Il tuo voto: 1° PESCE/i.test(tri)) fail('triage dopo il voto: ' + tri);
+  // un visitatore vota da questo telefono
+  await page.click('[data-k="vota-visitatore"]');
+  await page.click('#foglio .chip:has-text("Gigi")');
+  await page.waitForTimeout(500);
+  await page.click('#foglio [data-k="vt-conti"]');
+  await page.click('#foglio [data-k="vt-pesce"]');
+  await shot('16c-voto-visitatore');
+  await page.click('#foglio [data-k="salva-voto"]');
   await page.waitForTimeout(80);
-  if (!/PJ vota CICCIO \(2° voto\)/i.test(await text('#toast'))) fail('secondo voto di PJ: ' + (await text('#toast')));
   tri = await text('.triage');
-  if (!/In testa PESCE con 3 voti/i.test(tri) || !/PJ → PESCE, CICCIO/i.test(tri)) fail('dopo il secondo voto di PJ: ' + tri);
-  // terzo voto a CONTI; il quarto non si può
-  await page.click('[data-k="tri-conti"]');
-  await page.click('#foglio [data-k="vt-pj"]');
-  await page.waitForTimeout(80);
-  if (!/3° voto/.test(await text('#toast'))) fail('terzo voto di PJ: ' + (await text('#toast')));
-  await page.click('[data-k="tri-chicco"]');
-  await page.waitForTimeout(60);
-  if (!(await page.isDisabled('#foglio [data-k="vt-pj"]'))) fail('PJ può dare un quarto voto');
-  if (!/ha già 3 voti/.test(await text('#foglio [data-k="vt-pj"]'))) fail('non si vede che PJ ha finito i voti');
-  await shot('16c-voti-finiti');
-  await page.click('#foglio-x');
-  tri = await text('.triage');
-  if (!/6 voti/.test(tri)) fail('attesi 6 voti in tutto: ' + tri);
+  if (!/CONTI\s*5 punti/i.test(tri) || !/PESCE\s*5 punti/i.test(tri)) fail('pari punti dopo il visitatore: ' + tri);
   await shot('17-triage', false);
   await page.locator('.triage').screenshot({ path: path.join(shots, '17b-triage-card.png') });
   await overflow('triage');
-  // Vedi i voti: una riga per ogni voto; tolgo Gigi → PESCE e PJ → CONTI
+  // Vedi i voti (admin: può togliere)
   await page.click('.triage .pill:has-text("Vedi i voti")');
   await page.waitForTimeout(80);
   await shot('18-voti');
-  if (!/CICCIO → PESCE\s*Silenzio assordante, Urla strazianti/i.test(await text('#foglio')))
-    fail('in «Vedi i voti» mancano i due sintomi: ' + (await text('#foglio')).slice(0, 300));
-  await page.click('#foglio li:has-text("Gigi → PESCE") button');
-  await page.waitForTimeout(80);
-  await page.click('#foglio li:has-text("PJ → CONTI") button');
+  if (!/CICCIO → PESCE\s*1°, 3 punti · Silenzio assordante, Urla strazianti/i.test(await text('#foglio')))
+    fail('in «Vedi i voti» manca il podio con i sintomi: ' + (await text('#foglio')).slice(0, 300));
+  await page.click(
+    '#foglio [data-k="togli-' +
+      (await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')).people.find((p) => p.name === 'Gigi').id)) +
+      '-conti"]'
+  );
   await page.waitForTimeout(80);
   await page.click('#foglio-x');
   tri = await text('.triage');
-  if (!/Pari: .*con 2 voti/.test(tri) || /CONTI1|CONTI1 voto/i.test(tri.replace(/\s/g, ''))) fail('dopo aver tolto due voti: ' + tri);
+  if (!/CONTI\s*2 punti/i.test(tri)) fail('dopo aver tolto un voto: ' + tri);
   // regola: niente voto a se stessi
   await tab('Altro');
   await page.click('.voce:has-text("Regole")');
@@ -710,9 +723,9 @@ const fail = (m) => {
   await overflow('regole');
   await page.uncheck('#rg-self');
   await page.click('button:has-text("Salva il triage")');
-  await tab('Reparto');
-  await page.click('[data-k="tri-pesce"]');
-  if (!(await page.isDisabled('#foglio [data-k="vt-pesce"]'))) fail('con la regola spenta PESCE può ancora votarsi');
+  await tab('Ludoteca');
+  await page.click('[data-k="vota"]');
+  if (!(await page.isDisabled('#foglio [data-k="vt-ciccio"]'))) fail('con la regola spenta CICCIO può ancora votarsi');
   await page.click('#foglio-x');
   await tab('Altro');
   await page.click('.voce:has-text("Regole")');
@@ -802,7 +815,7 @@ const fail = (m) => {
   if (!/PESCE/i.test(primoConsumi)) fail('consumi: primo atteso PESCE, trovato ' + primoConsumi);
   if (!/subito/.test(await page.textContent('section:has(h3:text("Migliori pagatori"))')))
     fail('migliori pagatori: chi paga subito deve risultare «subito»');
-  if (!/Freccette/.test(await text('.indietro'))) fail('dalla classifica il tasto indietro deve tornare alle Freccette');
+  if (!/Ludoteca/.test(await text('.indietro'))) fail('dalla classifica il tasto indietro deve tornare alla Ludoteca');
   const spz = await page.textContent('section:has(h3:text("Spazzatura"))');
   if (!/PJ/.test(spz) || !/1 volta/.test(spz)) fail('classifica spazzatura senza PJ: ' + spz);
 
@@ -816,8 +829,8 @@ const fail = (m) => {
   await dl.saveAs(bkPath);
   const bk = JSON.parse(fs.readFileSync(bkPath, 'utf8'));
   if (!bk.state || bk.state.moves.length < 10) fail('backup incompleto');
-  if (bk.state.votes.length !== 3 || bk.state.games.length !== 2)
-    fail('backup: attesi 3 voti e 2 partite, trovati ' + bk.state.votes.length + ' e ' + bk.state.games.length);
+  if (bk.state.votes.length !== 2 || bk.state.games.length !== 2)
+    fail('backup: attesi 2 voti e 2 partite, trovati ' + bk.state.votes.length + ' e ' + bk.state.games.length);
   note(
     'backup: ' +
       bk.state.moves.length +
@@ -842,7 +855,7 @@ const fail = (m) => {
   await overflow('reparto pieno');
   const rep = await text('#view');
   if (!/Urgente|Stabile/.test(rep)) fail('bollettino senza timbro');
-  if (!/Pari: .*con 2 voti/.test(rep)) fail('i voti non restano dopo la ricarica');
+  if (!/Stasera hai già votato/.test(rep)) fail('i voti non restano dopo la ricarica');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')).moves.length);
   if (saved !== bk.state.moves.length) fail('movimenti salvati ' + saved + ' diversi dal backup ' + bk.state.moves.length);
 
@@ -929,7 +942,7 @@ const fail = (m) => {
   await page.click('#foglio-x');
   // conto in sospeso: se lo lasci in Farmacia, il Reparto lo ricorda
   await tab('Farmacia');
-  await page.click('.chip:has-text("CICCIO")');
+  if ((await page.getAttribute('.chip:has-text("CICCIO")', 'aria-pressed')) !== 'true') await page.click('.chip:has-text("CICCIO")');
   await page.click('.prod-add:has-text("Birra")');
   await tab('Reparto');
   if (!/non è registrato/.test(await text('#toast'))) fail('uscendo dalla Farmacia con un conto aperto manca l’avviso');
@@ -997,17 +1010,14 @@ const fail = (m) => {
   if (!/10,00/.test(await text('#fondo-tot'))) fail('pagato il locale: il fondo doveva scendere a 10,00');
   if (!/Pagato dal fondo/.test(await text('#view'))) fail('manca lo storico di quando avete pagato il locale');
   // Muroblio del pianto
-  await tab('Altro');
-  await page.click('.voce:has-text("Muroblio")');
+  await tab('Ludoteca');
+  await page.click('[data-k="apri-muro"]');
   await page.click('[data-k="nuovo-postit"]');
   await page.fill('#pi-t', 'Ho perso a freccette tre volte di fila');
   await page.click('#foglio button[type=submit]');
-  await page.waitForTimeout(60);
-  if (!/niente anonimi/.test(await text('#foglio'))) fail('il post-it anonimo passa');
-  await page.click('#foglio .chip:has-text("CONTI")');
-  await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
-  if ((await page.$$('.postit')).length !== 1 || !/CONTI/i.test(await text('.postit'))) fail('il post-it non è sul muro');
+  if ((await page.$$('.postit')).length !== 1 || !/CICCIO/i.test(await text('.postit')))
+    fail('il post-it non è sul muro firmato da chi è entrato');
   await page.click('.postit-mod');
   await page.fill('#pi-t', 'Ho perso a freccette QUATTRO volte di fila');
   await page.click('#foglio button[type=submit]');
@@ -1067,34 +1077,37 @@ const fail = (m) => {
   await page.click('#foglio-x');
   // statistiche, medaglie e albo, record
   await tab('Altro');
-  await page.click('.voce:has-text("Statistiche del mese")');
+  await page.click('.voce:has-text("Classifiche")');
+  await page.click('[data-k="cl-statistiche"]');
   if (!/Il mese in numeri/.test(await text('#view')) || !(await page.$('.scheda-mese'))) fail('statistiche del mese vuote');
   await shot('51-statistiche', true);
   await overflow('statistiche');
   await tab('Altro');
-  await page.click('.voce:has-text("Medaglie")');
+  await page.click('.voce:has-text("Classifiche")');
+  await page.click('[data-k="cl-medaglie"]');
   if (!/Albo d’oro/.test(await text('#view')) || (await page.$$('.medaglia-riga')).length !== 8) fail('pagina medaglie e albo incompleta');
   await shot('52-medaglie', true);
   await overflow('medaglie');
   await tab('Freccette');
   if (!/Record/.test(await text('#view'))) fail('manca la scheda dei record delle freccette');
-  // codici: l'admin cambia il PIN, poi lo rimette
+  // codice admin: l'admin lo cambia (solo impronta nei dati), poi lo rimette
   await tab('Altro');
-  await page.click('.voce:has-text("Codici")');
+  await page.click('.voce:has-text("Codice admin")');
+  if (!/ancora quello iniziale/.test(await text('#view'))) fail('manca l’avviso del codice admin iniziale');
   {
-    const pin = page.locator('.cartella:has(h3:text("PIN delle azioni sensibili")) input');
-    await pin.nth(0).fill('2468');
-    await pin.nth(1).fill('2468');
+    const c = page.locator('.cartella:has(h3:text("Codice admin")) input');
+    await c.nth(0).fill('2468');
+    await c.nth(1).fill('2468');
   }
-  await page.click('button:has-text("Cambia il PIN")');
+  await page.click('button:has-text("Cambia il codice admin")');
   await page.waitForTimeout(80);
   {
     const st = await statoDi(page);
-    if (!st.cfg.pinH || /2468/.test(JSON.stringify(st.cfg))) fail('il PIN nuovo deve essere salvato solo come impronta');
+    if (!st.cfg.admH || /2468/.test(JSON.stringify(st.cfg))) fail('il codice nuovo deve essere salvato solo come impronta');
   }
-  await page.click('button:has-text("Torna a 1010")');
+  await page.click('button:has-text("Torna a 0101")');
   await page.waitForTimeout(80);
-  if ((await statoDi(page)).cfg.pinH) fail('il PIN non torna a 1010');
+  if ((await statoDi(page)).cfg.admH) fail('il codice admin non torna a 0101');
   // esco dalla modalità admin: le voci admin spariscono
   await tab('Altro');
   await page.click('[data-k="esci-admin"]');
@@ -1136,15 +1149,17 @@ const fail = (m) => {
   await page.click('.voce:has-text("Soldi del locale")');
   await overflow('soldi 320');
   await shot('33b-soldi-320', true);
-  await tab('Altro');
-  await page.click('.voce:has-text("Muroblio")');
+  await tab('Ludoteca');
+  await page.click('[data-k="apri-muro"]');
   await overflow('muro 320');
   await shot('33e-muro-320', true);
   await tab('Altro');
-  await page.click('.voce:has-text("Statistiche del mese")');
+  await page.click('.voce:has-text("Classifiche")');
+  await page.click('[data-k="cl-statistiche"]');
   await overflow('statistiche 320');
   await tab('Altro');
-  await page.click('.voce:has-text("Medaglie")');
+  await page.click('.voce:has-text("Classifiche")');
+  await page.click('[data-k="cl-medaglie"]');
   await overflow('medaglie 320');
   await tab('Altro');
   await page.click('.menu:not(.admin) .voce:has-text("Quota e fondo")');
@@ -1179,21 +1194,26 @@ const fail = (m) => {
   const p2 = await ctx2.newPage();
   ascolta(p2);
   await p2.goto(base);
-  await p2.waitForSelector('.tab');
-  await p2.click('[data-k="tri-ciccio"]');
-  await p2.click('#foglio .chip:has-text("Dormire al locale")');
-  await p2.click('#foglio .chip:has-text("Giocare alle slot")');
-  await p2.click('#foglio [data-k="vt-pj"]');
+  await entra(p2, 'pj', '2222');
+  await tab('Ludoteca', p2);
+  await p2.click('[data-k="vota"]');
+  await p2.click('#foglio [data-k="vt-ciccio"]');
+  await p2.click('#foglio .voto-posto .chip:has-text("Dormire al locale")');
+  await p2.click('#foglio .voto-posto .chip:has-text("Giocare alle slot")');
+  await p2.click('#foglio [data-k="salva-voto"]');
   await p2.waitForTimeout(80);
-  if (!/1 voto/.test(await p2.textContent('.triage'))) fail('alle 5:58 il voto deve contare nella serata in corso');
+  if (!/1 votante/.test(await p2.textContent('.triage'))) fail('alle 5:58 il voto deve contare nella serata in corso');
   await p2.clock.fastForward('03:00');
   await p2.waitForTimeout(150);
   const dopo = await p2.textContent('.triage');
-  if (!/Codice rosso di ieri sera: CICCIO/i.test(dopo)) fail('alle 6:01 manca il verdetto della serata: ' + dopo);
-  if (!/Diagnosi: dormire al locale, giocare alle slot\./.test(dopo)) fail('alle 6:01 la diagnosi non ha i due sintomi: ' + dopo);
-  if (!/0 voti/.test(dopo)) fail('alle 6:01 il triage deve ripartire da zero: ' + dopo);
-  if (!/Re dell’oblio di ottobre: CICCIO/i.test(dopo)) fail('re dell’oblio del mese non aggiornato: ' + dopo);
+  if (!/Ieri sera: 1° CICCIO/i.test(dopo)) fail('alle 6:01 manca il podio della serata: ' + dopo);
+  if (!/Diagnosi di CICCIO: dormire al locale, giocare alle slot\./i.test(dopo))
+    fail('alle 6:01 la diagnosi non ha i due sintomi: ' + dopo);
+  if (!/0 votanti/.test(dopo)) fail('alle 6:01 il triage deve ripartire da zero: ' + dopo);
   await p2.locator('.triage').screenshot({ path: path.join(shots, '35-triage-dopo-le-6.png') });
+  await tab('Reparto', p2);
+  if (!/Codice rosso di ieri sera: CICCIO/i.test(await p2.textContent('.riga-triage')))
+    fail('il Reparto non mostra il codice rosso di ieri sera');
   await p2.click('[data-k="pul-fatta"]');
   await p2.selectOption('#pu-q', '13');
   await p2.click('#foglio button[type=submit]');
@@ -1206,8 +1226,9 @@ const fail = (m) => {
   await p2.locator('.cartella:has(h2:text("Faccende"))').screenshot({ path: path.join(shots, '36-pulizie-scadute.png') });
   note('pulizie: avviso dopo 14 giorni ok');
   // graffi vecchi: una birra sul ticket, poi passano 31 giorni
-  await p2.click('.tab:has-text("Farmacia")');
-  await p2.click('.chip:has-text("PJ")');
+  await tab('Farmacia', p2);
+  if ((await p2.getAttribute('.chip:has-text("PJ")', 'aria-pressed')) !== 'true')
+    fail('in Farmacia il paziente proposto non è chi è entrato');
   await p2.click('.prod-add:has-text("Birra")');
   await p2.click('.posbar .pill:has-text("Sul ticket")');
   await p2.waitForTimeout(80);
@@ -1215,7 +1236,7 @@ const fail = (m) => {
     const ora = await p2.evaluate(() => Date.now());
     await p2.clock.setSystemTime(ora + 31 * 864e5);
   }
-  await p2.click('.tab:has-text("Ticket")');
+  await tab('Ticket', p2);
   await p2.waitForTimeout(100);
   if (!/Graffi vecchi/.test(await p2.textContent('#view'))) fail('dopo 31 giorni il graffio non risulta vecchio');
   await p2.screenshot({ path: path.join(shots, '37-graffi-vecchi.png') });
@@ -1249,7 +1270,7 @@ const fail = (m) => {
   note('guida: aperta da Altro, leggibile a 320 px, disponibile senza rete');
 
   // ---------- più telefoni, stessi dati (finto server al posto di Firebase) ----------
-  const telefono = async (nome) => {
+  const telefono = async (nome, chi, pin) => {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
     await c.addInitScript(() => {
       window.OBLIO_SYNC = { room: 'prova', mock: location.origin + '/mock/' };
@@ -1257,7 +1278,7 @@ const fail = (m) => {
     const p = await c.newPage();
     ascolta(p);
     await p.goto(base);
-    await p.waitForSelector('.tab');
+    await entra(p, chi, pin);
     const ok = await p
       .waitForFunction(
         () => {
@@ -1275,10 +1296,7 @@ const fail = (m) => {
     return {
       c,
       p,
-      tab: async (n) => {
-        await p.click('.tab:has-text("' + n + '")');
-        await p.waitForTimeout(60);
-      },
+      tab: (n) => tab(n, p),
     };
   };
   const aspetta = async (pg, fn, arg, cosa) => {
@@ -1289,22 +1307,22 @@ const fail = (m) => {
     if (!ok) fail(cosa);
     return ok;
   };
-  const A = await telefono('telefono A');
-  await A.tab('Farmacia');
-  await A.p.click('.chip:has-text("PESCE")');
+  const A = await telefono('telefono A', 'pesce', '3333');
+  await A.tab('Farmacia'); // PESCE è già proposto: è lui che è entrato su A
   await A.p.click('.prod-add:has-text("Birra")');
   await A.p.click('.posbar .pill:has-text("Sul ticket")');
   await A.p.waitForTimeout(400);
-  const B = await telefono('telefono B');
+  const B = await telefono('telefono B', 'pj', '4444');
   await B.tab('Ticket');
   await aspetta(B.p, () => /1,00/.test(document.querySelector('#view').textContent), null, 'B non vede il ticket di PESCE segnato da A');
   await shot('38-sync-b-ticket', false, B.p);
   // B vota, A vede il voto
-  await B.tab('Reparto');
-  await B.p.click('[data-k="tri-pesce"]');
-  await B.p.click('#foglio [data-k="vt-pj"]');
-  await A.tab('Reparto');
-  await aspetta(A.p, () => /1 voto/.test(document.querySelector('.triage').textContent), null, 'A non vede il voto dato da B');
+  await B.tab('Ludoteca');
+  await B.p.click('[data-k="vota"]');
+  await B.p.click('#foglio [data-k="vt-pesce"]');
+  await B.p.click('#foglio [data-k="salva-voto"]');
+  await A.tab('Ludoteca');
+  await aspetta(A.p, () => /1 votante/.test(document.querySelector('.triage').textContent), null, 'A non vede il voto dato da B');
   // A cambia il prezzo della birra, B lo vede nel listino
   await A.tab('Altro');
   await A.p.click('.voce:has-text("Admin")');
@@ -1367,7 +1385,7 @@ const fail = (m) => {
   );
   await shot('40-sync-freccette-b', false, B.p);
   // un terzo telefono nuovo trova tutto uguale e non sovrascrive niente
-  const C = await telefono('telefono C');
+  const C = await telefono('telefono C', 'conti', '5555');
   await C.tab('Farmacia');
   await aspetta(
     C.p,
@@ -1438,6 +1456,50 @@ const fail = (m) => {
     if (ver === '0.5.0' || !ver) fail('dopo l’aggiornamento la sincronizzazione non segna la versione nuova: ' + ver);
     note('aggiornamento: B rilegge il locale, ripara il voto ridotto e non rimanda niente');
   }
+  // login: PESCE prova a entrare da un telefono nuovo. Serve il codice admin e poi il suo PIN; A esce da solo.
+  {
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
+    await c.addInitScript(() => {
+      window.OBLIO_SYNC = { room: 'prova', mock: location.origin + '/mock/' };
+    });
+    const d = await c.newPage();
+    ascolta(d);
+    await d.goto(base);
+    await d.waitForSelector('[data-k="chi-sono-pesce"]');
+    await aspetta(
+      d,
+      () => /ha già il telefono/.test(document.querySelector('[data-k="chi-sono-pesce"]').textContent),
+      null,
+      'il telefono nuovo non sa che PESCE ha già il telefono'
+    );
+    await d.click('[data-k="chi-sono-pesce"]');
+    if (!(await d.$('#lg-adm'))) fail('telefono nuovo: per un nome già preso non chiede il codice admin');
+    await d.fill('#lg-adm', '9999');
+    await d.click('[data-k="lg-ok"]');
+    if (!/Codice admin sbagliato/.test(await d.textContent('#view'))) fail('codice admin sbagliato non segnalato');
+    await d.fill('#lg-adm', '0101');
+    await d.click('[data-k="lg-ok"]');
+    await d.fill('#lg-pin', '0000');
+    await d.click('[data-k="lg-ok"]');
+    if (!/PIN sbagliato/.test(await d.textContent('#view'))) fail('PIN sbagliato non segnalato');
+    await d.fill('#lg-pin', '3333');
+    await d.click('[data-k="lg-ok"]');
+    await d.click('[data-k="regole-ok"]');
+    await d.waitForSelector('.tab');
+    await aspetta(A.p, () => !!document.querySelector('[data-k^="chi-sono-"]'), null, 'il vecchio telefono di PESCE non esce da solo');
+    await shot('42-telefono-spostato', false, A.p);
+    // uscire chiede il PIN
+    await tab('Altro', d);
+    await d.click('[data-k="esci-io"]');
+    await d.fill('#pin-c', '1111');
+    await d.click('#foglio button[type=submit]');
+    if (!/PIN sbagliato/.test(await d.textContent('#foglio'))) fail('per uscire basta un PIN qualsiasi');
+    await d.fill('#pin-c', '3333');
+    await d.click('#foglio button[type=submit]');
+    await d.waitForSelector('[data-k^="chi-sono-"]');
+    await c.close();
+    note('login: telefono nuovo con codice admin + PIN, il vecchio esce; uscire chiede il PIN');
+  }
   for (const t of [A, B, C]) await t.c.close();
 
   const ctx3 = await browser.newContext({
@@ -1449,7 +1511,7 @@ const fail = (m) => {
   const p3 = await ctx3.newPage();
   ascolta(p3);
   await p3.goto(base);
-  await p3.waitForSelector('.tab');
+  await p3.waitForSelector('#avviso:not([hidden])');
   if (!/installa l’app prima di usarla/.test(await p3.textContent('#avviso')))
     fail('su iPhone in Safari manca l’avviso di installare prima');
   await shot('37-iphone-safari', false, p3);

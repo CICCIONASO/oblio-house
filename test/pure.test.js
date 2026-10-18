@@ -233,9 +233,9 @@ SV.votes = [
 assert.deepStrictEqual(Object.keys(serateChiuse(SV, '2026-10-12')).sort(), ['2026-09-30', '2026-10-10', '2026-10-11']);
 const reO = statRe(SV, 'mese', '2026-10-12');
 assert.strictEqual(reO.serate, 2);
-assert.deepStrictEqual(reO.by.pesce, { rossi: 1, voti: 2 });
-assert.deepStrictEqual(reO.by.ciccio, { rossi: 1, voti: 2 }, 'pari merito l’11: codice rosso a tutti e due');
-assert.deepStrictEqual(reO.by.pj, { rossi: 1, voti: 1 });
+assert.deepStrictEqual(reO.by.pesce, { rossi: 1, voti: 2, pos: [1, 0, 0] });
+assert.deepStrictEqual(reO.by.ciccio, { rossi: 1, voti: 2, pos: [1, 1, 0] }, 'pari merito l’11: codice rosso a tutti e due');
+assert.deepStrictEqual(reO.by.pj, { rossi: 1, voti: 1, pos: [1, 0, 0] });
 assert.ok(!reO.by.chicco, 'la serata ancora aperta non conta');
 assert.ok(!reO.by.conti, 'settembre è fuori da questo mese');
 assert.strictEqual(statRe(SV, 'scorso', '2026-10-12').by.conti.rossi, 1);
@@ -980,3 +980,39 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 }
 
 console.log('calcoli: tutto torna (' + S.moves.length + ' movimenti di prova, più voto, freccette, classifiche, rifiuti e pulizie)');
+
+// 0.11.0: voto a podio (3-2-1), pari punti vincono tutti, voto dal proprio telefono, freccette in %, ELENA
+{
+  const x = pure('{voteSummary,podioSerata,votoConta,percFreccette,applyElena,seedState,normState,FRECCE_MIN}');
+  const sm = x.voteSummary([
+    { s: 'k', v: 'pj', c: 'pesce', cs: ['pesce', 'conti', 'chicco'], m: 'p' },
+    { s: 'k', v: 'conti', c: 'conti', cs: ['conti', 'pesce', 'pj'], m: 'p' },
+  ]);
+  assert.deepStrictEqual(sm.tally, { pesce: 5, conti: 5, chicco: 1, pj: 1 });
+  assert.deepStrictEqual(sm.winners.sort(), ['conti', 'pesce'], 'pari punti: vincono tutti e due');
+  assert.deepStrictEqual(
+    x.podioSerata(sm).map((p) => p.pos),
+    [1, 1, 3, 3]
+  );
+  const S0 = x.seedState(1);
+  S0.people.push({ id: 'a1', name: 'OSPITE', kind: 'amico', on: true, img: '' });
+  assert.ok(x.votoConta(S0, { v: 'pj' }), 'voto delle versioni prima: resta');
+  assert.ok(x.votoConta(S0, { v: 'pj', da: 'pj' }));
+  assert.ok(!x.votoConta(S0, { v: 'pj', da: 'conti' }), 'dal telefono di un altro: non conta');
+  assert.ok(x.votoConta(S0, { v: 'a1', da: 'conti' }), 'visitatore: da qualsiasi telefono');
+  assert.strictEqual(x.percFreccette({ gare: x.FRECCE_MIN - 1, vinte: 4 }), -1, 'poche partite');
+  assert.strictEqual(x.percFreccette({ gare: 20, vinte: 3 }), 0.15);
+  assert.ok(x.applyElena(S0));
+  const el = S0.people.find((p) => p.id === 'elena');
+  assert.deepStrictEqual([el.kind, el.noq, el.on], ['paziente', 1, true]);
+  assert.ok(!x.applyElena(S0), 'una volta sola');
+  const S1 = x.seedState(1);
+  S1.people.push({ id: 'a9', name: 'Elena', kind: 'amico', on: true, img: '' });
+  x.applyElena(S1);
+  assert.strictEqual(S1.people.filter((p) => /elena/i.test(p.name)).length, 1, 'niente doppioni');
+  assert.strictEqual(S1.people.find((p) => p.id === 'a9').kind, 'paziente');
+  const N = x.normState(JSON.parse(JSON.stringify(S1)));
+  assert.strictEqual(N.people.find((p) => p.id === 'a9').noq, 1, 'noq resta dopo la normalizzazione');
+  assert.strictEqual(N.meta.elena0, 1);
+}
+console.log('0.11.0: podio, voto dal proprio telefono, freccette in %, ELENA');

@@ -4,10 +4,10 @@
 /* ===================== PURE ===================== */
 var APP_V='0.10.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
-/* votiMax: quante persone può votare ognuno in una serata; graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
+/* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
 /* codici: PIN per le azioni sensibili (tutti) e codice per attivare l'Admin su un telefono. Si cambiano dall'Admin. */
-var PIN0='1010',ADMIN0='0101';
+var ADMIN0='0101';
 /* annullare un movimento più grande di così chiede il motivo */
 var ANNULLO_GRANDE=2000;
 /* frazioni del calendario Teknoservice di Altamura */
@@ -198,17 +198,35 @@ function metiVoto(v,cs,cy){
   }else{delete v.cs;delete v.cy;}
 }
 function sintomiDiVoto(v){var o={};candidatiVoto(v).forEach(function(c){o[c]=sintomiPer(v,c).slice();});return o;}
+/* punti di un voto (dalla 0.11.0). Voto a podio («m»: "p"): 1° 3 punti, 2° 2, 3° 1. Voto singolo e voti delle versioni
+   precedenti: 1 punto a ognuno dei votati. «tally» sono i punti; a pari punti vincono tutti i pari. */
+function puntiVoto(v,i){return v.m==='p'?[3,2,1][i]||0:1;}
 function voteSummary(list){
   var last={},by={},tally={},sint={},max=0,nv=0;
   list.forEach(function(v){last[v.v]=v;});
   Object.keys(last).forEach(function(k){
     var v=last[k],cs=candidatiVoto(v);by[k]=cs;
-    cs.forEach(function(c){
-      tally[c]=(tally[c]||0)+1;nv++;if(tally[c]>max)max=tally[c];
+    cs.forEach(function(c,i){
+      var pt=puntiVoto(v,i);if(!pt)return;
+      tally[c]=(tally[c]||0)+pt;nv++;if(tally[c]>max)max=tally[c];
       sintomiPer(v,c).forEach(function(y){var s=sint[c]=sint[c]||{};s[y]=(s[y]||0)+1;});
     });
   });
   return {by:by,tally:tally,sint:sint,max:max,n:Object.keys(by).length,voti:nv,winners:max?Object.keys(tally).filter(function(c){return tally[c]===max;}):[]};
+}
+/* il podio di una serata: [{id, punti, pos}] dal più votato; a pari punti stessa posizione (1, 1, 3…) */
+function podioSerata(sm){
+  var ids=Object.keys(sm.tally).sort(function(a,b){return sm.tally[b]-sm.tally[a]||(a<b?-1:1);}),out=[];
+  ids.forEach(function(id,i){var pos=i&&sm.tally[id]===sm.tally[ids[i-1]]?out[i-1].pos:i+1;out.push({id:id,punti:sm.tally[id],pos:pos});});
+  return out;
+}
+/* dalla 0.11.0 ognuno vota dal suo telefono: l'app segna nel voto chi l'ha dato («da»). Il voto di un paziente dato
+   dal telefono di un altro non conta; i visitatori si fanno votare da qualsiasi telefono. I voti senza «da» (versioni
+   precedenti) restano come sono. */
+function votoConta(S,v){
+  if(!v.da||v.da===v.v)return true;
+  var p=S.people.find(function(x){return x.id===v.v;});
+  return !!p&&p.kind==='amico';
 }
 /* i sintomi più votati (a pari merito tutti, al massimo «quanti») */
 function topSintomi(conta,quanti){
@@ -451,7 +469,7 @@ function applicaScontrino(S,righe,opz,ora,id){
 }
 function serateChiuse(S,openKey){
   var g={},out={};
-  S.votes.forEach(function(v){if(v.s<openKey)(g[v.s]=g[v.s]||[]).push(v);});
+  S.votes.forEach(function(v){if(v.s<openKey&&votoConta(S,v))(g[v.s]=g[v.s]||[]).push(v);});
   Object.keys(g).forEach(function(k){out[k]=voteSummary(g[k]);});
   return out;
 }
@@ -505,8 +523,10 @@ function statRe(S,per,openKey){
   Object.keys(ch).forEach(function(k){
     if(!inPer(k,per,openKey))return;
     var sm=ch[k];n++;
-    sm.winners.forEach(function(w){(by[w]=by[w]||{rossi:0,voti:0}).rossi++;});
-    Object.keys(sm.tally).forEach(function(c){(by[c]=by[c]||{rossi:0,voti:0}).voti+=sm.tally[c];});
+    function P(c){return by[c]=by[c]||{rossi:0,voti:0,pos:[0,0,0]};}
+    sm.winners.forEach(function(w){P(w).rossi++;});
+    Object.keys(sm.tally).forEach(function(c){P(c).voti+=sm.tally[c];});
+    podioSerata(sm).forEach(function(x){if(x.pos<=3)P(x.id).pos[x.pos-1]++;});
   });
   return {by:by,serate:n};
 }
@@ -536,6 +556,10 @@ function statFreccette(S,per,openKey,cut){
   });
   return o;
 }
+/* classifica delle freccette (dalla 0.11.0): percentuale di vittorie sulle partite giocate (con almeno due giocatori).
+   Si entra in classifica da FRECCE_MIN partite: con meno, una vittoria su una farebbe il 100%. */
+var FRECCE_MIN=5;
+function percFreccette(x){return x&&x.gare>=FRECCE_MIN?x.vinte/x.gare:-1;}
 /* migliori pagatori: giorni medi tra consumazione e saldo, pesati sugli euro.
    «Paga subito» conta 0; quello ancora sul ticket conta fino a adesso. Stessa coda FIFO dei ticket. */
 function statPagatori(S,per,openKey,cut,now){
@@ -592,7 +616,7 @@ function statMese(S,ym,cut,openKey){
     });
   });
   var g={};
-  S.votes.forEach(function(v){if(inPer(v.s,per,openKey))(g[v.s]=g[v.s]||[]).push(v);});
+  S.votes.forEach(function(v){if(inPer(v.s,per,openKey)&&votoConta(S,v))(g[v.s]=g[v.s]||[]).push(v);});
   Object.keys(g).forEach(function(k){
     var sm=voteSummary(g[k]);
     Object.keys(sm.by).forEach(function(vot){var x=P(vot);x.votiDati+=sm.by[vot].length;x.serate[k]=1;tot.serate[k]=1;});
@@ -736,8 +760,8 @@ function alboOro(S,anno,cut,openKey,now){
   Object.keys(pg).forEach(function(p){var x=pg[p];if(x.eur<1000)return;var g=Math.round(x.giorni*10);if(best==null||g<best){best=g;pag={};}if(g===best)pag[p]=1;});
   return [
     voce('rosso','Re dell’oblio',mappa(r,function(x){return x.rossi;}),['codice rosso','codici rossi']),
-    voce('votato','Il più votato',mappa(r,function(x){return x.voti;}),['voto ricevuto','voti ricevuti']),
-    voce('freccette','Campione delle freccette',mappa(fr,function(x){return x.vinte;}),['partita vinta','partite vinte']),
+    voce('votato','Il più votato',mappa(r,function(x){return x.voti;}),['punto ricevuto','punti ricevuti']),
+    voce('freccette','Campione delle freccette',mappa(fr,function(x){return x.vinte?Math.round(percFreccette(x)*100):0;}),['% di vittorie','% di vittorie']),
     voce('consumi','Re della farmacia',mappa(co,function(x){return x.eur;}),['euro','euro']),
     {k:'pagatore',titolo:'Miglior pagatore',chi:Object.keys(pag).sort(),n:best==null?0:best/10,u:['giorno','giorni']},
     voce('spazzino','Spazzino dell’anno',mappa(sp,function(x){return x.n;}),['uscita dei rifiuti','uscite dei rifiuti'])
@@ -878,11 +902,11 @@ function tieniAltro(raw,o,noti){
   return o;
 }
 var NOTI={
-  cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH'],
-  people:['id','name','kind','on','img','nato'],
+  cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto'],
+  people:['id','name','kind','on','img','nato','tel','pin','noq'],
   products:['id','name','cat','price','min','on','cost','al','ph'],
-  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc'],
-  votes:['id','s','v','c','t','y','ys','cs','cy','da'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da'],
+  votes:['id','s','v','c','t','y','ys','cs','cy','da','m'],
   quote:['id','mese','a','chi','scad','note','t'],
   muro:['id','t','p','testo','col','dv','mod'],
   verifiche:['id','t','cassa','scorte','incassare','restituire','previsionale','fondo','nota','da']
@@ -906,6 +930,7 @@ function normCfg(c){
   var o={voteCut:cut>=0&&cut<=12?cut:CFG0.voteCut,selfVote:c.selfVote!==false,
     puliziaGiorni:pg>=1&&pg<=90?pg:CFG0.puliziaGiorni,rifiuti:rif,sintomi:sint,buttiamo:but,
     votiMax:vm>=1&&vm<=5?vm:CFG0.votiMax,graffiGiorni:gg>=7&&gg<=365?gg:CFG0.graffiGiorni};
+  if(c.voto==='n')o.voto='n';                                   // «fino a N persone»; senza = podio (dalla 0.11.0)
   if(c.pinH&&typeof c.pinH==='string')o.pinH=str(c.pinH,24);
   if(c.admH&&typeof c.admH==='string')o.admH=str(c.admH,24);
   return tieniAltro(c,o,NOTI.cfg);
@@ -923,6 +948,15 @@ function applyCal0(S){
   if(S.meta.cal0===sig)return false;
   if(!calPieno(S.cfg))Object.keys(CAL0).forEach(function(g){S.cfg.rifiuti[g]=CAL0[g].slice();});
   S.meta.cal0=sig;return true;
+}
+/* 0.11.0: ELENA entra tra i pazienti (ticket e voti, ma niente quota), una volta sola. Se c'è già, anche come
+   visitatrice, diventa paziente: niente doppioni e nessun dato tolto. */
+function applyElena(S){
+  if(S.meta.elena0)return false;
+  var e=S.people.find(function(p){return String(p.name||'').trim().toLowerCase()==='elena';});
+  if(e){e.kind='paziente';e.on=true;e.noq=1;}
+  else if(!S.people.some(function(p){return p.id==='elena';}))S.people.push({id:'elena',name:'ELENA',kind:'paziente',on:true,img:'',noq:1});
+  S.meta.elena0=1;return true;
 }
 function normIds(a){
   var out=[];(Array.isArray(a)?a:[]).slice(0,12).forEach(function(p){p=str(p,24);if(p&&out.indexOf(p)<0)out.push(p);});
@@ -942,6 +976,9 @@ function normState(raw){
       var id=str(p.id,40);
       var o={id:id,name:str(p.name,24).trim()||'Senza nome',kind:p.kind==='amico'?'amico':'paziente',on:p.on!==false,img:normImg(p.img)};
       if(normNato(p.nato))o.nato=normNato(p.nato);                       // compleanno: solo «MM-GG», senza anno
+      if(p.tel&&typeof p.tel==='string')o.tel=str(p.tel,40);              // il telefono di questa persona (id del dispositivo)
+      if(p.pin&&typeof p.pin==='string')o.pin=str(p.pin,24);              // impronta del PIN personale
+      if(p.noq)o.noq=1;                                                   // non paga la quota del locale
       S.people.push(tieniAltro(p,o,NOTI.people));
     }
   });
@@ -977,6 +1014,7 @@ function normState(raw){
     if(m.xm)o.xm=str(m.xm,120);                     // motivo dell'annullamento
     if(m.g)o.g=str(m.g,40);                         // movimenti che vanno insieme (pagamento misto, resto in più)
     if(m.pc)o.pc=1;                                 // preso dalla cassa: debito + uscita, non è una spesa del locale
+    if(m.da)o.da=str(m.da,24);                      // chi l'ha segnato (dalla 0.11.0, con il login)
     if(m.mese&&/^\d{4}-\d{2}$/.test(String(m.mese)))o.mese=String(m.mese);   // quota del locale: di che mese
     S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
@@ -997,6 +1035,7 @@ function normState(raw){
     var cy={};cs.slice(0,5).forEach(function(c,i){cy[c]=i===0?pulisci(sintomiVoto(v)):pulisci(v.cy&&typeof v.cy==='object'?v.cy[c]:null);});
     metiVoto(o,cs.slice(0,5),cy);
     if(v.da)o.da=str(v.da,24);                                          // chi l'ha segnato (il telefono di chi)
+    if(v.m==='p')o.m='p';                                               // voto a podio: 3, 2 e 1 punto
     vv.push(tieniAltro(v,o,NOTI.votes));
   });
   vv.sort(function(a,b){return a.t-b.t;});
@@ -1062,7 +1101,7 @@ function normState(raw){
   });
   S.verifiche.sort(function(a,b){return a.t-b.t;});
   var me=raw.meta&&typeof raw.meta==='object'?raw.meta:{};
-  S.meta={created:toInt(me.created),rev:toInt(me.rev),saved:toInt(me.saved),exported:toInt(me.exported),img0:str(me.img0,200),cal0:str(me.cal0,200),sint0:str(me.sint0,2000)};
+  S.meta={created:toInt(me.created),rev:toInt(me.rev),saved:toInt(me.saved),exported:toInt(me.exported),img0:str(me.img0,200),cal0:str(me.cal0,200),sint0:str(me.sint0,2000),elena0:me.elena0?1:0};
   return S;
 }
 /* ---------- sincronizzazione tra telefoni (parte pura) ----------
@@ -1375,6 +1414,7 @@ function ricevi(changes,fromCache){
   if(fromCache&&!SY.init)return;   // prima di fondere aspetto i dati veri del locale
   var init=!SY.init;
   var cambiato=syncApply(S,changes,SY,init);
+  if(init&&applyElena(S))cambiato=true;
   changes.forEach(function(ch){if(ch.s>SY.cursor)SY.cursor=ch.s;});
   if(init)SY.init=true;
   SST.errore='';SST.ultimo=Date.now();
@@ -1411,7 +1451,11 @@ function statoSync(){
   if(!SY.init)SST.stato=SST.errore?'errore':'collego';
   else SST.stato=att?'attesa':'ok';
   paintSync();
+  // la schermata «Chi sei?» aspetta il collegamento: quando arriva (o salta) si ridisegna
+  var asp=loginAspetta();if(asp!==ASP_PRIMA){ASP_PRIMA=asp;if(!loggato())render();}
 }
+var ASP_PRIMA=null;
+function loginAspetta(){return !!SYNC&&(SST.stato==='collego'||SST.stato==='errore');}
 function syncTesto(){
   switch(SST.stato){
     case 'ok':return 'sincronizzati';
@@ -1433,13 +1477,15 @@ function syncBreve(){
 }
 function paintSync(){
   var el=$('#sync');if(!el)return;
-  var on=!!SYNC&&SST.stato!=='spento';
+  var io=loggato()?mio():'',on=!!io||(!!SYNC&&SST.stato!=='spento');
   el.hidden=!on;
   if(!on)return;
-  el.className='sync-et '+SST.stato;
-  el.textContent=syncBreve();
-  el.setAttribute('aria-label','Telefoni: '+syncTesto());
-  el.title='Telefoni: '+syncTesto()+(SST.errore?' · '+SST.errore:'');
+  var st=SYNC?SST.stato:'spento';
+  el.className='sync-et '+st+(io?' nome-io':'');
+  // il nome di chi è entrato: verde collegato, giallo in coda, rosa non collegato
+  el.textContent=io?pName(io)+(st==='attesa'?' · '+SST.attesa+' da inviare':st==='errore'||st==='spento'?' · non collegato':''):syncBreve();
+  el.setAttribute('aria-label',(io?pName(io)+'. ':'')+'Telefoni: '+(SYNC?syncTesto():'non collegati'));
+  el.title='Telefoni: '+(SYNC?syncTesto():'non collegati')+(SST.errore?' · '+SST.errore:'');
   var r=$('#sync-riga');if(r)r.textContent=syncTesto();
   if(foglio&&foglio.open&&foglioT&&foglioT.textContent==='Telefoni collegati')refreshSheet();
 }
@@ -1536,8 +1582,10 @@ function mettiFaccia(p,img){
 }
 function prod(id){return S.products.find(function(x){return x.id===id;});}
 function cats(){var o=[];S.products.forEach(function(p){if(o.indexOf(p.cat)<0)o.push(p.cat);});return o;}
+/* chi ha segnato il movimento: nel registro resta il nome di chi è entrato su questo telefono */
+function firma(m){var io=mio();if(io&&!m.da)m.da=io;return m;}
 function addMove(o,say){
-  var mv=Object.assign({id:rid(),t:Date.now()},o);
+  var mv=firma(Object.assign({id:rid(),t:Date.now()},o));
   S.moves.push(mv);commit();
   if(say)toast(say,function(){var i=S.moves.indexOf(mv);if(i>=0){S.moves.splice(i,1);commit();toast('Annullato.');}});
   return mv;
@@ -1554,35 +1602,143 @@ function backupOld(){var t=S.meta.exported;if(!t)return S.moves.length>=10;retur
 /* ---------- questo telefono: di chi è, modalità admin, PIN ----------
    Restano solo su questo telefono (non si sincronizzano). I codici invece valgono per tutti: se l'admin li cambia,
    nei dati condivisi va solo la loro impronta. Non è una cassaforte: serve contro sbagli e curiosi. */
-function mio(){var id=lsGet(KEY+'.io')||'';return person(id)?id:'';}
+/* ---------- login con PIN personale (dalla 0.11.0) ----------
+   Ogni paziente ha il suo PIN (nei dati condivisi va solo l'impronta, person.pin) e un telefono (person.tel = id del
+   dispositivo). Questo telefono è di «io» finché person.tel è il suo: se un altro telefono si prende quel nome
+   (con codice admin + PIN), questo esce da solo. Non è una sicurezza vera: niente server, controlli fatti dall'app. */
+function mio(){var id=lsGet(KEY+'.io')||'',p=person(id);return p&&p.tel===devId()?id:'';}
+function loggato(){var id=mio();return !!id&&!!person(id).pin;}
+function improntaPin(id,pin){return hashStr('oblio|pin|'+id+'|'+String(pin==null?'':pin).trim());}
+function pinGiusto(id,pin){var p=person(id);return !!p&&!!p.pin&&p.pin===improntaPin(id,pin);}
+function legaTelefono(id){
+  var dev=devId();
+  S.people.forEach(function(p){if(p.id===id)p.tel=dev;else if(p.tel===dev)delete p.tel;});
+}
+/* chi può fare il login: i pazienti in reparto (i visitatori non hanno l'app) */
+function chiPuoEntrare(){return people().filter(function(p){return p.kind==='paziente';});}
+var LOG={chi:null,passo:'chi',admin:false,v:{}};
+function campoPin(id,label){
+  // il valore resta in LOG.v: se arrivano dati dagli altri telefoni e la pagina si ridisegna, non si perde
+  LOG.v=LOG.v||{};
+  var i=h('input',{class:'inp pin',id:id,'data-k':id,type:'password',inputmode:'numeric',autocomplete:'off',maxlength:4,pattern:'[0-9]*'});
+  if(id.indexOf('lg-')===0){i.value=LOG.v[id]||'';i.addEventListener('input',function(){LOG.v[id]=i.value;});}
+  return {el:campo(label,i,id),i:i};
+}
+function vLogin(){
+  var dev=devId(),aspetta=loginAspetta();
+  var out=[h('h2',{class:'titolo'},'Chi sei?')];
+  if(aspetta){
+    out.push(h('section',{class:'cartella'},h('p',{class:'aiuto'},SST.stato==='errore'?'Non riesco a collegarmi al locale. Serve la rete per il primo accesso: riprova quando sei collegato.':'Mi collego al locale per sapere chi ha già il telefono…')));
+    return out;
+  }
+  var p=LOG.chi?person(LOG.chi):null;
+  if(!p){LOG.passo='chi';LOG.admin=false;}
+  if(LOG.passo==='chi'){
+    out.push(h('p',{class:'nota-chiara'},'Succede una volta sola: da qui in poi questo telefono entra sempre a nome tuo.'),
+      h('section',{class:'cartella'},
+        h('div',{class:'chips'},chiPuoEntrare().map(function(x){
+          var altrove=x.tel&&x.tel!==dev;
+          return h('button',{type:'button',class:'chip con-ava'+(altrove?' altrove':''),'data-k':'chi-sono-'+x.id,onclick:function(){
+            LOG.chi=x.id;LOG.admin=false;LOG.passo=altrove?'admin':x.pin?'pin':'nuovo';render();}},
+            ava(x.id,'xs'),nomeP(x),altrove?h('small',{class:'chip-s'},'ha già il telefono'):null);
+        })),
+        h('p',{class:'aiuto'},'Chi ha già il suo telefono può entrare da qui solo con il codice admin e il suo PIN.')));
+    return out;
+  }
+  var err=h('p',{class:'errore',role:'alert',hidden:true}),f,a,b;
+  function sbaglio(t,inp){err.textContent=t;err.hidden=false;if(inp){inp.value='';LOG.v[inp.id]='';try{inp.focus();}catch(e){}}}
+  function entra(nuovoPin){
+    if(nuovoPin)p.pin=improntaPin(p.id,nuovoPin);
+    legaTelefono(p.id);lsSet(KEY+'.io',p.id);LOG={chi:null,passo:'chi',admin:false,v:{}};
+    commit();tocco([12,40,12]);window.scrollTo(0,0);
+  }
+  var indietroLog=h('button',{type:'button',class:'pill viola sm indietro',onclick:function(){LOG={chi:null,passo:'chi',admin:false,v:{}};render();}},ic('indietro',18),'Cambia nome');
+  if(LOG.passo==='admin'){
+    a=campoPin('lg-adm','Codice admin');a.i.maxLength=12;
+    f=h('form',{class:'modulo'},h('p',{class:'aiuto'},pName(p.id)+' ha già il suo telefono. Per spostarlo su questo serve il codice admin, poi il PIN di '+pName(p.id)+'. L’altro telefono esce da solo.'),a.el,err,
+      h('button',{class:'pill duo-verde largo',type:'submit','data-k':'lg-ok'},'Avanti'));
+    f.addEventListener('submit',function(ev){ev.preventDefault();
+      if(!codiceOk(a.i.value,'admH',ADMIN0))return sbaglio('Codice admin sbagliato.',a.i);
+      LOG.admin=true;LOG.passo=p.pin?'pin':'nuovo';render();});
+  }else if(LOG.passo==='pin'){
+    a=campoPin('lg-pin','Il PIN di '+pName(p.id));
+    f=h('form',{class:'modulo'},a.el,err,h('button',{class:'pill duo-verde largo',type:'submit','data-k':'lg-ok'},'Entra'),
+      h('p',{class:'aiuto'},'PIN dimenticato? Lo azzera l’admin, poi ne crei uno nuovo.'));
+    f.addEventListener('submit',function(ev){ev.preventDefault();
+      if(p.tel&&p.tel!==dev&&!LOG.admin){LOG.passo='admin';render();return;}
+      if(!pinGiusto(p.id,a.i.value))return sbaglio('PIN sbagliato.',a.i);
+      entra(null);});
+  }else{
+    a=campoPin('lg-n1','Crea il tuo PIN (4 cifre)');b=campoPin('lg-n2','Riscrivilo');
+    f=h('form',{class:'modulo'},h('p',{class:'aiuto'},'Ti servirà per le operazioni sensibili (cassa, spese, debiti a mano, inventario) e per uscire. Nel registro resterà il tuo nome.'),a.el,b.el,err,
+      h('button',{class:'pill duo-verde largo',type:'submit','data-k':'lg-ok'},'Crea il PIN ed entra'));
+    f.addEventListener('submit',function(ev){ev.preventDefault();
+      var v=a.i.value.trim();
+      if(!/^\d{4}$/.test(v))return sbaglio('Il PIN è di 4 cifre.',a.i);
+      if(v!==b.i.value.trim())return sbaglio('I due PIN non sono uguali.',b.i);
+      if(p.tel&&p.tel!==dev&&!LOG.admin){LOG.passo='admin';render();return;}
+      entra(v);});
+  }
+  out.push(indietroLog,h('section',{class:'cartella'},h('div',{class:'linea'},ava(p.id,'grande'),h('h3',{class:'nome'},nomeP(p))),f));
+  setTimeout(function(){try{a.i.focus();}catch(e){}},80);
+  return out;
+}
+/* dopo il primo login: le regole principali, una volta per telefono */
+var REGOLE=[
+  ['Questo telefono è tuo.','Ogni volta che apri l’app sei già tu.'],
+  ['Voti solo per te.','I visitatori si fanno votare dal telefono di uno di voi.'],
+  ['Il tuo PIN firma.','Cassa, spese, debiti a mano e inventario lo chiedono, e nel registro resta il tuo nome.'],
+  ['Ogni consumazione si segna:','sul ticket oppure paga subito.'],
+  ['PIN dimenticato?','Lo azzera l’admin e ne crei uno nuovo.']];
+function vRegolePrime(){
+  return [h('h2',{class:'titolo'},'Benvenuto, '+pName(mio())),
+    h('p',{class:'nota-chiara'},'Le regole del reparto, in breve. Le ritrovi nella Guida.'),
+    h('section',{class:'cartella'},h('ol',{class:'righe regole-prime'},REGOLE.map(function(r){return h('li',null,h('b',null,r[0]),' '+r[1]);}))),
+    h('button',{class:'pill duo-verde largo',type:'button','data-k':'regole-ok',onclick:function(){lsSet(KEY+'.regole','1');go('reparto');}},'Ho capito, entra')];
+}
+function esci(){
+  conPin(function(){lsSet(KEY+'.io','');lsSet(KEY+'.dentro','');pinFino=0;LOG={chi:null,passo:'chi',admin:false,v:{}};render();toast('Sei uscito. Per rientrare serve il tuo PIN.');},'Uscire dal tuo nome',true);
+}
+function openCambiaPin(){
+  var io=mio(),v=campoPin('cp-v','PIN attuale'),a=campoPin('cp-1','Nuovo PIN (4 cifre)'),b=campoPin('cp-2','Riscrivilo');
+  formSheet('Cambia il tuo PIN',[v.el,a.el,b.el],function(){
+    if(!pinGiusto(io,v.i.value)){v.i.value='';return 'PIN attuale sbagliato.';}
+    var n=a.i.value.trim();
+    if(!/^\d{4}$/.test(n))return 'Il nuovo PIN è di 4 cifre.';
+    if(n!==b.i.value.trim())return 'I due PIN non sono uguali.';
+    person(io).pin=improntaPin(io,n);commit();toast('PIN cambiato.');
+  },'Cambia il PIN',{noBozza:true});
+}
 function devId(){if(!DEV){DEV=lsGet(KEY+'.dev')||'';if(!DEV){DEV='d'+rid();lsSet(KEY+'.dev',DEV);}}return DEV;}
 function isAdmin(){return lsGet(KEY+'.admin')==='1';}
 function codiceOk(code,campo,def){code=String(code==null?'':code).trim();var h=S.cfg[campo];return h?impronta(code)===h:code===def;}
 var pinFino=0;
-/* azione sensibile: chiede il PIN (sull'admin no; dopo il PIN giusto, per 10 minuti non lo richiede) */
-function conPin(azione,cosa){
-  if(isAdmin()||Date.now()<pinFino){azione();return;}
-  var i=h('input',{class:'inp pin',id:'pin-c',type:'password',inputmode:'numeric',autocomplete:'off',maxlength:12});
-  var testoAiuto=(cosa||'Questa azione')+': serve il PIN del reparto. Per 10 minuti non te lo richiedo.';
+/* azione sensibile: chiede il PIN personale di chi è entrato (sull'admin no; dopo il PIN giusto, per 10 minuti non lo
+   richiede). sempre=true: lo chiede comunque (per uscire dal proprio nome). */
+function conPin(azione,cosa,sempre){
+  if(!sempre&&(isAdmin()||Date.now()<pinFino)){azione();return;}
+  var io=mio();if(!io){render();return;}
+  var i=h('input',{class:'inp pin',id:'pin-c',type:'password',inputmode:'numeric',autocomplete:'off',maxlength:4});
+  var testoAiuto=(cosa||'Questa azione')+': serve il tuo PIN.'+(sempre?'':' Per 10 minuti non te lo richiedo.');
   if(foglio.open){
     // c'è già un foglio aperto (uno scontrino, una cartella): il PIN compare sopra, senza perdere niente
     var vecchio=foglioB.querySelector('.pin-box');if(vecchio)vecchio.remove();
     var err=h('p',{class:'errore',role:'alert',hidden:true});
     var ok=function(){
-      if(!codiceOk(i.value,'pinH',PIN0)){i.value='';err.textContent='PIN sbagliato.';err.hidden=false;try{i.focus();}catch(e){}return;}
+      if(!pinGiusto(io,i.value)){i.value='';err.textContent='PIN sbagliato.';err.hidden=false;try{i.focus();}catch(e){}return;}
       pinFino=Date.now()+10*60000;box.remove();azione();
     };
     i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();ok();}});
-    var box=h('div',{class:'pin-box',role:'group','aria-label':'PIN del reparto'},
-      h('p',{class:'aiuto'},testoAiuto),campo('PIN',i,'pin-c'),err,
+    var box=h('div',{class:'pin-box',role:'group','aria-label':'Il tuo PIN'},
+      h('p',{class:'aiuto'},testoAiuto),campo('Il PIN di '+pName(io),i,'pin-c'),err,
       h('div',{class:'azioni'},h('button',{type:'button',class:'pill duo-verde sm','data-k':'pin-ok',onclick:ok},'Conferma'),
         h('button',{type:'button',class:'pill sm',onclick:function(){box.remove();}},'Lascia stare')));
     foglioB.prepend(box);foglioB.scrollTop=0;
     setTimeout(function(){try{i.focus();}catch(e){}},80);
     return;
   }
-  formSheet('PIN del reparto',[h('p',{class:'aiuto'},testoAiuto),campo('PIN',i,'pin-c')],function(){
-    if(!codiceOk(i.value,'pinH',PIN0)){i.value='';return 'PIN sbagliato.';}
+  formSheet('Il tuo PIN',[h('p',{class:'aiuto'},testoAiuto),campo('Il PIN di '+pName(io),i,'pin-c')],function(){
+    if(!pinGiusto(io,i.value)){i.value='';return 'PIN sbagliato.';}
     pinFino=Date.now()+10*60000;
     setTimeout(azione,60);
   },'Conferma',{noBozza:true});
@@ -1598,15 +1754,6 @@ function openAdminAccesso(){
 }
 function esciAdmin(){lsSet(KEY+'.admin','');pinFino=0;go('altro');toast('Modalità admin chiusa su questo telefono.');}
 function soloAdmin(azione){if(isAdmin())azione();else toast('Solo l’admin può farlo: Altro › Admin.');}
-function openMio(){
-  var sel=chipSel(people().map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null,false,true);
-  formSheet('Di chi è questo telefono?',[
-    h('p',{class:'aiuto'},'Serve a proporre il tuo nome dove serve: post-it del muro, quota del locale, chi ha segnato un voto. Resta solo su questo telefono.'),
-    gruppo('Questo telefono è di',sel)],function(){
-    lsSet(KEY+'.io',sel.get()||'');render();toast(sel.get()?'Telefono di '+pName(sel.get())+'.':'Nessun nome su questo telefono.');
-  },'Salva',{noBozza:true});
-}
-
 /* ---------- toast e fogli ---------- */
 function toast(msg,undo,label){
   var box=$('#toast');clearTimeout(toastTimer);
@@ -1725,8 +1872,11 @@ function peopleOpts(extraAll){
 }
 
 /* ---------- navigazione ---------- */
-var TABS=[['reparto','Reparto','croce'],['farmacia','Farmacia','bicchiere'],['ticket','Ticket','tacche'],['freccette','Freccette','bersaglio'],['altro','Altro','altro']];
-var NOMI_TAB={reparto:'Reparto',farmacia:'Farmacia',ticket:'Ticket',freccette:'Freccette',altro:'Altro'};
+var TABS=[['reparto','Reparto','croce'],['farmacia','Farmacia','bicchiere'],['ludoteca','Ludoteca','bersaglio'],['altro','Altro','altro']];
+var NOMI_TAB={reparto:'Reparto',farmacia:'Farmacia',ludoteca:'Ludoteca',altro:'Altro'};
+/* i Ticket stanno nella Farmacia, le freccette nella Ludoteca (dalla 0.11.0) */
+function apriTicket(){UI.farm='ticket';go('farmacia');}
+function apriFreccette(){go('ludoteca','freccette');}
 function go(tab,sub,forza){
   // moduli della pagina (es. Regole) cambiati e non salvati: prima di uscire chiedo
   if(!forza){
@@ -1742,6 +1892,8 @@ function go(tab,sub,forza){
     }
   }
   if(UI.tab==='farmacia'&&tab!=='farmacia'&&contoAperto()&&posTotal().n)toast('Il conto di '+(UI.pos.p?pName(UI.pos.p):'chi non hai scelto')+' non è registrato: resta in sospeso in Farmacia.');
+  // in Farmacia il paziente parte dal padrone del telefono (si cambia con un tocco)
+  if(tab==='farmacia'&&UI.tab!=='farmacia'&&!UI.pos.p&&!posTotal().n)UI.pos.p=mio()||null;
   UI.tab=tab;UI.sub=sub||null;
   try{history.replaceState(null,'','#'+tab+(sub?'/'+sub:''));}catch(e){}
   render();window.scrollTo(0,0);
@@ -1754,6 +1906,7 @@ function posTotal(){
 }
 function render(){
   var act=document.activeElement,key=act&&act.dataset?act.dataset.k:null;
+  $('#nav').hidden=!(loggato()&&lsGet(KEY+'.regole')==='1');
   $('#nav').replaceChildren(frag(TABS.map(function(t){
     return h('button',{type:'button',class:'tab','aria-current':UI.tab===t[0]?'page':null,onclick:function(){go(t[0]);}},ic(t[2]),h('span',null,t[1]));
   })));
@@ -1762,10 +1915,15 @@ function render(){
   else if(IN_CLAUDE)msg='Anteprima dentro Claude: i dati restano su questo dispositivo e possono azzerarsi. L’app vera si installa dal suo indirizzo web.';
   else if(IOS&&!installata())msg='Su iPhone installa l’app prima di usarla: Condividi, poi «Aggiungi alla schermata Home»'+(SYNC?', e da lì usa sempre l’icona.':'. Quello che segni qui in Safari non passa all’app installata.');
   av.textContent=msg;av.hidden=!msg;
-  var posOn=UI.tab==='farmacia'&&!UI.sub&&(UI.pos.p||posTotal().n>0);
+  var posOn=UI.tab==='farmacia'&&!UI.sub&&farm()==='banco'&&(UI.pos.p||posTotal().n>0);
   document.body.classList.toggle('con-pos',!!posOn);
-  document.body.classList.toggle('in-gioco',UI.tab==='freccette'&&!UI.sub);
-  var vista=UI.sub&&SUBS[UI.sub]?(ADMIN_SUBS[UI.sub]&&!isAdmin()?vBloccato:SUBS[UI.sub]):VIEWS[UI.tab];
+  document.body.classList.toggle('in-gioco',UI.sub==='freccette');
+  // senza login l'app mostra solo «Chi sei?»; dopo il primo login, una volta, le regole
+  var dentro=loggato(),regole=dentro&&lsGet(KEY+'.regole')==='1';
+  if(!dentro&&lsGet(KEY+'.dentro')==='1'){lsSet(KEY+'.dentro','');setTimeout(function(){toast('Il tuo nome adesso è su un altro telefono: qui sei uscito.');},0);}
+  else if(dentro)lsSet(KEY+'.dentro','1');
+  document.body.classList.toggle('fuori',!regole);
+  var vista=!dentro?vLogin:!regole?vRegolePrime:UI.sub&&SUBS[UI.sub]?(ADMIN_SUBS[UI.sub]&&!isAdmin()?vBloccato:SUBS[UI.sub]):VIEWS[UI.tab];
   $('#view').replaceChildren(frag(vista()));
   Array.prototype.forEach.call(document.querySelectorAll('#view form.guardia'),function(f){f._iniz=valoriForm(f);});
   if(key){var el=document.querySelector('[data-k="'+key+'"]');if(el){try{el.focus({preventScroll:true});}catch(e){}}}
@@ -1855,9 +2013,7 @@ function personRow(p,conQuota){
 /* ---------- vista: Reparto ---------- */
 function vReparto(){
   var now=new Date(),out=[];
-  var dov=function(p){return Math.max(0,D.debt[p.id]||0)+arretrato(p.id);};
-  var deb=people(true).filter(function(p){return dov(p)>0;}).sort(function(a,b){return dov(b)-dov(a);});
-  var tot=deb.reduce(function(s,p){return s+Math.max(0,D.debt[p.id]||0);},0),nDeb=people(true).filter(function(p){return (D.debt[p.id]||0)>0;}).length;
+  var tot=people(true).reduce(function(s,p){return s+Math.max(0,D.debt[p.id]||0);},0),nDeb=people(true).filter(function(p){return (D.debt[p.id]||0)>0;}).length;
   var low=lowStock(),fac=statoFaccende(),P=previsione(S,D);
   var urgente=low.length>0||backupOld()||D.cash<0||fac.daFare;
   var comp=prossimiCompleanni(S,today()).filter(function(c){return c.giorni>0&&c.giorni<=30;})[0],gioco=partitaAttiva();
@@ -1868,28 +2024,19 @@ function vReparto(){
       h('span',{class:'timbro'+(urgente?'':' ok')},urgente?'Urgente':'Stabile')),
     h('div',{class:'bollettino cruscotto'},
       tessera('Cassa',eur(D.cash),D.cash<0?'rosso':null,'cassa farmacia',function(){go('reparto','cassa');},'t-cassa'),
-      tessera('Ticket aperti',tot?eur(tot):'nessuno',tot?'rosso':null,tot?nDeb+(nDeb===1?' paziente':' pazienti'):'tutti in regola',function(){go('ticket');},'t-ticket'),
+      tessera('Ticket aperti',tot?eur(tot):'nessuno',tot?'rosso':null,tot?nDeb+(nDeb===1?' paziente':' pazienti'):'tutti in regola',function(){apriTicket();},'t-ticket'),
       tessera('Soldi del locale',eur(P.attuale),P.attuale<0?'rosso':null,'previsionale '+eur(P.previsionale),function(){go('reparto','soldi');},'apri-soldi'),
       S.quote.length||D.fondo?tessera('Fondo quota',eur(D.fondo),D.fondo<0?'rosso':null,'a parte dalla cassa',function(){go('reparto','quota');},'t-fondo')
         :tessera('Scorte',low.length?low.length+' da prendere':'a posto',low.length?'rosso':null,'lista della spesa',function(){go('reparto','scorte');},'t-scorte')),
     gioco||comp?h('ul',{class:'bollettino-note'},
-      gioco?h('li',null,ic('bersaglio',16),h('button',{type:'button',class:'link',onclick:function(){go('freccette');}},'Partita in corso: '+nomeModo(gioco.mode))):null,
+      gioco?h('li',null,ic('bersaglio',16),h('button',{type:'button',class:'link',onclick:function(){apriFreccette();}},'Partita in corso: '+nomeModo(gioco.mode))):null,
       comp?h('li',null,ic('torta',16),'Compleanno di '+pName(comp.p)+', '+dataBreve(comp.data)+(comp.giorni===1?' (domani)':' (tra '+comp.giorni+' giorni)')):null):null,
     h('div',{class:'azioni'},
       h('button',{class:'pill duo-rosa',type:'button',onclick:function(){go('farmacia');}},ic('bicchiere',20),'Segna consumazione'),
       h('button',{class:'pill','data-k':'apri-cassa',type:'button',onclick:function(){go('reparto','cassa');}},ic('cassa',20),'Cassa'))));
   out.push(cardFaccende(fac));
-  out.push(cardTriage());
+  out.push(rigaTriage());
   out.push(cardMuro());
-  out.push(h('section',{class:'cartella'},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Ticket più salati'),h('button',{class:'pill sm',type:'button',onclick:function(){go('ticket');}},'Tutti i ticket')),
-    h('div',{class:'riga-tratt'}),
-    deb.length?h('ul',{class:'righe'},deb.slice(0,3).map(function(p){return personRow(p,true);})):h('p',{class:'vuoto'},'Nessun ticket aperto. Reparto tranquillo, per ora.')));
-  var ult=S.moves.filter(function(m){return !m.x;}).slice(-4).reverse();
-  out.push(h('section',{class:'cartella'},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Ultime somministrazioni'),h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','cassa');}},'Registro')),
-    h('div',{class:'riga-tratt'}),
-    ult.length?h('ul',{class:'righe'},ult.map(function(m){return moveRow(m,true);})):h('p',{class:'vuoto'},'Ancora niente. La prima consumazione si segna dalla Farmacia.')));
   return out;
 }
 /* un numero del bollettino: etichetta, cifra, riga sotto; si tocca per aprire la pagina giusta */
@@ -1961,7 +2108,7 @@ function cardFaccende(st){
   if(vecchi.length){
     var totV=vecchi.reduce(function(n,id){return n+x.v[id].a;},0);
     urg.push(rigaFare({ic:'orologio',accesa:true,titolo:'Graffi vecchi: '+eur(totV),sotto:'Da più di '+S.cfg.graffiGiorni+' giorni: '+nomiLista(vecchi)+'.',
-      azione:h('button',{class:'pill sm',type:'button','data-k':'apri-vecchi',onclick:function(){go('ticket');}},'Vedi')}));
+      azione:h('button',{class:'pill sm',type:'button','data-k':'apri-vecchi',onclick:function(){apriTicket();}},'Vedi')}));
   }
   // backup e telefoni
   if(backupOld())urg.push(rigaFare({ic:'nuvola',titolo:'Backup da fare',sotto:'Ultimo: '+backupLine()+'. È una copia in più dei dati.',
@@ -2003,35 +2150,48 @@ function openPulizia(){
 
 /* ---------- triage: chi sta peggio ---------- */
 function votiSerata(k){return S.votes.filter(function(v){return v.s===k;});}
+function votiValidi(k){return votiSerata(k).filter(function(v){return votoConta(S,v);});}
 function nomiLista(ids){
   var n=ids.map(pName);
   return n.length<2?n.join(''):n.slice(0,-1).join(', ')+' e '+n[n.length-1];
 }
-/* chi vota aggiunge «per» ai suoi votati della serata (fino a cfg.votiMax; con 1 solo il voto si cambia come prima).
+/* come si vota lo sceglie l'admin: podio (1°, 2°, 3°: 3, 2 e 1 punto) oppure «fino a N persone» (1 punto a testa).
+   Con il podio «votiMax» resta 3, così anche i telefoni non ancora aggiornati lasciano tre voti. */
+function podio(){return S.cfg.voto!=='n';}
+function votiMassimi(){return podio()?3:(S.cfg.votiMax||1);}
+var POSTI=['1°','2°','3°'];
+function puntiTxt(n){return n+(n===1?' punto':' punti');}
+function descrVoto(v){
+  var cs=candidatiVoto(v);
+  return cs.map(function(c,i){return (v.m==='p'&&cs.length>1?POSTI[i]+' ':'')+pName(c);}).join(', ');
+}
+/* da questo telefono si vota solo per sé (il padrone del telefono) e per i visitatori */
+function puoVotare(chi){return !!chi&&(chi===mio()||isVisitor(chi));}
+function puoTogliere(){return isAdmin();}
+function nonPuoiVotare(){toast(mio()?'Da questo telefono vota solo '+pName(mio())+', più i visitatori.':'Per votare entra con il tuo nome.');}
+/* il voto di «chi» nella serata: cs = i votati in ordine, cy = i sintomi di ognuno; cs vuoto = toglie il voto.
    Un documento per votante e serata: stesso voto = stesso documento su tutti i telefoni. */
-function vota(chi,per,ys){
-  ys=(ys||[]).slice();
-  var k=openKey(),v=S.votes.find(function(x){return x.s===k&&x.v===chi;}),max=S.cfg.votiMax||3;
+function salvaVoto(chi,cs,cy){
+  if(!puoVotare(chi)){nonPuoiVotare();return;}
+  var k=openKey(),v=S.votes.find(function(x){return x.s===k&&x.v===chi;});
   var prima=v?JSON.parse(JSON.stringify(v)):null;
-  var cs=v?candidatiVoto(v).slice():[],cy=v?sintomiDiVoto(v):{},i=cs.indexOf(per),cambia=false;
-  if(i>=0){
-    if((cy[per]||[]).slice().sort().join('|')===ys.slice().sort().join('|')){toast(pName(chi)+' aveva già votato '+pName(per)+(ys.length?' così':'')+'.');return;}
-    cy[per]=ys;
-  }else if(cs.length>=max){
-    if(max>1){toast(pName(chi)+' ha già dato '+max+' voti stasera: per cambiarne uno, toglilo da «Vedi i voti».');return;}
-    cs=[per];cy={};cy[per]=ys;cambia=true;
-  }else{cs.push(per);cy[per]=ys;}
-  if(!v){v={id:'v'+k+'_'+chi,s:k,v:chi,t:Date.now()};S.votes.push(v);}
-  v.t=Date.now();metiVoto(v,cs,cy);
-  var io=mio();if(io)v.da=io;else delete v.da;
-  commit();
-  toast(pName(chi)+(cambia?' cambia voto: ':i>=0?' cambia i sintomi per ':' vota ')+pName(per)+(ys.length?' · '+ys.join(', ').toLowerCase():'')+(cs.length>1&&i<0?' ('+cs.length+'° voto)':''),function(){
-    if(prima){Object.keys(v).forEach(function(x){delete v[x];});Object.assign(v,prima);}
-    else{var j=S.votes.indexOf(v);if(j>=0)S.votes.splice(j,1);}
-    commit();toast('Voto annullato.');
+  if(!cs.length){if(!v)return;S.votes.splice(S.votes.indexOf(v),1);}
+  else{
+    if(!v){v={id:'v'+k+'_'+chi,s:k,v:chi,t:Date.now()};S.votes.push(v);}
+    v.t=Date.now();metiVoto(v,cs,cy);
+    if(podio())v.m='p';else delete v.m;
+    var io=mio();if(io)v.da=io;else delete v.da;
+  }
+  commit();tocco();
+  toast(cs.length?pName(chi)+(prima?' cambia voto: ':' vota ')+descrVoto(v):'Tolto il voto di '+pName(chi)+'.',function(){
+    var j=v?S.votes.indexOf(v):-1;
+    if(prima){if(j>=0){Object.keys(v).forEach(function(x){delete v[x];});Object.assign(v,prima);}else S.votes.push(prima);}
+    else if(j>=0)S.votes.splice(j,1);
+    commit();toast('Annullato.');
   });
 }
 function togliVoto(v,c){
+  if(!puoTogliere()){toast('I voti li toglie solo l’admin.');return;}
   var cs=candidatiVoto(v).filter(function(x){return x!==c;}),cy=sintomiDiVoto(v);delete cy[c];
   if(!cs.length){var j=S.votes.indexOf(v);if(j>=0)S.votes.splice(j,1);}
   else{metiVoto(v,cs,cy);v.t=Date.now();}
@@ -2042,70 +2202,99 @@ function ultimoVerdetto(){
   for(var i=ks.length-1;i>=0;i--)if(ch[ks[i]].n)return {k:ks[i],sm:ch[ks[i]]};
   return null;
 }
-function reDelMese(){
-  var k=openKey(),r=statRe(S,'mese',k),max=0,ids=[];
-  Object.keys(r.by).forEach(function(id){var n=r.by[id].rossi;if(n>max){max=n;ids=[id];}else if(n&&n===max)ids.push(id);});
-  return max?{ids:ids,n:max,mese:MESI[+k.slice(5,7)-1]}:null;
+function testoPodio(sm){
+  return podioSerata(sm).filter(function(x){return x.pos<=3;}).map(function(x){return x.pos+'° '+pName(x.id);}).join(', ');
+}
+function nomeSerataDi(k){return nomeSerata(k)==='ieri sera'?'Ieri sera':'La '+nomeSerata(k);}
+function ordineVoti(sm){
+  return Object.keys(sm.tally).sort(function(a,b){return sm.tally[b]-sm.tally[a]||pName(a).localeCompare(pName(b));});
 }
 function cardTriage(){
-  var k=openKey(),sm=voteSummary(votiSerata(k)),cand=people();
-  var grid=h('div',{class:'tri-grid'},cand.map(function(p){
-    var n=sm.tally[p.id]||0,testa=n>0&&n===sm.max;
-    return h('button',{type:'button',class:'tri'+(p.kind==='amico'?' amico':'')+(testa?' testa':''),'data-k':'tri-'+p.id,
-      'aria-label':'Vota '+nomeP(p)+(n?', '+n+(n===1?' voto':' voti'):''),onclick:function(){openVoto(p.id);}},
-      ava(p.id,'tri-ava'),h('span',{class:'tri-n'},nomeP(p)),h('span',{class:'tri-v'},n?n+(n===1?' voto':' voti'):'—'));
-  }),h('button',{type:'button',class:'tri piu',onclick:function(){openPerson(null);}},h('span',{class:'tri-n'},'+ Visitatore')));
-  var testa=null;
-  if(sm.n)testa=sm.winners.length>1?'Pari: '+nomiLista(sm.winners)+' con '+sm.max+(sm.max===1?' voto':' voti')+'.':'In testa '+pName(sm.winners[0])+' con '+sm.max+(sm.max===1?' voto':' voti')+'.';
-  var lista=Object.keys(sm.by).map(function(v){return pName(v)+' → '+sm.by[v].map(pName).join(', ');}).join(' · ');
-  var ver=ultimoVerdetto(),re=reDelMese();
+  var k=openKey(),sm=voteSummary(votiValidi(k)),io=mio(),ord=ordineVoti(sm);
+  var tuo=io?S.votes.find(function(v){return v.s===k&&v.v===io;}):null,perso=!io&&lsGet(KEY+'.io')&&person(lsGet(KEY+'.io'));
+  var ver=ultimoVerdetto();
   var diag=ver&&ver.sm.winners.length===1?topSintomi(ver.sm.sint[ver.sm.winners[0]],3):[];
   return h('section',{class:'triage'},
-    h('div',{class:'cart-h'},h('h2',{class:'tri-t'},'Triage: chi sta peggio?'),h('span',{class:'timbro scuro'},sm.voti+(sm.voti===1?' voto':' voti'))),
-    h('p',{class:'tri-s'},'Voto palese della serata: vota chiunque, lo segna uno di voi. '+(S.cfg.votiMax>1?'Ognuno può votare fino a '+S.cfg.votiMax+' persone. ':'')+'Tocca chi sta peggio, poi chi vota. Si chiude '+chiusuraTxt()+'.'),
-    grid,
-    testa?h('p',{class:'tri-s forte'},testa):null,
-    lista?h('p',{class:'tri-s'},'Voti: '+lista):null,
-    ver?h('div',{class:'verdetto'},ver.sm.winners.length===1?ava(ver.sm.winners[0],'sm'):null,
-      h('p',null,h('b',null,'Codice rosso '+(nomeSerata(ver.k)==='ieri sera'?'di ieri sera':'della '+nomeSerata(ver.k))+': '),
-        nomiLista(ver.sm.winners)+' ('+ver.sm.max+(ver.sm.max===1?' voto':' voti')+', '+ver.sm.n+(ver.sm.n===1?' votante':' votanti')+')',
-        diag.length?[h('br'),'Diagnosi: '+diag.map(function(x){return x.toLowerCase();}).join(', ')+'.']:null)):null,
-    re?h('p',{class:'tri-s'},(re.ids.length>1?'Re dell’oblio di '+re.mese+' a pari merito: ':'Re dell’oblio di '+re.mese+': ')+nomiLista(re.ids)+', '+re.n+(re.n===1?' codice rosso.':' codici rossi.')):null,
+    h('div',{class:'cart-h'},h('h2',{class:'tri-t'},'Triage: chi sta peggio?'),h('span',{class:'timbro scuro'},sm.n+(sm.n===1?' votante':' votanti'))),
+    h('p',{class:'tri-s'},(podio()?'Podio: il 1° vale 3 punti, il 2° 2, il 3° 1. ':votiMassimi()>1?'Ognuno vota fino a '+votiMassimi()+' persone, 1 punto a testa. ':'Un voto a testa. ')+'Ognuno vota dal suo telefono. Si chiude '+chiusuraTxt()+'.'),
+    ord.length?h('ol',{class:'tri-podio'},ord.slice(0,3).map(function(c){
+      return h('li',{class:sm.winners.indexOf(c)>=0?'testa':null},ava(c,'sm'),h('span',{class:'nome'},pName(c)),h('span',{class:'tri-v'},puntiTxt(sm.tally[c])));
+    })):h('p',{class:'tri-s'},'Ancora nessun voto stasera.'),
+    io?h('p',{class:'tri-s forte'},tuo?'Il tuo voto: '+descrVoto(tuo)+'.':'Non hai ancora votato.')
+      :h('p',{class:'tri-s forte'},perso?'Questo telefono non è più di '+pName(lsGet(KEY+'.io'))+': lo ha preso un altro telefono. Chiedi all’admin.':'Per votare entra con il tuo nome.'),
     h('div',{class:'azioni'},
-      h('button',{class:'pill sm',type:'button',disabled:!sm.n,onclick:openVoti},'Vedi i voti'),
-      h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','classifiche');}},'Classifiche')));
+      io?h('button',{class:'pill duo-rosa',type:'button','data-k':'vota',onclick:function(){openVoto(io);}},tuo?'Cambia il tuo voto':'Vota')
+        :null,
+      h('button',{class:'pill sm',type:'button','data-k':'vota-visitatore',onclick:openVotoVisitatore},'Voto di un visitatore')),
+    ver?h('div',{class:'verdetto'},ver.sm.winners.length===1?ava(ver.sm.winners[0],'sm'):null,
+      h('p',null,h('b',null,nomeSerataDi(ver.k)+': '),testoPodio(ver.sm)+' ('+ver.sm.n+(ver.sm.n===1?' votante':' votanti')+').',
+        diag.length?[h('br'),'Diagnosi di '+pName(ver.sm.winners[0])+': '+diag.map(function(x){return x.toLowerCase();}).join(', ')+'.']:null)):null,
+    h('div',{class:'azioni'},
+      h('button',{class:'pill sm',type:'button',disabled:!votiSerata(k).length,onclick:openVoti},'Vedi i voti'),
+      h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go(UI.tab,'classifiche');}},'Classifiche')));
 }
-function openVoto(per){
-  var syv=[];
+/* nel Reparto il triage è una riga: com'è finita ieri sera e il pulsante per votare (il triage intero è in Ludoteca) */
+function rigaTriage(){
+  var k=openKey(),io=mio(),tuo=io?S.votes.find(function(v){return v.s===k&&v.v===io;}):null,ver=ultimoVerdetto();
+  return h('section',{class:'triage riga-triage'},
+    h('div',{class:'linea'},ver&&ver.sm.winners.length===1?ava(ver.sm.winners[0],'sm'):null,
+      h('p',{class:'tri-s cresce1'},ver?[h('b',null,'Codice rosso '+(nomeSerata(ver.k)==='ieri sera'?'di ieri sera':'della '+nomeSerata(ver.k))+': '+nomiLista(ver.sm.winners)),h('br')]:null,
+        tuo?'Stasera hai già votato.':'Stasera non hai ancora votato.'),
+      h('button',{class:'pill sm',type:'button','data-k':'vota-rep',onclick:function(){if(io)openVoto(io);else go('ludoteca');}},tuo?'Cambia':'Vota')));
+}
+/* il voto: si toccano le persone in ordine (1°, 2°, 3°), sotto ognuna i suoi sintomi, poi «Vota» */
+function openVoto(chi){
+  if(!puoVotare(chi)){nonPuoiVotare();return;}
+  var k=openKey(),v=S.votes.find(function(x){return x.s===k&&x.v===chi;});
+  var max=votiMassimi(),pod=podio(),cs=v?candidatiVoto(v).slice(0,max):[],cy=v?sintomiDiVoto(v):{};
   var live=function(){
-    var sm=voteSummary(votiSerata(openKey()));
-    var sy=S.cfg.sintomi.length?chipSel(S.cfg.sintomi.map(function(s){return {v:s,label:s,cls:'sm'};}),syv,true):null;
-    if(sy)sy.addEventListener('change',function(){syv=sy.get();});
-    var max=S.cfg.votiMax||3;
     var chips=h('div',{class:'chips'},people().map(function(p){
-      var suoi=sm.by[p.id]||[],gia=suoi.indexOf(per)>=0,pieno=!gia&&max>1&&suoi.length>=max,bloccato=(p.id===per&&!S.cfg.selfVote)||pieno;
-      var altri=suoi.filter(function(c){return c!==per;});
-      return h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'vt-'+p.id,'aria-pressed':String(gia),disabled:bloccato,
-        onclick:function(){closeSheet();vota(p.id,per,syv);}},
-        ava(p.id,'xs'),nomeP(p),
-        pieno?h('small',{class:'chip-s'},'ha già '+max+' voti'):altri.length?h('small',{class:'chip-s'},(gia?'e anche ':'ha votato ')+altri.map(pName).join(', ')):null);
+      var i=cs.indexOf(p.id);
+      return h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'vt-'+p.id,'aria-pressed':String(i>=0),disabled:p.id===chi&&!S.cfg.selfVote,
+        onclick:function(){
+          if(i>=0){cs.splice(i,1);delete cy[p.id];}
+          else if(cs.length<max)cs.push(p.id);
+          else if(max===1){delete cy[cs[0]];cs=[p.id];}
+          else{toast(pod?'Hai già scelto i tre del podio: tocca uno di loro per toglierlo.':'Puoi votare fino a '+max+' persone: tocca uno dei tuoi per toglierlo.');return;}
+          tocco();refreshSheet();}},
+        i>=0&&pod?h('b',{class:'posto'},POSTI[i]):null,ava(p.id,'xs'),nomeP(p));
     }));
-    var spiega=max>1?'Ognuno può votare fino a '+max+' persone a serata: chi le ha già votate tutte toglie un voto da «Vedi i voti».':'Chi ha già votato stasera cambia il suo voto.';
+    var righe=cs.map(function(c,i){
+      var sy=S.cfg.sintomi.length?chipSel(S.cfg.sintomi.map(function(s){return {v:s,label:s,cls:'sm'};}),cy[c]||[],true):null;
+      if(sy)sy.addEventListener('change',function(){cy[c]=sy.get();});
+      return h('div',{class:'voto-posto'},
+        h('div',{class:'linea'},pod?h('b',{class:'posto'},POSTI[i]):null,ava(c,'xs'),h('span',{class:'nome cresce1'},pName(c)),pod?h('span',{class:'tri-v'},puntiTxt(3-i)):null),
+        sy?gruppo('Sintomi (facoltativi)',sy):null);
+    });
     return [
-      h('div',{class:'voto-chi'},ava(per,'grande'),h('p',{class:'aiuto'},(sy?'Se vuoi scegli uno o più sintomi, poi tocca chi vota. ':'Tocca chi vota. ')+spiega+(S.cfg.selfVote?' Ci si può votare da soli.':''))),
-      sy?gruppo('Sintomi (facoltativi, anche più di uno)',sy):null,
-      gruppo('Chi vota?',chips),
-      h('div',{class:'azioni'},h('button',{type:'button',class:'chip piu',onclick:function(){openPerson(null,function(){setTimeout(function(){openVoto(per);},60);});}},'+ Visitatore che vota'))];
+      h('p',{class:'aiuto'},(pod?'Tocca chi sta peggio, in ordine: il primo tocco è il 1°, poi il 2° e il 3°. Ritocca un nome per toglierlo.':max>1?'Tocca chi sta peggio, fino a '+max+' persone: ognuna prende 1 punto.':'Tocca chi sta peggio.')+' Fino alla chiusura, '+chiusuraTxt()+', il voto si cambia.'),
+      gruppo(pod?'Il podio':'Chi sta peggio',chips),
+      righe,
+      h('div',{class:'azioni'},
+        h('button',{class:'pill duo-verde largo',type:'button','data-k':'salva-voto',disabled:!cs.length,onclick:function(){closeSheet();salvaVoto(chi,cs.slice(),cy);}},v?'Salva il voto':'Vota'))];
   };
-  openSheet('Voto per '+pName(per),live(),live);
+  openSheet(chi===mio()?'Il tuo voto':'Voto di '+pName(chi),live(),live);
+}
+/* i visitatori non hanno l'app: il loro voto si segna da qualsiasi telefono */
+function openVotoVisitatore(){
+  var live=function(){
+    var vis=people().filter(function(p){return p.kind==='amico';});
+    return [
+      h('p',{class:'aiuto'},'I visitatori votano dal telefono di uno di voi. Scegli chi vota.'),
+      vis.length?h('div',{class:'chips'},vis.map(function(p){
+        return h('button',{type:'button',class:'chip con-ava amico','data-k':'vv-'+p.id,onclick:function(){closeSheet();openVoto(p.id);}},ava(p.id,'xs'),nomeP(p));
+      })):h('p',{class:'vuoto'},'Nessun visitatore in reparto.'),
+      h('div',{class:'azioni'},h('button',{type:'button',class:'chip piu','data-k':'nuovo-visitatore',onclick:function(){openPerson(null,function(id){setTimeout(function(){if(id)openVoto(id);},60);});}},'+ Nuovo visitatore'))];
+  };
+  openSheet('Voto di un visitatore',live(),live);
 }
 function openVoti(){
   var live=function(){
-    var k=openKey(),list=votiSerata(k),sm=voteSummary(list);
-    if(!sm.n)return [h('p',{class:'vuoto'},'Nessun voto stasera.')];
-    var ord=Object.keys(sm.tally).sort(function(a,b){return sm.tally[b]-sm.tally[a]||pName(a).localeCompare(pName(b));});
+    var k=openKey(),list=votiSerata(k),sm=voteSummary(list.filter(function(v){return votoConta(S,v);}));
+    if(!list.length)return [h('p',{class:'vuoto'},'Nessun voto stasera.')];
+    var ord=ordineVoti(sm);
     return [
-      h('p',{class:'aiuto'},'Voto palese. Si chiude '+chiusuraTxt()+': fino ad allora ogni voto si può cambiare o togliere.'),
+      h('p',{class:'aiuto'},'Voto palese. Si chiude '+chiusuraTxt()+': fino ad allora ognuno cambia il suo voto dal suo telefono. I voti li toglie solo l’admin.'),
       h('div',{class:'barre'},ord.map(function(c){
         var n=sm.tally[c];
         return h('div',{class:'barra'},ava(c,'xs'),h('span',{class:'barra-n'},pName(c)),
@@ -2114,13 +2303,14 @@ function openVoti(){
       h('div',{class:'riga-tratt'}),
       h('span',{class:'etichetta'},'Chi ha votato chi'),
       h('ul',{class:'righe'},list.map(function(v){
+        var conta=votoConta(S,v);
         return candidatiVoto(v).map(function(c,i){
-          var sy=sintomiPer(v,c);
-          return h('li',null,h('div',{class:'riga'},
+          var sy=sintomiPer(v,c),pt=puntiVoto(v,i);
+          var note=[v.m==='p'?POSTI[i]+', '+puntiTxt(pt):'',sy.join(', '),i===0&&!conta?'non conta: segnato dal telefono di '+(v.da?pName(v.da):'nessuno'):''].filter(Boolean).join(' · ');
+          return h('li',{class:conta&&pt?null:'spento'},h('div',{class:'riga'},
             h('span',{class:'ora'},i===0?hm(v.t):''),
-            h('span',{class:'cresce'},h('span',{class:'nome'},pName(v.v)+' → '+pName(c)),
-              sy.length||(i===0&&v.da)?h('span',{class:'sotto'},[sy.join(', '),i===0&&v.da?'segnato dal telefono di '+pName(v.da):''].filter(Boolean).join(' · ')):null),
-            h('button',{type:'button',class:'pill sm','data-k':'togli-'+v.v+'-'+c,onclick:function(){togliVoto(v,c);}},'Togli')));
+            h('span',{class:'cresce'},h('span',{class:'nome'},pName(v.v)+' → '+pName(c)),note?h('span',{class:'sotto'},note):null),
+            puoTogliere()?h('button',{type:'button',class:'pill sm','data-k':'togli-'+v.v+'-'+c,onclick:function(){togliVoto(v,c);}},'Togli'):null));
         });
       }))];
   };
@@ -2161,7 +2351,7 @@ function posSave(kind,dato,modo){
   var who=pName(pos.p),chi=pos.p,t=Date.now(),g='g'+rid();
   UI.pos={p:null,qty:{},extra:[]};tocco([12,40,12]);
   function due(m1,m2,msg){
-    S.moves.push(m1,m2);commit();
+    S.moves.push(firma(m1),firma(m2));commit();
     toast(msg,function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
   }
   if(kind==='sale'&&modo==='tieni'&&dato>a){
@@ -2218,8 +2408,22 @@ function openHaDato(){
   },'Registra il pagamento',{noBozza:true});
   upd();
 }
+/* Farmacia: tre linguette, Banco (si segna), Ticket, Ultime consumazioni */
+function farm(){return UI.farm==='ticket'||UI.farm==='ultime'?UI.farm:'banco';}
 function vFarmacia(){
-  var pos=UI.pos,out=[h('h2',{class:'titolo'},'Farmacia')];
+  var t=farm();
+  var out=[h('h2',{class:'titolo'},'Farmacia'),linguette('farm',[['banco','Banco'],['ticket','Ticket'],['ultime','Ultime']],t,function(v){UI.farm=v;render();window.scrollTo(0,0);})];
+  return out.concat(t==='ticket'?corpoTicket():t==='ultime'?corpoUltime():corpoBanco());
+}
+function corpoUltime(){
+  var ult=S.moves.filter(function(m){return !m.x&&(m.k==='sale'||m.k==='tab');}).slice(-30).reverse();
+  return [h('section',{class:'cartella'},
+    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime consumazioni'),h('button',{class:'pill sm',type:'button',onclick:function(){go('farmacia','cassa');}},'Registro')),
+    h('div',{class:'riga-tratt'}),
+    ult.length?h('ul',{class:'righe'},ult.map(function(m){return moveRow(m,true);})):h('p',{class:'vuoto'},'Ancora niente. La prima consumazione si segna dal Banco.'))];
+}
+function corpoBanco(){
+  var pos=UI.pos,out=[];
   var chips=h('div',{class:'chips scorre',role:'group','aria-label':'Paziente'});
   people().forEach(function(p){
     chips.append(h('button',{type:'button',class:'chip con-ava'+(p.kind==='amico'?' amico':''),'data-k':'chi-'+p.id,'aria-pressed':String(pos.p===p.id),onclick:function(){tocco();pos.p=pos.p===p.id?null:p.id;render();}},ava(p.id,'sm'),h('span',{class:'chip-n'},nomeP(p))));
@@ -2264,7 +2468,7 @@ function openExtra(){
 }
 
 /* ---------- vista: Ticket ---------- */
-function vTicket(){
+function corpoTicket(){
   var x=extra(),dovuto=function(p){return Math.max(0,D.debt[p.id]||0)+arretrato(p.id);};
   var list=people(true).filter(function(p){return p.on||(D.debt[p.id]||0)!==0||arretrato(p.id)>0;});
   list.sort(function(a,b){return (dovuto(b)-dovuto(a))||((D.debt[b.id]||0)-(D.debt[a.id]||0));});
@@ -2272,7 +2476,7 @@ function vTicket(){
   // chi non deve niente e non è in credito va in fondo, nel gruppo «In pari»
   var aperti=list.filter(function(p){return dovuto(p)>0||(D.debt[p.id]||0)<0;}),pari=list.filter(function(p){return aperti.indexOf(p)<0;});
   var vecchi=people(true).filter(function(p){return x.v[p.id];}).sort(function(a,b){return x.v[b.id].a-x.v[a.id].a;});
-  var out=[h('h2',{class:'titolo'},'Ticket')];
+  var out=[];
   if(vecchi.length)out.push(h('section',{class:'cartella allarme'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Graffi vecchi'),h('span',{class:'timbro'},'Da più di '+S.cfg.graffiGiorni+' giorni')),
     h('div',{class:'riga-tratt'}),
@@ -2383,7 +2587,7 @@ function openPrende_(id){
     var v=parseEur(a.value),nota=n.value.trim();
     if(!(v>0))return 'Scrivi quanto prende, per esempio 10,00.';
     var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
-    S.moves.push(m1,m2);commit();
+    S.moves.push(firma(m1),firma(m2));commit();
     toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
   },'Prende');
 }
@@ -2392,18 +2596,29 @@ function openPerson(id,after){
   var n=testo('pe-n','Nome o soprannome',24,p?p.name:'');
   var kind=chipSel([{v:'paziente',label:'Paziente'},{v:'amico',label:'Visitatore'}],p?p.kind:'amico');
   var on=h('input',{type:'checkbox',id:'pe-on',checked:p?p.on:true});
+  var noq=h('input',{type:'checkbox',id:'pe-noq',checked:!!(p&&p.noq)});
   var faccia=sceltaFaccia(p);
+  // PIN e telefono: solo per i pazienti già in elenco (li vede solo l'admin)
+  var pinBox=p&&p.kind==='paziente'?h('div',{class:'campo'},h('span',{class:'lab'},'PIN e telefono'),
+    h('p',{class:'aiuto'},(p.pin?'Ha il suo PIN. ':'Non ha ancora un PIN. ')+(p.tel?(p.tel===devId()?'Il suo telefono è questo.':'Ha il suo telefono.'):'Nessun telefono collegato.')),
+    h('div',{class:'azioni'},
+      p.pin?h('button',{type:'button',class:'pill sm','data-k':'pe-azzera',onclick:function(){
+        delete p.pin;commit();toast('PIN di '+pName(p.id)+' azzerato: al prossimo accesso ne crea uno nuovo.');closeSheet();}},'Azzera il PIN'):null,
+      p.tel?h('button',{type:'button',class:'pill sm','data-k':'pe-scollega',onclick:function(){
+        delete p.tel;commit();toast(pName(p.id)+' scollegato dal suo telefono: rientra con il suo PIN su qualsiasi telefono.');closeSheet();}},'Scollega il telefono'):null)):null;
   formSheet(p?'Modifica '+nomeP(p):'Nuovo visitatore',[
     campo('Nome',n,'pe-n'),
     gruppo('Tipo',kind),
     h('div',{class:'campo'},h('span',{class:'lab'},'Faccia'),faccia,
       h('p',{class:'aiuto'},'Ogni caricatura va a una persona sola: se la scegli qui, la togli a chi l’aveva. «Dal telefono» prende una foto dalla galleria'+(SYNC&&remote?' e la manda anche agli altri telefoni.':' e la tiene solo su questo dispositivo.'))),
     p?h('label',{class:'spunta',for:'pe-on'},on,'Ancora in reparto'):null,
+    p&&p.kind==='paziente'?h('label',{class:'spunta',for:'pe-noq'},noq,'Non paga la quota del locale'):null,
+    pinBox,
     p?null:h('p',{class:'aiuto'},'Il visitatore entra nell’elenco dei ticket: a segnare a suo nome sarà sempre uno di voi.')],function(){
     var nome=n.value.trim();
     if(!nome)return 'Scrivi un nome.';
     if(S.people.some(function(x){return x.id!==id&&x.name.toLowerCase()===nome.toLowerCase();}))return 'C’è già qualcuno con questo nome.';
-    if(p){p.name=nome;p.kind=kind.get()||p.kind;p.on=on.checked;mettiFaccia(p,faccia.get());commit();toast('Aggiornato: '+nome);}
+    if(p){p.name=nome;p.kind=kind.get()||p.kind;p.on=on.checked;if(p.kind==='paziente'&&noq.checked)p.noq=1;else delete p.noq;mettiFaccia(p,faccia.get());commit();toast('Aggiornato: '+nome);}
     else{var np={id:'a'+rid(),name:nome,kind:kind.get()||'amico',on:true,img:''};mettiFaccia(np,faccia.get());S.people.push(np);if(after)after(np.id);commit();toast('Aggiunto: '+nome);}
   });
 }
@@ -2515,6 +2730,7 @@ function openMove(id){
     var dl=h('dl',{class:'scheda'},
       h('dt',null,'Quando'),h('dd',null,dLong(dt)+', '+hm(mv.t)),
       h('dt',null,'Cosa'),h('dd',null,inf.t),
+      mv.da?[h('dt',null,'Segnato da'),h('dd',null,pName(mv.da))]:null,
       inf.s?[h('dt',null,'Dettaglio'),h('dd',null,inf.s)]:null,
       mv.k!=='load'&&mv.k!=='inv'?[h('dt',null,'Importo'),h('dd',null,eur(Math.abs(toInt(mv.a))))]:[h('dt',null,'Valore'),h('dd',null,eur(peso)+' a prezzo di vendita')],
       mv.shares?[h('dt',null,'Quote'),h('dd',null,Object.keys(mv.shares).map(function(k){return pName(k)+' '+eur(mv.shares[k]);}).join(', '))]:null,
@@ -2621,7 +2837,7 @@ function vSoldi(){
     tutte?null:h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button',onclick:function(){UI.soldiTutte=true;render();}},'Mostra tutti ('+P.righe.length+')'))));
 
   out.push(h('section',{class:'cartella'},
-    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Graffi da incassare'),h('button',{class:'pill sm',type:'button',onclick:function(){go('ticket');}},'Tutti i ticket')),
+    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Graffi da incassare'),h('button',{class:'pill sm',type:'button',onclick:function(){apriTicket();}},'Tutti i ticket')),
     h('div',{class:'riga-tratt'}),
     deb.length?h('ul',{class:'righe'},deb.map(personRow)):h('p',{class:'vuoto'},'Nessun graffio aperto: tutti in regola.'),
     cred.length?[h('h4',{class:'giorno'},'Da restituire'),h('ul',{class:'righe'},cred.map(personRow))]:null));
@@ -2646,39 +2862,35 @@ function tesseraApp(icona,titolo,sotto,onclick,k,rossa){
 }
 function vAltro(){
   var low=lowStock(),da=low.length+S.shop.length,senzaFaccia=people().filter(function(p){return !p.img;}).length,adm=isAdmin(),io=mio();
-  var P=previsione(S,D),oggi=today(),ok=openKey().slice(0,7);
+  var P=previsione(S,D),oggi=today();
   var qDue=statoQuote(S,D,oggi).filter(function(st){return st.mancano.length&&(st.scaduta||giorniA(st.scad)<=15);})[0];
   var med=medaglieTutte(),nMed=0;Object.keys(med).forEach(function(id){Object.keys(med[id]).forEach(function(k){nMed+=med[id][k];});});
   var guida=function(){var u=IN_CLAUDE?'https://ciccionaso.github.io/oblio-house/guida.html':'guida.html';if(IN_CLAUDE)window.open(u,'_blank');else location.href=u;};
-  var prossimo=new Date().getDate()>=15?meseDopo(ok):ok;
   var out=[h('h2',{class:'titolo'},'Altro'),
     gruppoAltro('Soldi',[
       voceL({ic:'registro',col:'c-soldi',titolo:'Cassa e registro',sotto:'Entrate, spese, conta, movimenti',val:eur(D.cash),valCls:D.cash<0?'rosso':null,onclick:function(){go('altro','cassa');}}),
       voceL({ic:'andamento',col:'c-soldi',titolo:'Soldi del locale',sotto:'Adesso e previsionale, verifica del mese',val:eur(P.attuale),valCls:P.attuale<0?'rosso':null,onclick:function(){go('altro','soldi');}}),
       voceL({ic:'casa',col:'c-soldi',titolo:'Quota e fondo',sotto:qDue?(qDue.scaduta?'In ritardo: ':'Mancano: ')+qDue.mancano.length+' per '+meseNome(qDue.mese):'Quota del locale, a parte dalla cassa',sottoCls:qDue&&qDue.scaduta?'rosso':null,val:eur(D.fondo),onclick:function(){go('altro','quota');}}),
       voceL({ic:'scatola',col:'c-soldi',titolo:'Scorte e spesa',sotto:'Magazzino, scontrini, lista della spesa',val:da?da+' da prendere':'a posto',valCls:da?'rosso':null,onclick:function(){go('altro','scorte');}})]),
-    gruppoAltro('Il reparto',[
-      voceL({ic:'podio',col:'c-reparto',titolo:'Classifiche',sotto:'Re dell’oblio, consumi, freccette, pagatori',onclick:function(){go('altro','classifiche');}}),
-      voceL({ic:'barre',col:'c-reparto',titolo:'Statistiche del mese',sotto:'Chi ha speso, preso, votato e giocato',onclick:function(){go('altro','statistiche');}}),
-      voceL({ic:'medaglia',col:'c-reparto',titolo:'Medaglie e albo d’oro',sotto:'I campioni di ogni anno',val:nMed?String(nMed):null,onclick:function(){go('altro','medaglie');}}),
-      voceL({ic:'postit',col:'c-reparto',titolo:'Muroblio del pianto',sotto:S.muro.length?'Post-it firmati, come in bacheca':'Il muro è vuoto',val:S.muro.length?String(S.muro.length):null,onclick:function(){go('altro','muro');}})]),
-    gruppoAltro('Telefono e app',[
-      voceL({ic:'telefono',col:'c-app',titolo:'Questo telefono è di…',sotto:io?'Il tuo nome nel muro, nella quota e nei voti':'Tocca per dire di chi è',val:io?pName(io):'—',onclick:openMio}),
+    gruppoAltro('Classifiche',[
+      voceL({ic:'podio',col:'c-reparto',titolo:'Classifiche',sotto:'Classifiche, statistiche, medaglie e albo d’oro',val:nMed?nMed+(nMed===1?' medaglia':' medaglie'):null,onclick:function(){go('altro','classifiche');}})]),
+    gruppoAltro('Io: '+(io?pName(io):'—'),[
+      voceL({ic:'chiave',col:'c-app',titolo:'Cambia il mio PIN',sotto:'Il PIN che firma cassa, spese e debiti',onclick:openCambiaPin}),
       SYNC?voceL({ic:'rete',col:'c-app',titolo:'Telefoni collegati',sotto:SST.stato==='errore'?'Non collegati: tocca per i dettagli':SST.stato==='attesa'?syncTesto():'Versione '+APP_V,sottoCls:SST.stato==='errore'?'rosso':null,
         val:SST.stato==='ok'?'allineati':SST.stato==='attesa'?'in attesa':SST.stato==='errore'?'non collegati':SST.stato==='collego'?'…':'spenti',valCls:SST.stato==='errore'?'rosso':null,onclick:openSync}):null,
       h('li',{class:'tris'},
         tesseraApp('libro','Guida','18 capitoli',guida,'apri-guida'),
         tesseraApp('nuvola','Backup',backupLine(),function(){go('altro','backup');},'apri-backup',backupOld()),
-        tesseraApp('scarica','Installa','sul telefono',function(){go('altro','installa');},'apri-installa'))])];
+        tesseraApp('scarica','Installa','sul telefono',function(){go('altro','installa');},'apri-installa')),
+      h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-io',onclick:esci},ic('esci',18),'Esci dal mio nome'))])];
   out.push(adm?gruppoAltro('Admin',[
-      voceL({ic:'casa',col:'c-admin',titolo:'Imposta la quota',sotto:quotaPerMese(prossimo)?meseNome(prossimo)+': '+eur(quotaPerMese(prossimo).a)+' a testa':meseNome(prossimo)+': non ancora impostata',onclick:function(){go('altro','quota');}}),
+      voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, azzera un PIN, scollega un telefono'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
       voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){go('altro','listino');}}),
-      voceL({ic:'persone',col:'c-admin',titolo:'Pazienti e visitatori',sotto:people().length+' in reparto'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),onclick:function(){go('altro','persone');}}),
-      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+S.cfg.votiMax+' a testa), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
+      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
-      voceL({ic:'chiave',col:'c-admin',titolo:'Codici',sotto:'PIN delle azioni sensibili e codice admin',onclick:function(){go('altro','codici');}}),
+      voceL({ic:'chiave',col:'c-admin',titolo:'Codice admin',sotto:S.cfg.admH?'Cambiato':'Ancora quello iniziale: cambialo',sottoCls:S.cfg.admH?null:'rosso',onclick:function(){go('altro','codici');}}),
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-admin',onclick:esciAdmin},ic('esci',18),'Esci dalla modalità admin'))],'admin')
-    :gruppoAltro('Admin',[voceL({ic:'lucchetto',col:'c-admin',titolo:'Admin',sotto:'Listino, persone, regole, quota, compleanni, codici: serve il codice',onclick:openAdminAccesso})]));
+    :gruppoAltro('Admin',[voceL({ic:'lucchetto',col:'c-admin',titolo:'Admin',sotto:'Persone e PIN, listino, regole, compleanni, codice: serve il codice admin',onclick:openAdminAccesso})]));
   out.push(h('p',{class:'piede'},'The Oblio House · versione '+APP_V+' · su questo dispositivo: '+S.moves.length+(S.moves.length===1?' movimento, ':' movimenti, ')+S.votes.length+(S.votes.length===1?' voto, ':' voti, ')+S.games.length+(S.games.length===1?' partita.':' partite.')));
   return out;
 }
@@ -2722,9 +2934,9 @@ function vCodici(){
       S.cfg[campo0]?h('button',{class:'pill sm',type:'button',onclick:function(){delete S.cfg[campo0];commit();toast(titolo+' tornato a '+def+'.');}},'Torna a '+def):null]);
     return h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},titolo),h('span',{class:'timbro'+(S.cfg[campo0]?' ok':'')},S.cfg[campo0]?'Cambiato':'Iniziale')),f);
   }
-  return [indietro(),h('h2',{class:'titolo'},'Codici'),
-    h('p',{class:'nota-chiara'},'Valgono per tutti i telefoni. Nei dati condivisi va solo un’impronta del codice, non il codice. Serve a evitare sbagli e curiosi, non è una cassaforte.'),
-    modulo('pinH','PIN delle azioni sensibili','1010','PIN'),
+  return [indietro(),h('h2',{class:'titolo'},'Codice admin'),
+    h('p',{class:'nota-chiara'},'Vale per tutti i telefoni. Nei dati condivisi va solo un’impronta del codice, non il codice. Ognuno ha poi il suo PIN personale per le azioni sensibili.'),
+    S.cfg.admH?null:h('p',{class:'nota-chiara rosso'},'Il codice admin è ancora quello iniziale, che sta scritto nel codice dell’app: cambialo subito.'),
     modulo('admH','Codice admin','0101','codice admin')];
 }
 function vScorte(){
@@ -2872,7 +3084,7 @@ function openProdotto(id,opz){
       if((q!=null&&isNaN(q))||(m!=null&&isNaN(m)))return 'Pezzi e soglia: solo numeri interi, per esempio 12.';
       var np={id:'p'+rid(),name:nome,cat:c,price:v,min:m==null?null:m,on:on.checked};
       S.products.push(np);
-      if(q!=null)S.moves.push({id:rid(),t:Date.now(),k:'inv',a:0,items:[{id:np.id,n:np.name,q:q,pr:np.price}]});
+      if(q!=null)S.moves.push(firma({id:rid(),t:Date.now(),k:'inv',a:0,items:[{id:np.id,n:np.name,q:q,pr:np.price}]}));
       commit();toast('Prodotto aggiunto: '+nome+(q!=null?' · '+q+' pz in magazzino':''));
     }
     if(opz.poi)setTimeout(opz.poi,60);
@@ -3062,7 +3274,7 @@ function confermaScontrino(letto,grezzo){
     err.hidden=true;
     var registra=function(){
       var primaP=JSON.parse(JSON.stringify(S.products));
-      var r=applicaScontrino(S,vere,opz,Date.now(),rid);
+      var r=applicaScontrino(S,vere,opz,Date.now(),rid);r.mosse.forEach(firma);
       closeSheet();commit();
       toast('Scontrino registrato: '+r.pezzi+(r.pezzi===1?' pezzo':' pezzi')+(r.nuovi.length?', '+r.nuovi.length+(r.nuovi.length===1?' prodotto nuovo':' prodotti nuovi'):'')+(opz.spesa?', spesa '+eur(r.totale):''),function(){
         S.products=primaP;S.moves=S.moves.filter(function(m){return r.mosse.indexOf(m)<0;});commit();toast('Scontrino annullato.');
@@ -3240,6 +3452,19 @@ function annullaFreccia(g){
   g.d.pop();g.end=0;UI.dart.mol=1;UI.dart.vista=g.id;
   commit();toast('Ultima freccetta tolta.');
 }
+/* Ludoteca: il voto della serata, le freccette, il muro */
+function vLudoteca(){
+  var g=partitaAttiva(),ult=S.games.filter(function(x){return !x.x&&!x.ab&&playDarts(x).win;}).slice(-1)[0];
+  return [h('h2',{class:'titolo'},'Ludoteca'),
+    cardTriage(),
+    h('section',{class:'cartella'},
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Freccette'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go('ludoteca','classifiche');}},'Classifica')),
+      h('div',{class:'azioni'},h('button',{class:'pill duo-verde largo',type:'button','data-k':'apri-freccette',onclick:apriFreccette},g?'Riprendi la partita: '+nomeModo(g.mode):'Nuova partita')),
+      ult?h('p',{class:'aiuto'},'Ultima: '+nomeModo(ult.mode)+', '+(ult.players.length>1?'vince '+pName(playDarts(ult).win)+' su '+nomiLista(ult.players.filter(function(p){return p!==playDarts(ult).win;})):'allenamento di '+pName(ult.players[0]))+'.'):null),
+    h('section',{class:'cartella'},
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Muroblio del pianto'),h('button',{class:'pill sm',type:'button','data-k':'apri-muro',onclick:function(){go('ludoteca','muro');}},'Il muro')),
+      h('p',{class:'aiuto'},S.muro.length?S.muro.length+(S.muro.length===1?' post-it.':' post-it.')+' Scrivi il tuo, firmato.':'Il muro è vuoto. Scrivi il primo post-it.'))];
+}
 function vFreccette(){
   var g=partitaAttiva();
   if(!g&&UI.dart.vista)g=S.games.find(function(x){return x.id===UI.dart.vista&&!x.x&&!x.ab;})||null;
@@ -3271,7 +3496,7 @@ function vNuovaPartita(){
     ?'Dall’1 al 20 in ordine: conta solo il numero di turno. Il doppio fa avanzare di 2, il triplo di 3. Niente centro alla fine: vince chi supera il 20 per primo.'
     :'Si parte da '+st.mode+' e si scala. Chiusura libera: vince chi arriva a zero preciso, con qualsiasi settore. Chi va sotto zero è sballato: il turno non conta e torna al punteggio di prima.';
   var recenti=S.games.slice(-8).reverse();
-  return [h('h2',{class:'titolo'},'Freccette'),
+  return [indietro(),h('h2',{class:'titolo'},'Freccette'),
     h('section',{class:'cartella'},
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Nuova partita')),
       gruppo('Gioco',modi),
@@ -3282,7 +3507,7 @@ function vNuovaPartita(){
         h('button',{class:'pill',type:'button',disabled:st.players.length<2,onclick:function(){mescola(st.players);render();}},'Mescola'),
         h('button',{class:'pill duo-verde',type:'button','data-k':'inizia',disabled:!st.players.length,onclick:function(){nuovaPartita(st.mode,st.players);}},'Inizia la partita'))),
     h('section',{class:'cartella'},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime partite'),h('button',{class:'pill sm',type:'button',onclick:function(){go('freccette','classifiche');}},'Classifica')),
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime partite'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go('ludoteca','classifiche');}},'Classifica')),
       h('div',{class:'riga-tratt'}),
       recenti.length?h('ul',{class:'righe'},recenti.map(rigaPartita)):h('p',{class:'vuoto'},'Ancora nessuna partita. Il bersaglio aspetta.')),
     cardRecord()];
@@ -3381,7 +3606,7 @@ function openPartita(id){
       g.players.map(function(p){return [h('dt',null,pName(p)),h('dd',null,riassuntoGioc(st,p))];}));
     var az;
     if(g.x)az=h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){delete g.x;commit();toast('Partita ripristinata.');}},'Ripristina'));
-    else if(!st.win&&!g.ab)az=h('div',{class:'azioni'},h('button',{class:'pill duo-verde',type:'button',onclick:function(){UI.dart.vista=g.id;closeSheet();go('freccette');}},'Riprendi'));
+    else if(!st.win&&!g.ab)az=h('div',{class:'azioni'},h('button',{class:'pill duo-verde',type:'button',onclick:function(){UI.dart.vista=g.id;closeSheet();apriFreccette();}},'Riprendi'));
     else if(chiedi)az=[h('p',{class:'errore'},'Annullare la partita? Esce dalle classifiche, ma si può ripristinare.'),
       h('div',{class:'azioni'},
         h('button',{class:'pill pericolo',type:'button',onclick:function(){g.x={t:Date.now()};chiedi=false;if(UI.dart.vista===g.id)UI.dart.vista=null;commit();toast('Partita annullata.');}},'Sì, annulla'),
@@ -3452,7 +3677,7 @@ function openQuotaMese(mese){
   var def=q?q.mese:(new Date().getDate()>=15?meseDopo(ok):ok);
   var mSel=chipSel(scelte.map(function(m){return {v:m,label:meseNome(m)};}),def);
   var a=soldi('qm-a',q?q.a:null);
-  var pazienti=people().filter(function(p){return p.kind==='paziente';}).map(function(p){return p.id;});
+  var pazienti=people().filter(function(p){return p.kind==='paziente'&&!p.noq;}).map(function(p){return p.id;});
   var chi=chipSel(peopleOpts().filter(function(o){return o.cls!=='amico'||(q&&q.chi.indexOf(o.v)>=0);}),q?q.chi:pazienti,true);
   var note=testo('qm-n','Es. affitto 300 + luce 45 + acqua 15',120,q&&q.note?q.note:'');
   var scad=h('input',{class:'inp',type:'date',id:'qm-s',value:q?scadenzaQuota(q):def+'-01'});
@@ -3576,7 +3801,7 @@ function cardMuro(){
   var w=S.muro[S.muro.length-1];
   if(!w||Date.now()-w.t>3*864e5)return null;
   return h('section',{class:'postit-annuncio c'+w.col},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Dal Muroblio del pianto'),h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','muro');}},'Il muro')),
+    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Dal Muroblio del pianto'),h('button',{class:'pill sm',type:'button',onclick:function(){go(UI.tab,'muro');}},'Il muro')),
     h('p',{class:'postit-t'},'«'+w.testo+'»'),
     h('p',{class:'postit-f'},'— '+pName(w.p)+', '+relDay(ymd(new Date(w.t))).toLowerCase()+' alle '+hm(w.t)));
 }
@@ -3590,38 +3815,41 @@ function mesiConDati(){
   while(n<36){out.push(m);if(m<=min)break;m=prevMonth(m);n++;}
   return out;
 }
-function vStatistiche(){
+/* statistiche del mese, dentro le Classifiche (dalla 0.11.0 non sono più una pagina a sé) */
+function corpoStatistiche(){
   var k=openKey(),mesi=mesiConDati(),ym=UI.statM&&mesi.indexOf(UI.statM)>=0?UI.statM:mesi[0];
   var sel=h('select',{class:'inp',id:'st-mese','aria-label':'Mese'},mesi.map(function(m){return h('option',{value:m},meseNome(m)+(m===k.slice(0,7)?' (in corso)':''));}));
   sel.value=ym;sel.addEventListener('change',function(){UI.statM=sel.value;render();});
-  var st=statMese(S,ym,S.cfg.voteCut,k),tot=st.tot;
+  return [campo('Mese',sel,'st-mese')].concat(statisticheMese(ym),
+    h('p',{class:'nota-chiara'},'Tutto conta per serata: quello che succede prima delle '+(S.cfg.voteCut===0?'24':S.cfg.voteCut)+':00 vale per la sera prima. Le «serate» sono quelle in cui c’è qualcosa di segnato a suo nome: consumazioni, voti, partite, rifiuti.'));
+}
+function statisticheMese(ym){
+  var k=openKey(),st=statMese(S,ym,S.cfg.voteCut,k),tot=st.tot,out=[];
   var ids=Object.keys(st.per).sort(function(a,b){var x=st.per[a],y=st.per[b];return (y.eur-x.eur)||(y.nSerate-x.nSerate)||pName(a).localeCompare(pName(b));});
-  var out=[indietro(),h('h2',{class:'titolo'},'Statistiche del mese'),campo('Mese',sel,'st-mese')];
   out.push(h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Il mese in numeri'),h('span',{class:'timbro'+(ym===k.slice(0,7)?'':' ok')},ym===k.slice(0,7)?'In corso':'Chiuso')),
     h('div',{class:'numeri'},
       numero(eur(tot.eur),'consumato in farmacia'),
       numero(String(tot.pz),tot.pz===1?'pezzo':'pezzi'),
       numero(String(tot.nSerate),tot.nSerate===1?'serata':'serate'),
-      numero(String(tot.voti),'voti al triage'),
+      numero(String(tot.voti),'punti al triage'),
       numero(String(tot.partite),tot.partite===1?'partita':'partite'),
       numero(eur(tot.tab),'segnato sul ticket')),
     tot.top?h('p',{class:'aiuto'},'Il più preso: '+tot.top.n+' ('+tot.top.q+(tot.top.q===1?' pezzo).':' pezzi).')):null));
-  if(!ids.length)out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},'Niente in questo mese.')));
-  ids.forEach(function(id){
+  var schede=ids.map(function(id){
     var x=st.per[id],avg=x.darts?x.pts/x.darts*3:0;
-    out.push(h('section',{class:'cartella scheda-mese'},
+    return h('section',{class:'cartella scheda-mese'},
       h('div',{class:'cart-h'},h('span',{class:'linea'},ava(id,'sm'),h('h3',{class:'nome'},pName(id))),h('span',{class:'importo'},eur(x.eur))),
       h('dl',{class:'scheda'},
         x.pz?[h('dt',null,'Ha preso'),h('dd',null,x.pz+(x.pz===1?' pezzo':' pezzi')+(x.preferito?', soprattutto '+x.preferito.n+' ('+x.preferito.q+')':''))]:null,
         x.tab?[h('dt',null,'Sul ticket'),h('dd',null,eur(x.tab))]:null,
         h('dt',null,'Serate'),h('dd',null,x.nSerate+(x.nSerate===1?' serata':' serate')),
-        x.votiRic||x.rossi?[h('dt',null,'Triage'),h('dd',null,x.votiRic+(x.votiRic===1?' voto ricevuto':' voti ricevuti')+(x.rossi?' · '+x.rossi+(x.rossi===1?' codice rosso':' codici rossi'):''))]:null,
-        x.votiDati?[h('dt',null,'Ha votato'),h('dd',null,x.votiDati+(x.votiDati===1?' volta':' volte'))]:null,
+        x.votiRic||x.rossi?[h('dt',null,'Triage'),h('dd',null,(x.votiRic===1?'1 punto ricevuto':x.votiRic+' punti ricevuti')+(x.rossi?' · '+x.rossi+(x.rossi===1?' codice rosso':' codici rossi'):''))]:null,
+        x.votiDati?[h('dt',null,'Ha votato'),h('dd',null,x.votiDati+(x.votiDati===1?' persona':' persone'))]:null,
         x.gare||x.darts?[h('dt',null,'Freccette'),h('dd',null,(x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento')+(x.darts?' · media '+numIt(avg,1):''))]:null,
-        x.rifiuti||x.pulizie?[h('dt',null,'Faccende'),h('dd',null,[x.rifiuti?'rifiuti '+x.rifiuti+(x.rifiuti===1?' volta':' volte'):'',x.pulizie?'pulizie '+x.pulizie:''].filter(Boolean).join(' · '))]:null)));
+        x.rifiuti||x.pulizie?[h('dt',null,'Faccende'),h('dd',null,[x.rifiuti?'rifiuti '+x.rifiuti+(x.rifiuti===1?' volta':' volte'):'',x.pulizie?'pulizie '+x.pulizie:''].filter(Boolean).join(' · '))]:null));
   });
-  out.push(h('p',{class:'nota-chiara'},'Tutto conta per serata: quello che succede prima delle '+(S.cfg.voteCut===0?'24':S.cfg.voteCut)+':00 vale per la sera prima. Le «serate» sono quelle in cui c’è qualcosa di segnato a suo nome: consumazioni, voti, partite, rifiuti.'));
+  if(schede.length)out.push(schede);else out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},'Niente in questo mese.')));
   return out;
 }
 function numero(v,l){return h('div',{class:'numero'},h('b',null,v),h('span',null,l));}
@@ -3642,7 +3870,7 @@ function medaglieDi(id){
   var ks=MEDAGLIE.map(function(x){return x[0];}).filter(function(k){return o[k];});
   return ks.length?h('div',{class:'medaglie','aria-label':'Medaglie'},ks.map(function(k){return medaglia(k,o[k]);})):null;
 }
-function vMedaglie(){
+function corpoMedaglie(){
   var o=medaglieTutte(),anni=[],a0=+openKey().slice(0,4),min=a0;
   mesiConDati().forEach(function(m){var y=+m.slice(0,4);if(y<min)min=y;});
   for(var y=a0;y>=min;y--)anni.push(String(y));
@@ -3651,7 +3879,7 @@ function vMedaglie(){
     return h('button',{type:'button',class:'chip','aria-pressed':String(y===anno),onclick:function(){UI.albo=y;render();}},y);
   }));
   var albo=alboOro(S,anno,S.cfg.voteCut,openKey(),Date.now());
-  var out=[indietro(),h('h2',{class:'titolo'},'Medaglie e albo d’oro')];
+  var out=[];
   out.push(h('section',{class:'cartella albo'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Albo d’oro '+anno),h('span',{class:'timbro'+(String(a0)===anno?'':' ok')},String(a0)===anno?'In corso':'Definitivo')),
     chips,
@@ -3787,7 +4015,20 @@ function boardC(titolo,sotto,items,vuoto){
     h('div',{class:'riga-tratt'}),
     items.length?h('ol',{class:'classifica'},righeClassifica(items)):h('p',{class:'vuoto'},vuoto));
 }
+/* linguette in cima a una pagina (Farmacia, Classifiche): [valore, etichetta] */
+function linguette(k,voci,att,scegli){
+  return h('div',{class:'linguette',role:'tablist'},voci.map(function(v){
+    return h('button',{type:'button',role:'tab',class:'linguetta','data-k':k+'-'+v[0],'aria-selected':String(att===v[0]),onclick:function(){tocco();scegli(v[0]);}},v[1]);
+  }));
+}
+/* Classifiche, Statistiche, Medaglie e albo d'oro: una pagina con tre linguette */
 function vClassifiche(){
+  var t=UI.cl==='statistiche'||UI.cl==='medaglie'?UI.cl:'classifiche';
+  var out=[indietro(),h('h2',{class:'titolo'},'Classifiche'),
+    linguette('cl',[['classifiche','Classifiche'],['statistiche','Statistiche'],['medaglie','Medaglie e albo']],t,function(v){UI.cl=v;render();window.scrollTo(0,0);})];
+  return out.concat(t==='statistiche'?corpoStatistiche():t==='medaglie'?corpoMedaglie():corpoClassifiche());
+}
+function corpoClassifiche(){
   var k=openKey(),per=UI.per,cut=S.cfg.voteCut,now=Date.now(),ym=k.slice(0,7);
   var quando=per==='mese'?meseNome(ym):per==='scorso'?meseNome(prevMonth(ym)):'da sempre';
   var chips=h('div',{class:'chips',role:'group','aria-label':'Periodo'},[['mese','Questo mese'],['scorso','Mese scorso'],['sempre','Da sempre']].map(function(x){
@@ -3795,12 +4036,14 @@ function vClassifiche(){
   }));
   var re=statRe(S,per,k),co=statConsumi(S,per,k,cut),fr=statFreccette(S,per,k,cut),pg=statPagatori(S,per,k,cut,now);
   var iRe=ordina(Object.keys(re.by).filter(function(id){return re.by[id].voti>0;}).map(function(id){
-    var x=re.by[id];return {id:id,a:x.rossi,b:x.voti,val:x.rossi+(x.rossi===1?' codice rosso':' codici rossi'),sub:x.voti+(x.voti===1?' voto ricevuto':' voti ricevuti')};}));
+    var x=re.by[id];
+    return {id:id,a:x.voti,b:x.rossi,val:puntiTxt(x.voti),
+      sub:x.pos.map(function(n,i){return n?(n===1?'1 volta ':n+' volte ')+POSTI[i]:'';}).filter(Boolean).join(' · ')||'mai sul podio'};}));
   var iCo=ordina(Object.keys(co).map(function(id){var x=co[id];return {id:id,a:x.eur,b:x.pz,val:eur(x.eur),sub:x.pz+(x.pz===1?' pezzo':' pezzi')};}));
   var iFr=ordina(Object.keys(fr).filter(function(id){return fr[id].gare>0||fr[id].darts>0;}).map(function(id){
-    var x=fr[id],avg=x.darts?x.pts/x.darts*3:0;
-    return {id:id,a:x.vinte,b:Math.round(avg*10),val:x.vinte+(x.vinte===1?' vinta':' vinte'),
-      sub:[x.gare+(x.gare===1?' partita':' partite'),x.darts?'media '+numIt(avg,1):null,x.co?'chiusura migliore '+x.co:null,x.ultimo?'ultimo '+x.ultimo+(x.ultimo===1?' volta':' volte'):null].filter(Boolean).join(' · ')};}));
+    var x=fr[id],avg=x.darts?x.pts/x.darts*3:0,pc=percFreccette(x);
+    return {id:id,a:pc>=0?Math.round(pc*1000):-1,b:x.gare,val:pc>=0?Math.round(pc*100)+'%':'—',
+      sub:[x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento',pc<0&&x.gare?'poche partite: ne servono '+FRECCE_MIN:null,x.darts?'media '+numIt(avg,1):null,x.co?'chiusura migliore '+x.co:null,x.ultimo?'ultimo '+x.ultimo+(x.ultimo===1?' volta':' volte'):null].filter(Boolean).join(' · ')};}));
   var iDe=ordina(people(true).filter(function(p){return (D.debt[p.id]||0)>0;}).map(function(p){
     var u=D.units[p.id]||0;return {id:p.id,a:D.debt[p.id],b:u,val:eur(D.debt[p.id]),cls:'rosso',sub:u+(u===1?' tacca':' tacche')};}));
   var iPg=ordina(Object.keys(pg).map(function(id){
@@ -3811,26 +4054,23 @@ function vClassifiche(){
   var sp=statSpazzatura(S,per,k);
   var iSp=ordina(Object.keys(sp).map(function(id){var x=sp[id];return {id:id,a:x.n,b:0,val:x.n+(x.n===1?' volta':' volte'),sub:'ultima: '+dShort(x.ultima)};}));
   var ch=serateChiuse(S,k),ks=Object.keys(ch).filter(function(s){return inPer(s,per,k)&&ch[s].n;}).sort().reverse().slice(0,10);
-  return [indietro(),h('h2',{class:'titolo'},'Classifiche'),chips,
+  return [chips,
     h('p',{class:'nota-chiara'},'Periodo: '+quando+'. Tutto si conta per serata: quello che succede prima delle '+(cut===0?'24':cut)+':00 vale per la sera prima.'),
-    boardC('Re dell’oblio','Codici rossi: le serate vinte al triage.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
-    ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultimi codici rossi')),h('div',{class:'riga-tratt'}),
+    boardC('Re dell’oblio','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
+    ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime serate')),h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},ks.map(function(s){
         var sm=ch[s];
         return h('li',null,h('div',{class:'riga'},
           h('span',{class:'ora'},dShort(s)),
           sm.winners.length===1?ava(sm.winners[0],'sm'):null,
-          h('span',{class:'cresce'},h('span',{class:'nome'},nomiLista(sm.winners))),
-          h('span',{class:'importo spento'},sm.max+' su '+sm.n,h('small',null,'voti'))));
+          h('span',{class:'cresce'},h('span',{class:'nome'},testoPodio(sm)),h('span',{class:'sotto'},sm.n+(sm.n===1?' votante':' votanti')))));
       }))):null,
     boardC('Consumi','Quanto ha preso ognuno in farmacia, pagato subito o sul ticket.',iCo,'Nessuna consumazione in questo periodo.'),
-    boardC('Freccette','Vittorie nelle partite finite con almeno due giocatori. La media è per tre freccette, solo 501 e 301.',iFr,'Nessuna partita finita in questo periodo.'),
+    boardC('Freccette','Percentuale di vittorie sulle partite finite con almeno due giocatori. Si entra in classifica da '+FRECCE_MIN+' partite. La media è per tre freccette, solo 501 e 301.',iFr,'Nessuna partita finita in questo periodo.'),
     boardC('Debiti','Ticket aperti adesso: non dipende dal periodo.',iDe,'Nessun ticket aperto.'),
     boardC('Migliori pagatori','Giorni in media tra consumazione e saldo, pesati sugli euro. «Paga subito» conta zero; quello ancora sul ticket conta fino a oggi.',iPg,'Nessuna consumazione in questo periodo.'),
     boardC('Spazzatura','Chi ha portato giù i rifiuti: una volta per ogni serata di uscita.',iSp,
-      calPieno(S.cfg)?'Nessuno ha portato giù i rifiuti in questo periodo.':'Prima va compilato il calendario dei rifiuti, in Altro › Regole del reparto.'),
-    h('section',{class:'cartella spenta'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Multe e penitenze'),h('span',{class:'timbro'},'In arrivo')),
-      h('p',{class:'aiuto'},'Parte con le multe: codice rosso, ultimo a freccette, ticket non saldati.'))];
+      calPieno(S.cfg)?'Nessuno ha portato giù i rifiuti in questo periodo.':'Prima va compilato il calendario dei rifiuti, in Altro › Regole del reparto.')];
 }
 
 /* ---------- regole ---------- */
@@ -3838,11 +4078,14 @@ function vRegole(){
   var ora=h('select',{class:'inp',id:'rg-ora'},[0,1,2,3,4,5,6,7,8,9,10,11,12].map(function(n){return h('option',{value:String(n)},n===0?'a mezzanotte':'alle '+n+':00 del mattino');}));
   ora.value=String(S.cfg.voteCut);
   var self=h('input',{type:'checkbox',id:'rg-self',checked:S.cfg.selfVote});
-  var vm=h('select',{class:'inp',id:'rg-vm'},[1,2,3,4,5].map(function(n){return h('option',{value:String(n)},n===1?'Una persona':n+' persone');}));
-  vm.value=String(S.cfg.votiMax);
-  var form=formPagina(function(){S.cfg.voteCut=+ora.value;S.cfg.selfVote=self.checked;S.cfg.votiMax=+vm.value;commit();toast('Regole del triage salvate.');},[
+  var vm=h('select',{class:'inp',id:'rg-vm'},h('option',{value:'p'},'Podio: 1°, 2° e 3° (3, 2 e 1 punto)'),[1,2,3,4,5].map(function(n){return h('option',{value:String(n)},n===1?'Una persona a testa':'Fino a '+n+' persone, 1 punto a testa');}));
+  vm.value=podio()?'p':String(S.cfg.votiMax);
+  var form=formPagina(function(){
+    S.cfg.voteCut=+ora.value;S.cfg.selfVote=self.checked;
+    if(vm.value==='p'){delete S.cfg.voto;S.cfg.votiMax=3;}else{S.cfg.voto='n';S.cfg.votiMax=+vm.value;}
+    commit();toast('Regole del triage salvate.');},[
     campo('La serata si chiude',ora,'rg-ora'),
-    campo('Quante persone può votare ognuno, a serata',vm,'rg-vm'),
+    campo('Come si vota',vm,'rg-vm'),
     h('label',{class:'spunta',for:'rg-self'},self,'Ci si può votare da soli'),
     h('button',{class:'pill duo-verde largo',type:'submit'},'Salva il triage')]);
   var giorni=[1,2,3,4,5,6].map(function(g){
@@ -3879,7 +4122,7 @@ function vRegole(){
   return [indietro(),h('h2',{class:'titolo'},'Regole del reparto'),
     h('section',{class:'cartella'},
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Triage e serate')),
-      h('p',{class:'aiuto'},'La serata vale fino a quest’ora del mattino dopo: il voto si chiude lì, e anche classifiche e consumi contano per serata. I voti già dati restano nella serata in cui sono stati dati. Se abbassate il numero di persone votabili, i voti già dati restano.'),
+      h('p',{class:'aiuto'},'La serata vale fino a quest’ora del mattino dopo: il voto si chiude lì, e anche classifiche e consumi contano per serata. I voti già dati restano nella serata in cui sono stati dati e valgono come sono stati dati, anche se cambiate il modo di votare.'),
       form),
     h('section',{class:'cartella'},
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Calendario dei rifiuti'),h('span',{class:'timbro'+(calPieno(S.cfg)?' ok':'')},calPieno(S.cfg)?'Compilato':'Da fare')),
@@ -3899,16 +4142,16 @@ function vRegole(){
       formS)];
 }
 
-var VIEWS={reparto:vReparto,farmacia:vFarmacia,ticket:vTicket,freccette:vFreccette,altro:vAltro};
-var SUBS={cassa:vCassa,soldi:vSoldi,classifiche:vClassifiche,scorte:vScorte,listino:vListino,persone:vPersone,regole:vRegole,backup:vBackup,installa:vInstalla,
-  statistiche:vStatistiche,medaglie:vMedaglie,muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
+var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro};
+var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifiche,scorte:vScorte,listino:vListino,persone:vPersone,regole:vRegole,backup:vBackup,installa:vInstalla,
+  statistiche:function(){UI.cl='statistiche';return vClassifiche();},medaglie:function(){UI.cl='medaglie';return vClassifiche();},muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};
 
 /* ---------- avvio ---------- */
 function start(){
   foglio=$('#foglio');foglioT=$('#foglio-t');foglioB=$('#foglio-b');
   $('#foglio-x').addEventListener('click',tentaChiudere);
-  foglio.addEventListener('close',function(){liveSheet=null;guardia=null;});
+  foglio.addEventListener('close',function(){if(foglio.open)return;liveSheet=null;guardia=null;});   // già riaperto (un foglio dopo l'altro): niente da pulire
   foglio.addEventListener('cancel',function(e){e.preventDefault();tentaChiudere();});   // tasto indietro / Esc
   foglio.addEventListener('click',function(e){if(e.target===foglio)tentaChiudere();});
   // l'app va in secondo piano (o il telefono la chiude): il modulo lasciato a metà diventa bozza, il conto in corso resta
@@ -3925,11 +4168,14 @@ function start(){
   var cambiato=applyImg0(S);
   if(applyCal0(S))cambiato=true;
   if(applySintomi0(S))cambiato=true;
+  if(!SYNC&&applyElena(S))cambiato=true;   // con la sincronizzazione aspetta i dati veri del locale (ricevi)
   if(cambiato||!st)persist();
   D=derive(S);
   riprendiConto();
   var hs=(location.hash||'').replace('#','').split('/');
   if(hs[0]==='cassa'){UI.tab='reparto';UI.sub='cassa';}
+  else if(hs[0]==='ticket'){UI.tab='farmacia';UI.farm='ticket';}                 // indirizzi della 0.10
+  else if(hs[0]==='freccette'){UI.tab='ludoteca';UI.sub='freccette';}
   else if(VIEWS[hs[0]]){UI.tab=hs[0];if(hs[1]&&SUBS[hs[1]])UI.sub=hs[1];}
   window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;if(UI.sub==='installa')render();});
   // a mezzanotte cambia il bollettino, all'ora di chiusura cambia la serata: ridisegno da solo
