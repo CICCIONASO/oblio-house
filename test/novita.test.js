@@ -237,7 +237,7 @@ const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, 
   const al = A.alboOro(N, '2026', cut, ok, Date.parse('2026-11-02T20:00:00+01:00'));
   const voce = (k) => al.find((x) => x.k === k);
   assert.deepStrictEqual(voce('rosso').chi, ['conti', 'pesce']);
-  assert.deepStrictEqual(voce('freccette').chi, ['pj']);
+  assert.deepStrictEqual(voce('freccette').chi, [], 'meno di 5 partite a testa: nessun campione delle freccette');
   assert.deepStrictEqual(voce('consumi').chi, ['pesce']);
   assert.deepStrictEqual(voce('pagatore').chi, ['pesce'], 'paga subito: zero giorni');
   assert.deepStrictEqual(voce('spazzino').chi, ['ciccio']);
