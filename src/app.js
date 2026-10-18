@@ -3870,9 +3870,9 @@ function postit(w,i,mini){
 }
 /* gli omini disperati ai piedi del muro: hanno le vostre facce, piangono, pregano, alzano le braccia al cielo */
 var POSE_OMINI={
-  prega:'<path class="gambe" d="M17 22l9 12-12 6M23 22l8 12-11 6"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6l3 6 4-14M27 6l-3 6-4-14"/><ellipse class="mano" cx="20" cy="-6" rx="2.6" ry="4"/>',
-  piange:'<path class="gambe" d="M16 22l-6 10 2 11M24 22l6 10-2 11"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6l-4-8 4-9M27 6l4-8-4-9"/><circle class="mano" cx="13" cy="-11" r="2.8"/><circle class="mano" cx="27" cy="-11" r="2.8"/>',
-  urla:'<path class="gambe" d="M17 22l-3 22M23 22l3 22"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6L4-18M27 6l9-24"/><circle class="mano" cx="4" cy="-19" r="2.8"/><circle class="mano" cx="36" cy="-19" r="2.8"/>'
+  prega:'<rect class="collo" x="17.5" y="-3" width="5" height="7" rx="2"/><path class="calzoni" d="M16 24L25 36L13 42M23 24L30 36L18 42"/><path class="calzoni-o" d="M16 24L25 36L13 42M23 24L30 36L18 42"/><ellipse class="scarpa" cx="12" cy="42.5" rx="4" ry="2.4"/><ellipse class="scarpa" cx="17" cy="42.5" rx="4" ry="2.4"/><path class="busto" d="M11 4Q20 1 29 4L31 24Q20 26.5 9 24Z"/><path class="ombra" d="M20 2.6Q26 2.8 29 4L31 24Q26 25.6 20 25.8Z"/><path class="cinta" d="M9.6 22.5Q20 25 30.4 22.5"/><path class="colletto" d="M15.5 3.2Q20 8 24.5 3.2"/><path class="manica" d="M12 7L13 16"/><path class="avambraccio" d="M13 16L19 3"/><path class="manica" d="M28 7L27 16"/><path class="avambraccio" d="M27 16L21 3"/><ellipse class="mano" cx="20" cy="1" rx="3.2" ry="5.2"/><path class="dita" d="M20 -4V6"/>',
+  piange:'<rect class="collo" x="17.5" y="-3" width="5" height="7" rx="2"/><path class="calzoni" d="M16 24L9 33L11 43M24 24L31 33L29 43"/><path class="calzoni-o" d="M16 24L9 33L11 43M24 24L31 33L29 43"/><ellipse class="scarpa" cx="11" cy="44" rx="4" ry="2.4"/><ellipse class="scarpa" cx="29" cy="44" rx="4" ry="2.4"/><path class="busto" d="M11 4Q20 1 29 4L31 24Q20 26.5 9 24Z"/><path class="ombra" d="M20 2.6Q26 2.8 29 4L31 24Q26 25.6 20 25.8Z"/><path class="cinta" d="M9.6 22.5Q20 25 30.4 22.5"/><path class="colletto" d="M15.5 3.2Q20 8 24.5 3.2"/><path class="manica" d="M12 7L7 1"/><path class="avambraccio" d="M7 1L12 -10"/><path class="manica" d="M28 7L33 1"/><path class="avambraccio" d="M33 1L28 -10"/><ellipse class="mano" cx="12.5" cy="-11" rx="3.4" ry="4.2"/><ellipse class="mano" cx="27.5" cy="-11" rx="3.4" ry="4.2"/>',
+  urla:'<rect class="collo" x="17.5" y="-3" width="5" height="7" rx="2"/><path class="calzoni" d="M17 24L15 43M23 24L25 43"/><path class="calzoni-o" d="M17 24L15 43M23 24L25 43"/><ellipse class="scarpa" cx="14" cy="44.5" rx="4" ry="2.4"/><ellipse class="scarpa" cx="26" cy="44.5" rx="4" ry="2.4"/><path class="busto" d="M11 4Q20 1 29 4L31 24Q20 26.5 9 24Z"/><path class="ombra" d="M20 2.6Q26 2.8 29 4L31 24Q26 25.6 20 25.8Z"/><path class="cinta" d="M9.6 22.5Q20 25 30.4 22.5"/><path class="colletto" d="M15.5 3.2Q20 8 24.5 3.2"/><path class="manica" d="M12 7L5 -5"/><path class="avambraccio" d="M5 -5L3 -17"/><path class="manica" d="M28 7L35 -5"/><path class="avambraccio" d="M35 -5L37 -17"/><ellipse class="mano" cx="3" cy="-19" rx="3.2" ry="4"/><ellipse class="mano" cx="37" cy="-19" rx="3.2" ry="4"/>'
 };
 var ORDINE_POSE=['prega','piange','urla'];
 function omini(){
@@ -3881,7 +3881,7 @@ function omini(){
     var posa=ORDINE_POSE[i%3],o=h('div',{class:'omino-v '+posa,style:'--oi:'+(-i*0.41).toFixed(2)+'s;--maglia:'+TINTE[(i*3)%TINTE.length]});
     var corpo=h('span',{class:'omino-corpo'});
     corpo.innerHTML='<svg viewBox="0 0 40 46" overflow="visible">'+POSE_OMINI[posa]+'</svg>';
-    o.appendChild(h('span',{class:'omino-testa'},ava(p.id),h('i',{class:'lacr s'}),h('i',{class:'lacr d'})));
+    o.appendChild(h('span',{class:'omino-testa'},ava(p.id),h('i',{class:'occhi'}),h('i',{class:'rivolo s'}),h('i',{class:'rivolo d'}),h('i',{class:'lacr s'}),h('i',{class:'lacr d'})));
     o.appendChild(corpo);
     e.appendChild(o);
   });
