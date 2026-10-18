@@ -8,11 +8,12 @@
   --f-testo:"IBM Plex Mono","Courier New",ui-monospace,monospace;
   --f-corpo:"IBM Plex Sans","Helvetica Neue",system-ui,sans-serif;
   --f-etichetta:"IBM Plex Sans Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  --f-mano:"Caveat","Segoe Print","Bradley Hand",cursive;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;touch-action:manipulation}
 body{margin:0;background:var(--viola);color:var(--panna);font:400 15px/1.45 var(--f-corpo);-webkit-tap-highlight-color:transparent}
 /* numeri e importi: carattere da modulo clinico; i testi: carattere da leggere */
 .importo,.ora,.voce-val,.inp.soldi,.inp.corto,.inp.pin,.prod-p,.tri-v,.slot,.turno-tot,.sc-pre,.pos-tot strong,.bollettino dd,.scheda dd{font-family:var(--f-testo)}
@@ -374,16 +375,57 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .conta{text-align:right;margin-top:-8px}
 
 /* Muroblio del pianto */
-.muro{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px;padding:6px 2px 4px}
+/* muroblio: muro di tufo, bigliettini appesi a una puntina che si muovono al vento, omini disperati in basso */
+.tufo{position:relative;overflow:hidden;border-radius:10px;border:1px solid var(--notte);background-color:#D2B378;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .1 0 0 0 1.1 -.45'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160'%3E%3Cg fill='none' stroke='%23EADAB3' stroke-width='3'%3E%3Cpath d='M0 1.5H240M0 81.5H240M1.5 0V80M121.5 0V80M61.5 80V160M181.5 80V160'/%3E%3C/g%3E%3Cg fill='none' stroke='%23A88651' stroke-width='1' opacity='.6'%3E%3Cpath d='M0 4H240M0 84H240'/%3E%3C/g%3E%3C/svg%3E"),radial-gradient(circle at 30% 20%,rgba(255,240,200,.35),transparent 60%),radial-gradient(circle at 80% 90%,rgba(120,80,30,.25),transparent 55%);
+  box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
+.muro{list-style:none;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 14px;padding:26px 12px 22px}
+.muro.mini{gap:20px 10px;padding:22px 10px 14px}
 @media (max-width:359px){.muro{grid-template-columns:minmax(0,1fr)}}
-.postit{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:10px;min-height:150px;padding:20px 12px 10px;color:var(--inchiostro);border-radius:2px 2px 14px 2px;box-shadow:none;transform:rotate(-1.6deg);min-width:0}
-.postit.storto2{transform:rotate(1.4deg)}
-.postit.storto3{transform:rotate(-.4deg)}
-.postit::before{content:"";position:absolute;top:-9px;left:50%;width:58px;height:18px;margin-left:-29px;background:rgba(255,255,255,.55);border:1px solid rgba(22,6,51,.18);transform:rotate(2deg)}
+.muro-vuoto{margin:0;padding:40px 16px 20px;text-align:center;font:600 24px/1.1 var(--f-mano);color:var(--inchiostro)}
+.postit{--r:-1.6deg;position:relative;display:flex;flex-direction:column;gap:8px;min-height:140px;padding:18px 11px 10px;color:var(--inchiostro);border-radius:1px 1px 12px 1px;min-width:0;
+  transform-origin:50% 4px;transform:rotate(var(--r));box-shadow:0 1px 0 rgba(0,0,0,.08),2px 8px 10px -4px rgba(40,20,0,.45);animation:vento var(--d,4.2s) ease-in-out var(--ri,0s) infinite}
+.muro.mini .postit{min-height:96px;padding:15px 9px 8px}
+.postit::after{content:"";position:absolute;right:0;bottom:0;width:18px;height:18px;background:linear-gradient(135deg,transparent 50%,rgba(0,0,0,.12) 50%);border-radius:0 0 12px 0}
+@keyframes vento{0%,100%{transform:rotate(var(--r))}30%{transform:rotate(calc(var(--r) + 2.4deg)) skewX(-.6deg)}60%{transform:rotate(calc(var(--r) - 1.6deg))}80%{transform:rotate(calc(var(--r) + .8deg))}}
+.puntina{position:absolute;top:-6px;left:50%;width:15px;height:15px;margin-left:-7.5px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 12%,var(--pc,#E8334A) 30%,rgba(0,0,0,.35) 100%);box-shadow:1px 3px 3px rgba(0,0,0,.4);z-index:2}
+.postit.fissato{grid-column:1/-1;min-height:0}
+.bandella,.nuovo-b{position:absolute;font:700 10px/1 var(--f-etichetta);letter-spacing:.08em;text-transform:uppercase}
+.bandella{top:6px;right:8px;color:#1F4E8C}
+.nuovo-b{top:-9px;right:6px;transform:rotate(4deg);background:var(--rosa);color:var(--inchiostro);padding:3px 5px;border-radius:4px}
 .c0{background:#FFE680}.c1{background:#FFC2D9}.c2{background:#CDEFA0}.c3{background:#D9C8FF}.c4{background:#FFC89A}.c5{background:#BFE3F2}
-.postit-t{font:500 14.5px/1.4 var(--f-testo);white-space:pre-wrap;overflow-wrap:anywhere}
-.postit-f{display:flex;align-items:center;gap:7px;font-size:11.5px;line-height:1.25;color:#3D3060;min-width:0}
-.postit-f b{font:700 13px/1.2 var(--f-etichetta);letter-spacing:.01em;color:var(--inchiostro)}
+.postit-t{margin:0;font:600 21px/1.1 var(--f-mano);white-space:pre-wrap;overflow-wrap:anywhere}
+.muro.mini .postit-t{font-size:18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.postit-f{margin-top:auto;display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;font-size:11px;line-height:1.25;color:#3D3060;min-width:0}
+.postit-f b{display:block;font:700 12.5px/1.2 var(--f-etichetta);letter-spacing:.01em;color:var(--inchiostro)}
+.postit-f .cresce1{flex:1 1 72px;min-width:0}
+.capisco{flex:none;margin-left:auto;display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 8px;border:1px solid rgba(27,16,54,.55);border-radius:99px;background:rgba(255,255,255,.55);font:700 11px/1 var(--f-etichetta);letter-spacing:.04em;text-transform:uppercase;color:var(--inchiostro)}
+.capisco[aria-pressed="true"]{background:var(--inchiostro);color:var(--panna);border-color:var(--inchiostro)}
+.capisco .n{font-family:var(--f-testo);font-weight:600}
+.postit .chi{margin:0;font-size:10.5px;line-height:1.3;color:#3D3060}
+.omini{display:flex;justify-content:space-around;align-items:flex-end;gap:2px;padding:10px 4px 0;background:linear-gradient(to bottom,transparent,rgba(40,20,0,.3) 55%,#5C4426 82%);color:var(--inchiostro)}
+.omino{width:clamp(36px,12vw,54px);height:auto;overflow:visible}
+.omino.gira{transform:scaleX(-1)}
+.omino .corpo{transform-box:fill-box;transform-origin:50% 100%}
+.omino.prega .corpo{animation:prega 1.6s ease-in-out var(--oi,0s) infinite}
+.omino.piange .corpo{animation:singhiozzo .5s ease-in-out var(--oi,0s) infinite}
+.omino.urla .corpo{animation:urla 1.1s ease-in-out var(--oi,0s) infinite}
+.omino.aterra .corpo{animation:singhiozzo .7s ease-in-out var(--oi,0s) infinite}
+.omino .bocca{fill:currentColor;stroke:none}
+.lacrima{fill:#4FA6E0;animation:lacrima 1.2s ease-in var(--oi,0s) infinite}
+@keyframes prega{0%,100%{transform:rotate(0)}50%{transform:rotate(8deg)}}
+@keyframes singhiozzo{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}
+@keyframes urla{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+@keyframes lacrima{0%{transform:translateY(0);opacity:1}100%{transform:translateY(16px);opacity:0}}
+.tab{position:relative}
+.pallino{position:absolute;top:6px;left:calc(50% + 7px);width:10px;height:10px;border-radius:50%;background:var(--rosa);box-shadow:0 0 0 2px var(--notte)}
+.consiglio{flex:1 0 100%;margin:0;font-size:13px;color:var(--lilla)}
+.consiglio b{font-family:var(--f-testo);color:var(--acido)}
+.coriandoli{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.riep{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.riep li{display:flex;gap:9px;align-items:flex-start;font-size:14px;line-height:1.35;min-width:0}
+.riep li .ic{flex:none;color:var(--giallo);margin-top:1px}
+.riep li span{min-width:0;overflow-wrap:anywhere}
 .postit-mod{align-self:flex-end;flex:none;min-height:34px;padding:0 9px;border:1px solid var(--inchiostro);border-radius:99px;background:rgba(255,255,255,.6);font:700 11.5px/1 var(--f-etichetta);letter-spacing:.05em;text-transform:uppercase;color:var(--inchiostro)}
 .postit-annuncio{display:flex;flex-direction:column;gap:8px;padding:14px;color:var(--inchiostro);border:1px solid var(--notte);border-radius:4px 4px 20px 4px;box-shadow:none;transform:rotate(-.6deg)}
 .postit-annuncio .postit-f{font-size:12.5px}
@@ -511,3 +553,13 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .regole-prime>li{display:block;padding:9px 0}
 .riga-triage{border-radius:22px;padding:10px 12px}
 .riga-triage .linea{align-items:center}
+
+/* feedback al tocco (0.13): onda dove si tocca, tiro segnato che salta, punteggio che lampeggia */
+.onda{position:fixed;z-index:70;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;pointer-events:none;background:rgba(255,210,63,.45);animation:onda .45s ease-out forwards}
+@keyframes onda{from{transform:scale(.2);opacity:1}to{transform:scale(1.6);opacity:0}}
+button:active:not(:disabled){filter:brightness(1.15)}
+.slot.appena{animation:salta .45s ease-out}
+@keyframes salta{0%{transform:scale(1.6);background:var(--giallo);color:var(--notte)}100%{transform:scale(1)}}
+.gioc.colpo .gioc-p{transform-origin:left center;animation:lampo .6s ease-out}
+@keyframes lampo{0%{color:var(--giallo);transform:scale(1.25)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.onda{display:none}}

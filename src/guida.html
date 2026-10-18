@@ -85,8 +85,11 @@ a{color:inherit}
   <p class="intro">Benvenuto, paziente. Questa è l'app del locale: bar, debiti, cassa, quota del locale, rifiuti, pulizie, il voto di chi sta peggio, freccette, classifiche e il muro dove sfogarsi. Ognuno la usa dal suo telefono, entrando con il suo nome e il suo PIN, e i dati sono gli stessi per tutti. Leggi questa pagina una volta; poi ti basta l'app.</p>
   <a class="pill" href="./">Apri l'app</a>
   <div class="novita">
-    <p><strong>Novità delle versioni 0.11 e 0.12</strong></p>
+    <p><strong>Novità delle versioni 0.11, 0.12 e 0.13</strong></p>
     <ul>
+      <li>0.13: il <strong>Muroblio del pianto</strong> è un muro di tufo con i bigliettini che si muovono al vento e gli omini disperati in basso. Sotto ogni post-it c'è <span class="t">Ti capisco</span>; gli ultimi quattro si vedono già nella Ludoteca, e un pallino rosa ti avvisa dei post-it nuovi.</li>
+      <li>0.13: nelle freccette (501 e 301) l'app ti dice <strong>come chiudere</strong> con le freccette che ti restano; chi vince prende i coriandoli. Al mattino, nel Reparto, c'è <strong>com'è andata ieri sera</strong>.</li>
+      <li>0.13: ogni tocco si vede, e il doppio tocco non ingrandisce più la pagina (con due dita sì).</li>
       <li><strong>Si entra con il proprio nome</strong>: la prima volta scegli chi sei e crei un <strong>PIN personale</strong> di 4 cifre. Da lì il telefono è tuo. Il PIN comune non c'è più.</li>
       <li>In alto a destra c'è <strong>il tuo nome</strong>: verde se sei collegato, giallo se ci sono modifiche da inviare, rosa se non sei collegato.</li>
       <li><strong>Voto a podio</strong>: tocchi 1°, 2° e 3° (3, 2 e 1 punto), con i sintomi sotto ognuno. Ognuno vota solo dal suo telefono; i visitatori da qualsiasi telefono. A pari punti vincono tutti.</li>
@@ -164,7 +167,8 @@ a{color:inherit}
     <p>In basso ci sono quattro tasti: <strong>Reparto</strong>, <strong>Farmacia</strong>, <strong>Ludoteca</strong> e <strong>Altro</strong>. Il Reparto è la prima pagina:</p>
     <ul>
       <li><strong>Bollettino</strong>: quattro riquadri da toccare, cassa, ticket aperti, soldi del locale e fondo della quota (o le scorte, finché non c'è una quota). Sotto, se c'è, la partita in corso e il prossimo compleanno. Il timbro «Urgente» vuol dire che c'è qualcosa da fare.</li>
-      <li><strong>Compleanno</strong>: il giorno del compleanno di uno di voi, in cima compare la festa.</li>
+      <li><strong>Compleanno</strong>: il giorno del compleanno di uno di voi, in cima compare la festa, con i coriandoli.</li>
+      <li><strong>Com'è andata ieri sera</strong>: dalla mattina fino alle 20, il riepilogo della serata prima: il Re dell'oblio con il podio, le partite a freccette, cosa si è bevuto, quanto è entrato in cassa e quanto è finito sui ticket.</li>
       <li><strong>Codice rosso</strong>: chi stava peggio ieri sera, se stasera hai già votato e il tasto <span class="t">Vota</span>.</li>
       <li><strong>Faccende e cose da fare</strong>: tutto quello che c'è da fare, in una scheda sola, con prima le cose urgenti: un conto lasciato in Farmacia senza registrarlo (<span class="t">Riprendi</span> o <span class="t">Scarta</span>), i rifiuti di stasera, le pulizie, la quota del locale dai 15 giorni prima della scadenza, le scorte da ricomprare, i graffi vecchi, il backup. Sotto, in grigio, quello che è a posto.</li>
       <li>L'ultimo <strong>post-it</strong> del muro.</li>
@@ -277,6 +281,8 @@ a{color:inherit}
       <li>Si scala fino a <strong>zero preciso</strong>, con qualsiasi settore.</li>
       <li>Per ogni freccetta: se serve tocca <span class="t">Doppio</span> o <span class="t">Triplo</span>, poi il numero. Ci sono anche <span class="t">25</span>, <span class="t">Centro 50</span> e <span class="t">Fuori</span> se la manchi.</li>
       <li>Chi va sotto zero è <strong>sballato</strong>: il turno non conta e torna al punteggio di prima.</li>
+      <li>Quando si può chiudere con le freccette rimaste, sotto i tiri compare <strong>Per chiudere</strong> con il consiglio, per esempio «Per chiudere 40: D20».</li>
+      <li>Chi chiude prende i <strong>coriandoli</strong>.</li>
     </ul>
     <h3>Giro dell'orologio</h3>
     <ul>
@@ -301,9 +307,12 @@ a{color:inherit}
 
   <section class="cartella" id="muro">
     <h2><span>11</span>Muroblio del pianto</h2>
-    <p>Il muro dove ognuno attacca un <strong>post-it</strong>: come va, una richiesta d'aiuto, una lamentela. Resta lì come in bacheca.</p>
+    <p>Il muro di tufo dove ognuno attacca un <strong>post-it</strong>: come va, una richiesta d'aiuto, una lamentela. I bigliettini restano appesi e si muovono al vento; in basso gli omini piangono e pregano.</p>
     <ul>
-      <li><span class="t">Ludoteca</span> › <span class="t">Il muro</span> › <span class="t">+ Attacca un post-it</span>: la firma è già la tua, scrivi il testo (massimo 300 caratteri) e scegli il colore.</li>
+      <li>In <span class="t">Ludoteca</span> vedi gli ultimi quattro post-it. <span class="t">+ Scrivi un post-it</span>: la firma è già la tua, scrivi il testo (massimo 300 caratteri) e scegli il colore. <span class="t">Tutto il muro</span> li mostra tutti.</li>
+      <li><span class="t">Ti capisco</span>: toccalo per dire che sei con chi l'ha scritto; ritoccalo per toglierlo. Sul muro si leggono i nomi.</li>
+      <li>Il <strong>pallino rosa</strong> sulla Ludoteca vuol dire che c'è un post-it nuovo che non hai ancora visto; il bigliettino ha la scritta «Nuovo».</li>
+      <li>L'admin può <strong>fissare in cima</strong> un post-it, per gli avvisi.</li>
       <li><strong>Niente anonimi</strong>: ogni post-it è firmato.</li>
       <li>Lo può modificare o staccare solo <strong>il telefono che l'ha scritto</strong>, oppure l'admin.</li>
       <li>L'ultimo post-it dei tre giorni passati compare anche nel Reparto.</li>

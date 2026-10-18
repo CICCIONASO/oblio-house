@@ -1016,3 +1016,68 @@ console.log('calcoli: tutto torna (' + S.moves.length + ' movimenti di prova, pi
   assert.strictEqual(N.meta.elena0, 1);
 }
 console.log('0.11.0: podio, voto dal proprio telefono, freccette in %, ELENA');
+
+// 0.13.0: muroblio (Ti capisco, fissati), consiglio di chiusura, riepilogo della serata
+{
+  const x = pure(`{seedState,normState,chiusuraX01,dartVal,riepilogoSerata,idCapisco,capiti,muroOrdinato,serata}`);
+  const somma = (l) => l.reduce((s, c) => s + x.dartVal(c).v, 0);
+  assert.deepStrictEqual(x.chiusuraX01(40, 3), ['D20']);
+  assert.deepStrictEqual(x.chiusuraX01(100, 3), ['T20', 'D20']);
+  assert.deepStrictEqual(x.chiusuraX01(180, 3), ['T20', 'T20', 'T20']);
+  assert.strictEqual(x.chiusuraX01(100, 1), null, 'una freccetta sola non basta');
+  assert.strictEqual(x.chiusuraX01(181, 3), null);
+  assert.strictEqual(x.chiusuraX01(179, 3), null, '179 non si chiude in tre');
+  for (let v = 1; v <= 180; v++) {
+    const c = x.chiusuraX01(v, 3);
+    if (c) assert.strictEqual(somma(c), v, 'il consiglio fa proprio ' + v);
+  }
+  assert.strictEqual(somma(x.chiusuraX01(170, 3)), 170);
+  const S = x.seedState(1);
+  S.muro.push({ id: 'w1', t: 10, p: 'pj', testo: 'uno', col: 0, dv: 'a' });
+  S.muro.push({ id: 'w2', t: 20, p: 'conti', testo: 'due', col: 1, dv: 'b', fis: 1 });
+  S.muro.push({ id: 'w3', t: 30, p: 'pesce', testo: 'tre', col: 2, dv: 'c' });
+  S.capisco = [
+    { id: x.idCapisco('w1', 'conti'), w: 'w1', p: 'conti', t: 11 },
+    { id: x.idCapisco('w1', 'pesce'), w: 'w1', p: 'pesce', t: 12 },
+  ];
+  const N = x.normState(JSON.parse(JSON.stringify(S)));
+  assert.deepStrictEqual(x.capiti(N, 'w1'), ['conti', 'pesce']);
+  assert.strictEqual(N.muro.find((w) => w.id === 'w2').fis, 1, 'fissato resta');
+  assert.ok(!('fis' in N.muro.find((w) => w.id === 'w1')), 'non fissato: niente campo nuovo');
+  assert.deepStrictEqual(
+    x.muroOrdinato(N).map((w) => w.id),
+    ['w2', 'w3', 'w1'],
+    'prima i fissati, poi dal più nuovo'
+  );
+  assert.ok(x.idCapisco('w1', 'conti').length <= 40);
+  const vecchio = JSON.parse(JSON.stringify(S));
+  delete vecchio.capisco;
+  assert.deepStrictEqual(x.normState(vecchio).capisco, [], 'dati di prima: nessun Ti capisco');
+  // riepilogo
+  const R0 = x.seedState(1);
+  const sera = new Date(2026, 9, 17, 22, 0).getTime();
+  const k = x.serata(sera, 6);
+  R0.moves.push({ id: 'm1', t: sera, k: 'sale', a: 300, p: 'pj', items: [{ id: 'p1', n: 'Birra', q: 2 }] });
+  R0.moves.push({ id: 'm2', t: sera + 3600e3 * 3, k: 'tab', a: 150, p: 'conti', items: [{ id: 'p2', n: 'Coca', q: 1 }] });
+  R0.moves.push({ id: 'm3', t: sera, k: 'pay', a: 500, p: 'conti' });
+  R0.moves.push({ id: 'm4', t: sera - 864e5, k: 'sale', a: 999, p: 'pj', items: [{ id: 'p1', n: 'Birra', q: 9 }] });
+  R0.votes.push({ id: 'v1', s: k, v: 'pj', c: 'conti', t: sera, m: 'p', cs: ['conti', 'pesce'] });
+  R0.games.push({
+    id: 'g1',
+    t: sera,
+    mode: '301',
+    players: ['pj', 'conti'],
+    d: ['T20', 'T20', 'T20', 'S1', 'S1', 'S1', 'T20', 'T20', 'S1'],
+  });
+  const R = x.riepilogoSerata(R0, k, 6);
+  assert.strictEqual(R.pz, 3, 'le 2 di notte contano nella sera prima, il giorno prima no');
+  assert.strictEqual(R.cassa, 800);
+  assert.strictEqual(R.graffi, 150);
+  assert.deepStrictEqual(R.topProd[0], { n: 'Birra', q: 2 });
+  assert.deepStrictEqual(R.beve, { p: 'pj', q: 2 });
+  assert.deepStrictEqual(R.winners, ['conti']);
+  assert.strictEqual(R.partite, 1);
+  assert.deepStrictEqual(R.freccia, { p: 'pj', n: 1 });
+  assert.strictEqual(x.riepilogoSerata(R0, '2026-01-01', 6), null, 'serata vuota: niente scheda');
+}
+console.log('0.13.0: Ti capisco, post-it fissati, consiglio di chiusura, riepilogo della serata');

@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.12.0';
+var APP_V='0.13.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -886,7 +886,7 @@ function seedState(now){
     v:1,
     people:PEOPLE0.map(function(p){return {id:p[0],name:p[1],kind:'paziente',on:true,img:''};}),
     products:LISTINO0.map(function(p,i){return {id:'p'+(i+1),name:p[1],cat:p[0],price:p[2],min:null,on:true};}),
-    moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],verifiche:[],
+    moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],capisco:[],verifiche:[],
     cfg:normCfg(null),
     meta:{created:now,rev:0,saved:0,exported:0,img0:'',cal0:'',sint0:''}
   };
@@ -908,7 +908,8 @@ var NOTI={
   moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da','m'],
   quote:['id','mese','a','chi','scad','note','t'],
-  muro:['id','t','p','testo','col','dv','mod'],
+  muro:['id','t','p','testo','col','dv','mod','fis'],
+  capisco:['id','w','p','t'],
   verifiche:['id','t','cassa','scorte','incassare','restituire','previsionale','fondo','nota','da']
 };
 /* codici salvati come impronta (non in chiaro nei dati condivisi) */
@@ -970,7 +971,7 @@ function normNato(v){
 }
 function normState(raw){
   if(!raw||typeof raw!=='object'||!Array.isArray(raw.people)||!Array.isArray(raw.moves)||!Array.isArray(raw.products))return null;
-  var S={v:1,people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],verifiche:[],cfg:normCfg(raw.cfg),meta:{}};
+  var S={v:1,people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],capisco:[],verifiche:[],cfg:normCfg(raw.cfg),meta:{}};
   raw.people.forEach(function(p){
     if(p&&typeof p.id==='string'&&p.id){
       var id=str(p.id,40);
@@ -1087,9 +1088,17 @@ function normState(raw){
     var o={id:str(x.id,40)||('w'+S.muro.length),t:toInt(x.t),p:str(x.p,24),testo:str(x.testo,300).trim(),col:Math.min(5,Math.max(0,toInt(x.col))),dv:str(x.dv,40)};
     if(!o.testo)return;
     if(x.mod)o.mod=toInt(x.mod);
+    if(x.fis)o.fis=1;
     S.muro.push(tieniAltro(x,o,NOTI.muro));
   });
   S.muro.sort(function(a,b){return a.t-b.t;});
+  // «Ti capisco» sui post-it (dalla 0.13.0): un documento per post-it e persona, così due tocchi insieme non si perdono
+  (Array.isArray(raw.capisco)?raw.capisco:[]).forEach(function(x){
+    if(!x||typeof x!=='object'||!x.w||!x.p)return;
+    var o={id:str(x.id,40)||idCapisco(str(x.w,40),str(x.p,24)),w:str(x.w,40),p:str(x.p,24),t:toInt(x.t)};
+    S.capisco.push(tieniAltro(x,o,NOTI.capisco));
+  });
+  S.capisco.sort(function(a,b){return a.t-b.t;});
   // verifiche del mese: la «foto» dei soldi del locale in quel momento
   (Array.isArray(raw.verifiche)?raw.verifiche:[]).forEach(function(x){
     if(!x||typeof x!=='object'||!(toInt(x.t)>0))return;
@@ -1107,7 +1116,7 @@ function normState(raw){
 /* ---------- sincronizzazione tra telefoni (parte pura) ----------
    Ogni cosa segnata è un'«entità» con chiave «raccolta~id». SY.ent[chiave] = [u, impronta, confermata]:
    u = ora della modifica (vince la più recente), impronta = hash del JSON canonico ('-' = cancellata). */
-var COLS=['people','products','moves','shop','votes','games','trash','cleanings','quote','muro','verifiche'];
+var COLS=['people','products','moves','shop','votes','games','trash','cleanings','quote','muro','capisco','verifiche'];
 function canon(v){
   if(Array.isArray(v))return '['+v.map(canon).join(',')+']';
   if(v&&typeof v==='object')return '{'+Object.keys(v).sort().filter(function(k){return v[k]!==undefined;}).map(function(k){return JSON.stringify(k)+':'+canon(v[k]);}).join(',')+'}';
@@ -1136,7 +1145,7 @@ function syncDiff(S,SY){
 }
 function normEnt(c,e){
   if(c==='cfg')return normCfg(e);
-  var raw={people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],verifiche:[]};
+  var raw={people:[],products:[],moves:[],shop:[],votes:[],games:[],trash:[],cleanings:[],quote:[],muro:[],capisco:[],verifiche:[]};
   raw[c]=[e];
   var st=normState(raw);
   return st&&st[c]&&st[c][0]||null;
@@ -1185,11 +1194,78 @@ function syncApply(S,changes,SY,init){
     SY.ent[key]=[ch.u,hn,1];
   });
   if(changed){
-    S.moves.sort(perT);S.votes.sort(perT);S.games.sort(perT);S.cleanings.sort(perT);S.muro.sort(perT);S.verifiche.sort(perT);
+    S.moves.sort(perT);S.votes.sort(perT);S.games.sort(perT);S.cleanings.sort(perT);S.muro.sort(perT);S.capisco.sort(perT);S.verifiche.sort(perT);
     S.quote.sort(function(a,b){return a.mese<b.mese?-1:a.mese>b.mese?1:0;});
     S.trash.sort(function(a,b){return a.s<b.s?-1:a.s>b.s?1:0;});
   }
   return changed;
+}
+/* ---------- muroblio (dalla 0.13.0) ---------- */
+function idCapisco(w,p){return 'k'+hashStr(w+'|'+p);}
+/* chi ha detto «Ti capisco» a un post-it, nell'ordine */
+function capiti(S,w){return (S.capisco||[]).filter(function(c){return c.w===w;}).map(function(c){return c.p;});}
+/* il muro come si mostra: prima i fissati, poi dal più nuovo */
+function muroOrdinato(S){
+  var l=S.muro.slice().reverse();
+  return l.filter(function(w){return w.fis;}).concat(l.filter(function(w){return !w.fis;}));
+}
+/* freccette: il tiro consigliato per chiudere a zero con le freccette rimaste del turno (chiusura libera) */
+var ORDINE_TIRI=(function(){
+  var o=[],n;
+  for(n=20;n>=1;n--)o.push('T'+n);
+  o.push('D25','S25');
+  for(n=20;n>=1;n--)o.push('D'+n);
+  for(n=20;n>=1;n--)o.push('S'+n);
+  return o;
+})();
+function unTiro(v){
+  if(v<=0)return null;
+  if(v<=20)return 'S'+v;
+  if(v===25)return 'S25';
+  if(v===50)return 'D25';
+  if(v%2===0&&v<=40)return 'D'+v/2;
+  if(v%3===0&&v<=60)return 'T'+v/3;
+  return null;
+}
+function chiusuraX01(left,freccette){
+  if(!(left>0)||left>180||!(freccette>0))return null;
+  function cerca(v,k){
+    var u=unTiro(v);if(u)return [u];
+    if(k<2)return null;
+    for(var i=0;i<ORDINE_TIRI.length;i++){
+      var c=ORDINE_TIRI[i],r=v-dartVal(c).v;
+      if(r<=0)continue;
+      var resto=cerca(r,k-1);if(resto)return [c].concat(resto);
+    }
+    return null;
+  }
+  for(var k=1;k<=Math.min(3,freccette);k++){var r=cerca(left,k);if(r&&r.length===k)return r;}
+  return null;
+}
+/* riepilogo di una serata: consumi, soldi entrati in cassa, triage e freccette. null se non è successo niente */
+function riepilogoSerata(S,k,cut){
+  var R={k:k,eur:0,pz:0,graffi:0,cassa:0,prod:{},chi:{},partite:0,vinte:{},podio:[],winners:[]};
+  S.moves.forEach(function(m){
+    if(!m||m.x||!m.t||serata(m.t,cut)!==k)return;
+    var a=Math.max(0,toInt(m.a));
+    if(m.k==='sale'||m.k==='tab'){
+      R.eur+=a;if(m.k==='tab')R.graffi+=a;else R.cassa+=a;
+      (m.items||[]).forEach(function(it){if(!it)return;var q=Math.max(0,toInt(it.q)),n=it.n||'?';R.pz+=q;R.prod[n]=(R.prod[n]||0)+q;if(m.p)R.chi[m.p]=(R.chi[m.p]||0)+q;});
+    }else if(m.k==='pay'||m.k==='in')R.cassa+=a;
+  });
+  S.games.forEach(function(g){
+    if(g.x||g.ab||serata(g.t,cut)!==k)return;
+    var st=playDarts(g);if(!st.win)return;
+    R.partite++;if(g.players.length>1)R.vinte[st.win]=(R.vinte[st.win]||0)+1;
+  });
+  var vv=S.votes.filter(function(v){return v.s===k&&votoConta(S,v);});
+  if(vv.length){var sm=voteSummary(vv);R.winners=sm.winners;R.podio=podioSerata(sm).filter(function(x){return x.pos<=3;});}
+  function top(o){return Object.keys(o).sort(function(a,b){return o[b]-o[a]||(a<b?-1:1);});}
+  R.topProd=top(R.prod).slice(0,3).map(function(n){return {n:n,q:R.prod[n]};});
+  var tc=top(R.chi);R.beve=tc.length?{p:tc[0],q:R.chi[tc[0]]}:null;
+  var tv=top(R.vinte);R.freccia=tv.length?{p:tv[0],n:R.vinte[tv[0]]}:null;
+  if(!R.eur&&!R.cassa&&!R.partite&&!R.winners.length)return null;
+  return R;
 }
 /* =================== END PURE =================== */
 
@@ -1894,6 +1970,7 @@ function go(tab,sub,forza){
   if(UI.tab==='farmacia'&&tab!=='farmacia'&&contoAperto()&&posTotal().n)toast('Il conto di '+(UI.pos.p?pName(UI.pos.p):'chi non hai scelto')+' non è registrato: resta in sospeso in Farmacia.');
   // in Farmacia il paziente parte dal padrone del telefono (si cambia con un tocco)
   if(tab==='farmacia'&&UI.tab!=='farmacia'&&!UI.pos.p&&!posTotal().n)UI.pos.p=mio()||null;
+  if(sub!=='muro')UI.muroPrima=null;
   UI.tab=tab;UI.sub=sub||null;
   try{history.replaceState(null,'','#'+tab+(sub?'/'+sub:''));}catch(e){}
   render();window.scrollTo(0,0);
@@ -1907,8 +1984,11 @@ function posTotal(){
 function render(){
   var act=document.activeElement,key=act&&act.dataset?act.dataset.k:null;
   $('#nav').hidden=!(loggato()&&lsGet(KEY+'.regole')==='1');
+  var nuovi=loggato()&&UI.sub!=='muro'?muroNuovi():0;
   $('#nav').replaceChildren(frag(TABS.map(function(t){
-    return h('button',{type:'button',class:'tab','aria-current':UI.tab===t[0]?'page':null,onclick:function(){go(t[0]);}},ic(t[2]),h('span',null,t[1]));
+    var pall=t[0]==='ludoteca'&&nuovi;
+    return h('button',{type:'button',class:'tab','aria-current':UI.tab===t[0]?'page':null,'aria-label':pall?t[1]+', '+nuovi+(nuovi===1?' post-it nuovo':' post-it nuovi'):null,onclick:function(){go(t[0]);}},
+      pall?h('i',{class:'pallino','aria-hidden':'true'}):null,ic(t[2]),h('span',null,t[1]));
   })));
   var av=$('#avviso'),msg='';
   if(!storageOk)msg='Questo dispositivo non sta salvando i dati: quello che segni resta solo finché la pagina è aperta.';
@@ -2018,6 +2098,7 @@ function vReparto(){
   var urgente=low.length>0||backupOld()||D.cash<0||fac.daFare;
   var comp=prossimiCompleanni(S,today()).filter(function(c){return c.giorni>0&&c.giorni<=30;})[0],gioco=partitaAttiva();
   out.push(cardCompleanno());
+  out.push(cardRiepilogo());
   // il bollettino: i quattro numeri che contano, a colpo d'occhio
   out.push(h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Bollettino di '+GIORNI[now.getDay()].toLowerCase()+' '+now.getDate()+'/'+(now.getMonth()+1)),
@@ -3440,11 +3521,12 @@ function rivincita(g){nuovaPartita(g.mode,g.players.slice(1).concat(g.players.sl
 function lancia(g,c){
   if(g.end||g.ab||g.x||!DART_RE.test(c))return;
   var prima=playDarts(g).turns.length;
-  g.d.push(c);UI.dart.mol=1;
+  var chi=g.players[playDarts(g).cur];
+  g.d.push(c);UI.dart.mol=1;UI.dart.appena=Date.now();UI.dart.chi=chi;tocco(15);
   var st=playDarts(g);
   if(st.win)g.end=Date.now();
   commit();
-  if(st.win)toast(pName(st.win)+(g.players.length>1?' chiude e vince!':' chiude!'));
+  if(st.win){toast(pName(st.win)+(g.players.length>1?' chiude e vince!':' chiude!'));coriandoli();}
   else if(st.turns.length>prima){var t=st.turns[st.turns.length-1];if(t.bust)toast('Sballato! '+pName(t.p)+' resta a '+t.a+'.');}
 }
 function annullaFreccia(g){
@@ -3461,9 +3543,7 @@ function vLudoteca(){
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Freccette'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='freccette';go('ludoteca','classifiche');}},'Classifica')),
       h('div',{class:'azioni'},h('button',{class:'pill duo-verde largo',type:'button','data-k':'apri-freccette',onclick:apriFreccette},g?'Riprendi la partita: '+nomeModo(g.mode):'Nuova partita')),
       ult?h('p',{class:'aiuto'},'Ultima: '+nomeModo(ult.mode)+', '+(ult.players.length>1?'vince '+pName(playDarts(ult).win)+' su '+nomiLista(ult.players.filter(function(p){return p!==playDarts(ult).win;})):'allenamento di '+pName(ult.players[0]))+'.'):null),
-    h('section',{class:'cartella'},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Muroblio del pianto'),h('button',{class:'pill sm',type:'button','data-k':'apri-muro',onclick:function(){go('ludoteca','muro');}},'Il muro')),
-      h('p',{class:'aiuto'},S.muro.length?S.muro.length+(S.muro.length===1?' post-it.':' post-it.')+' Scrivi il tuo, firmato.':'Il muro è vuoto. Scrivi il primo post-it.'))];
+    cardMuroLudoteca()];
 }
 function vFreccette(){
   var g=partitaAttiva();
@@ -3514,12 +3594,15 @@ function vNuovaPartita(){
 }
 function barraTurno(g,st){
   var p=g.players[st.cur];
-  var slots=[0,1,2].map(function(i){var c=st.turn[i];return h('span',{class:'slot'+(c?' pieno':'')},c?dartLabel(c,st.x01):String(i+1));});
+  var fresco=Date.now()-(UI.dart.appena||0)<700;
+  var slots=[0,1,2].map(function(i){var c=st.turn[i];return h('span',{class:'slot'+(c?' pieno':'')+(c&&fresco&&i===st.turn.length-1?' appena':'')},c?dartLabel(c,st.x01):String(i+1));});
   var parz=st.turn.reduce(function(s,c){return s+dartVal(c).v;},0);
+  var ch=st.x01?chiusuraX01(st.R[p].left,3-st.turn.length):null;
   return h('div',{class:'turno'},
     h('span',{class:'turno-chi'},'Tocca a '+pName(p)),
     h('span',{class:'slots'},slots),
-    st.x01&&st.turn.length?h('span',{class:'turno-tot'},'= '+parz):null);
+    st.x01&&st.turn.length?h('span',{class:'turno-tot'},'= '+parz):null,
+    ch?h('p',{class:'consiglio','data-k':'consiglio'},'Per chiudere '+st.R[p].left+': ',h('b',null,ch.map(function(c){return dartLabel(c,true);}).join(' · '))):null);
 }
 function tastieraX01(g){
   var m=UI.dart.mol,pre=m===3?'T':m===2?'D':'';
@@ -3568,8 +3651,8 @@ function vPartita(g){
     h('h2',{class:'titolo'},nomeModo(g.mode)),
     fin?null:h('button',{type:'button',class:'pill sm viola',onclick:function(){openAbbandona(g.id);}},'Abbandona')));
   out.push(h('div',{class:'tabellone'+(g.players.length===1?' uno':g.players.length>2?' molti':'')},g.players.map(function(p,i){
-    var r=st.R[p],att=!fin&&i===st.cur,vin=st.win===p;
-    return h('div',{class:'gioc'+(att?' attivo':'')+(vin?' vince':'')},
+    var r=st.R[p],att=!fin&&i===st.cur,vin=st.win===p,colpo=p===UI.dart.chi&&Date.now()-(UI.dart.appena||0)<700;
+    return h('div',{class:'gioc'+(att?' attivo':'')+(vin?' vince':'')+(colpo?' colpo':'')},
       h('span',{class:'gioc-h'},ava(p,'xs'),h('span',{class:'gioc-n'},pName(p))),
       h('span',{class:'gioc-p'},st.x01?String(r.left):(r.tgt>20?'Fatto':'al '+r.tgt)),
       h('span',{class:'gioc-s'},vin?(g.players.length>1?'vince':'chiude'):att?'tocca a te':st.x01?'media '+media(r):r.darts+(r.darts===1?' freccetta':' freccette')));
@@ -3756,21 +3839,72 @@ function openPagatoLocale(){
     addMove(mv,'Pagato il locale: '+eur(v)+' dal fondo'+(v>D.fondo?'. Il fondo va sotto zero: qualcuno ha anticipato?':''));
   },'Segna il pagamento');
 }
-/* ---------- Muroblio del pianto: post-it firmati su un muro condiviso ---------- */
+/* ---------- Muroblio del pianto: post-it firmati su un muro di tufo ---------- */
 var COLORI_POSTIT=['Giallo','Rosa','Verde','Lilla','Arancio','Azzurro'];
+var PUNTINE=['#E8334A','#2BA84A','#F2A900','#7B3FE4','#E8334A','#2E7DE0'];
 function puoModificare(w){return isAdmin()||(!!w.dv&&w.dv===devId());}
+/* post-it nuovi: quelli scritti da altri dopo l'ultima volta che hai aperto il muro (solo su questo telefono) */
+function muroVisto(){var v=+lsGet(KEY+'.muroVisto')||0;if(!v){v=Date.now();lsSet(KEY+'.muroVisto',String(v));}return v;}
+function muroNuovi(){var v=muroVisto(),io=mio();return S.muro.filter(function(w){return w.t>v&&w.p!==io;}).length;}
+function apriMuro(){UI.muroPrima=muroVisto();lsSet(KEY+'.muroVisto',String(Date.now()));go(UI.tab,'muro');}
+function eNuovo(w){var v=UI.muroPrima!=null?UI.muroPrima:muroVisto();return w.t>v&&w.p!==mio();}
+function toggleCapisco(w){
+  var io=mio();if(!io){toast('Per dire «Ti capisco» entra con il tuo nome.');return;}
+  var id=idCapisco(w.id,io),c=S.capisco.find(function(x){return x.id===id;});
+  if(c)S.capisco=S.capisco.filter(function(x){return x!==c;});
+  else{S.capisco.push({id:id,w:w.id,p:io,t:Date.now()});tocco(12);}
+  commit();
+}
+function postit(w,i,mini){
+  var chi=capiti(S,w.id),io=mio(),mioCap=!!io&&chi.indexOf(io)>=0,mod=!mini&&puoModificare(w);
+  var r=w.fis&&!mini?-0.5:[-1.8,1.5,-0.6,2,-1.2,0.9][i%6];
+  return h('li',{class:'postit c'+w.col+(w.fis&&!mini?' fissato':''),style:'--r:'+r+'deg;--d:'+(3.6+(i*0.7)%2.2).toFixed(2)+'s;--ri:'+(-i*0.9).toFixed(2)+'s;--pc:'+(w.fis?'#2E7DE0':PUNTINE[i%6])},
+    h('i',{class:'puntina','aria-hidden':'true'}),
+    w.fis&&!mini?h('span',{class:'bandella'},'Fissato dall’admin'):eNuovo(w)?h('span',{class:'nuovo-b'},'Nuovo'):null,
+    h('p',{class:'postit-t'},w.testo),
+    h('div',{class:'postit-f'},
+      h('span',{class:'cresce1'},h('b',null,pName(w.p)),dShortT(w.t)+' '+hm(w.t)+(w.mod&&!mini?' · modificato':'')),
+      h('button',{type:'button',class:'capisco','data-k':(mini?'mcap-':'cap-')+w.id,'aria-pressed':String(mioCap),'aria-label':'Ti capisco, '+chi.length,onclick:function(){toggleCapisco(w);}},'Ti capisco ',h('span',{class:'n'},String(chi.length)))),
+    !mini&&chi.length?h('p',{class:'chi'},nomiLista(chi)):null,
+    mod?h('button',{type:'button',class:'postit-mod','data-k':'mod-'+w.id,'aria-label':'Modifica il post-it di '+pName(w.p),onclick:function(){openPostit(w.id);}},'Modifica'):null);
+}
+/* gli omini disperati ai piedi del muro: piangono, pregano, si buttano a terra */
+var OMINI={
+  prega:'<circle cx="20" cy="12" r="5.5"/><path d="M20 18l-2 16 7 11-11 2"/><path d="M20 22l7-5-3-12"/><path d="M20 22l5-3-1-12"/>',
+  piange:'<circle cx="20" cy="17" r="5.5"/><path d="M20 23v14l8-2v12M20 37l-8 2v8"/><path d="M20 27l-6-4 1-6M20 27l6-4-1-6"/>',
+  urla:'<circle cx="20" cy="10" r="5.5"/><circle cx="20" cy="12" r="1.3" class="bocca"/><path d="M20 16v18l-6 10-6 3M20 34l6 10 6 3"/><path d="M20 20L11 8 9 2M20 20l9-12 2-6"/>',
+  aterra:'<circle cx="9" cy="41" r="5"/><path d="M13 39q9-11 18 1l6 7M31 40l-4 7"/><path d="M13 41l-6 6M15 37l-4 9"/>'
+};
+var FILA_OMINI=[['prega',0],['piange',0],['urla',1],['aterra',0],['prega',1],['piange',1],['urla',0]];
+function omini(){
+  var e=h('div',{class:'omini','aria-hidden':'true'});
+  e.innerHTML=FILA_OMINI.map(function(o,i){
+    return '<svg viewBox="0 0 40 50" class="omino '+o[0]+(o[1]?' gira':'')+'" style="--oi:'+(-i*0.37).toFixed(2)+'s"><g class="corpo" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+OMINI[o[0]]+'</g>'+
+      (o[0]==='aterra'?'':'<path class="lacrima" d="M'+(o[0]==='piange'?23:22)+' '+(o[0]==='urla'?11:o[0]==='piange'?18:13)+'q1.6 2.6 0 3.6q-1.6-1 0-3.6z"/>')+'</svg>';
+  }).join('');
+  return e;
+}
 function vMuro(){
-  var lista=S.muro.slice().reverse();
+  if(UI.muroPrima==null)UI.muroPrima=muroVisto();
+  lsSet(KEY+'.muroVisto',String(Date.now()));
+  var lista=muroOrdinato(S);
   return [indietro(),h('h2',{class:'titolo'},'Muroblio del pianto'),
     h('p',{class:'nota-chiara'},'Un post-it per dire come va, chiedere aiuto o lamentarsi. Sempre firmato. Resta sul muro finché chi l’ha scritto (o l’admin) non lo stacca.'),
     h('button',{class:'pill duo-rosa largo',type:'button','data-k':'nuovo-postit',onclick:function(){openPostit(null);}},'+ Attacca un post-it'),
-    lista.length?h('ul',{class:'muro'},lista.map(function(w,i){
-      var mio2=puoModificare(w);
-      return h('li',{class:'postit c'+w.col+(i%3===1?' storto2':i%3===2?' storto3':'')},
-        h('p',{class:'postit-t'},w.testo),
-        h('div',{class:'postit-f'},ava(w.p,'xs'),h('span',{class:'cresce1'},h('b',null,pName(w.p)),h('br'),dShortT(w.t)+' '+hm(w.t)+(w.mod?' · modificato':''))),
-        mio2?h('button',{type:'button',class:'postit-mod','data-k':'mod-'+w.id,'aria-label':'Modifica il post-it di '+pName(w.p),onclick:function(){openPostit(w.id);}},'Modifica'):null);
-    })):h('section',{class:'cartella'},h('p',{class:'vuoto'},'Il muro è vuoto. Per ora nessuno piange.'))];
+    h('div',{class:'tufo muro-tufo'},
+      lista.length?h('ul',{class:'muro'},lista.map(function(w,i){return postit(w,i,false);}))
+        :h('p',{class:'muro-vuoto'},'Il muro è vuoto. Per ora nessuno piange.'),
+      omini())];
+}
+/* nella Ludoteca: gli ultimi 4 post-it, sul tufo */
+function cardMuroLudoteca(){
+  var l=S.muro.slice(-4).reverse(),n=S.muro.length;
+  return h('section',{class:'cartella'},
+    h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Muroblio del pianto'),h('span',{class:'aiuto'},n?n+' post-it':'vuoto')),
+    l.length?h('div',{class:'tufo muro-tufo mini'},h('ul',{class:'muro mini'},l.map(function(w,i){return postit(w,i,true);}))):h('p',{class:'aiuto'},'Il muro è vuoto. Scrivi il primo post-it.'),
+    h('div',{class:'azioni'},
+      h('button',{class:'pill duo-rosa',type:'button','data-k':'scrivi-postit',onclick:function(){openPostit(null);}},'+ Scrivi un post-it'),
+      h('button',{class:'pill',type:'button','data-k':'apri-muro',onclick:apriMuro},'Tutto il muro')));
 }
 function openPostit(id){
   var w=id?S.muro.find(function(x){return x.id===id;}):null;
@@ -3781,19 +3915,23 @@ function openPostit(id){
   function c(){conta.textContent=ta.value.length+'/300';}
   ta.addEventListener('input',c);c();
   var col=chipSel(COLORI_POSTIT.map(function(n,i){return {v:String(i),label:n,cls:'sm col'+i};}),String(w?w.col:Math.floor(Math.random()*6)));
+  var fis=isAdmin()?h('input',{type:'checkbox',id:'pi-fis',checked:!!(w&&w.fis)}):null;
   var togli=w?h('div',{class:'azioni'},h('button',{type:'button',class:'pill sm pericolo','data-k':'stacca',onclick:function(){
-    S.muro=S.muro.filter(function(x){return x!==w;});closeSheet();commit();
-    toast('Post-it staccato.',function(){S.muro.push(w);S.muro.sort(function(a,b){return a.t-b.t;});commit();toast('Rimesso sul muro.');});
+    var caps=S.capisco.filter(function(x){return x.w===w.id;});
+    S.muro=S.muro.filter(function(x){return x!==w;});S.capisco=S.capisco.filter(function(x){return x.w!==w.id;});closeSheet();commit();
+    toast('Post-it staccato.',function(){S.muro.push(w);S.muro.sort(function(a,b){return a.t-b.t;});S.capisco=S.capisco.concat(caps);commit();toast('Rimesso sul muro.');});
   }},'Stacca il post-it')):null;
   formSheet(w?'Post-it di '+pName(w.p):'Nuovo post-it',[
     w?null:gruppo('Chi lo scrive (niente anonimi)',chi),
     campo('Cosa vuoi dire',ta,'pi-t'),conta,
-    gruppo('Colore',col),togli],function(){
+    gruppo('Colore',col),
+    fis?h('label',{class:'spunta',for:'pi-fis'},fis,'Fissa in cima al muro (avvisi dell’admin)'):null,
+    togli],function(){
     var t=ta.value.trim();
     if(!w&&!chi.get())return 'Scegli chi lo scrive: sul muro niente anonimi.';
     if(t.length<2)return 'Scrivi qualcosa.';
-    if(w){w.testo=t.slice(0,300);w.col=+col.get()||0;w.mod=Date.now();commit();toast('Post-it aggiornato.');}
-    else{var nw={id:'w'+rid(),t:Date.now(),p:chi.get(),testo:t.slice(0,300),col:+col.get()||0,dv:devId()};S.muro.push(nw);commit();toast('Attaccato sul muro.');}
+    if(w){w.testo=t.slice(0,300);w.col=+col.get()||0;w.mod=Date.now();if(fis){if(fis.checked)w.fis=1;else delete w.fis;}commit();toast('Post-it aggiornato.');}
+    else{var nw={id:'w'+rid(),t:Date.now(),p:chi.get(),testo:t.slice(0,300),col:+col.get()||0,dv:devId()};if(fis&&fis.checked)nw.fis=1;S.muro.push(nw);commit();toast('Attaccato sul muro.');}
   },w?'Salva il post-it':'Attacca');
 }
 /* nel Reparto: l'ultimo post-it, se è dei 3 giorni passati */
@@ -3801,7 +3939,7 @@ function cardMuro(){
   var w=S.muro[S.muro.length-1];
   if(!w||Date.now()-w.t>3*864e5)return null;
   return h('section',{class:'postit-annuncio c'+w.col},
-    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Dal Muroblio del pianto'),h('button',{class:'pill sm',type:'button',onclick:function(){go(UI.tab,'muro');}},'Il muro')),
+    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Dal Muroblio del pianto'),h('button',{class:'pill sm',type:'button',onclick:apriMuro},'Il muro')),
     h('p',{class:'postit-t'},'«'+w.testo+'»'),
     h('p',{class:'postit-f'},'— '+pName(w.p)+', '+relDay(ymd(new Date(w.t))).toLowerCase()+' alle '+hm(w.t)));
 }
@@ -3922,10 +4060,55 @@ function cardRecord(){
     righe.length?h('ul',{class:'righe'},righe):h('p',{class:'vuoto'},'Nessun record ancora: servono partite finite.'));
 }
 
+/* ---------- coriandoli: vittorie a freccette, Re dell'oblio, compleanni ---------- */
+var COLORI_FESTA=['#FFD23F','#FF4D97','#9BE22D','#D9C8FF','#FF7A1A','#BFE3F2'];
+function coriandoli(){
+  try{if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
+  var c=document.createElement('canvas'),W=window.innerWidth,H=window.innerHeight,dpr=Math.min(2,window.devicePixelRatio||1);
+  c.className='coriandoli';c.setAttribute('aria-hidden','true');c.width=W*dpr;c.height=H*dpr;
+  document.body.appendChild(c);
+  var x=c.getContext('2d');if(!x){c.remove();return;}
+  x.scale(dpr,dpr);
+  var P=[],i,t0=Date.now();
+  for(i=0;i<140;i++)P.push({x:W*(.2+Math.random()*.6),y:H*.35,vx:(Math.random()-.5)*9,vy:-4-Math.random()*9,r:Math.random()*6.28,vr:(Math.random()-.5)*.4,w:5+Math.random()*5,h:8+Math.random()*6,c:COLORI_FESTA[i%COLORI_FESTA.length]});
+  (function passo(){
+    var dt=Date.now()-t0;
+    x.clearRect(0,0,W,H);
+    P.forEach(function(p){p.vy+=.25;p.vx*=.99;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;
+      x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=p.c;x.fillRect(-p.w/2,-p.h/2,p.w,p.h*Math.abs(Math.cos(p.r*2)));x.restore();});
+    if(dt<3200)requestAnimationFrame(passo);else c.remove();
+  })();
+}
+/* la festa una volta sola per telefono (chiave: cosa si festeggia e quando) */
+function festa(tipo,quando){
+  var k=KEY+'.festa.'+tipo;
+  if(lsGet(k)===quando)return;
+  if(!lsSet(k,quando))return;
+  setTimeout(coriandoli,350);
+}
+
+/* ---------- riepilogo di ieri sera, nel Reparto fino alle 20 ---------- */
+function cardRiepilogo(){
+  var ora=new Date().getHours();if(ora<S.cfg.voteCut||ora>=20)return null;
+  var d=keyDate(openKey()),k=ymd(new Date(d.getFullYear(),d.getMonth(),d.getDate()-1,12)),R=riepilogoSerata(S,k,S.cfg.voteCut);
+  if(!R)return null;
+  if(R.winners.length)festa('re',k);
+  var righe=[];
+  if(R.winners.length)righe.push(h('li',null,ic('medaglia',18),h('span',null,h('b',null,(R.winners.length>1?'Re dell’oblio, a pari punti: ':'Re dell’oblio: ')+nomiLista(R.winners)),
+    R.podio.length>1?' · podio '+R.podio.map(function(x){return x.pos+'° '+pName(x.id);}).join(', '):'')));
+  if(R.partite)righe.push(h('li',null,ic('bersaglio',18),h('span',null,R.partite+(R.partite===1?' partita a freccette':' partite a freccette'),R.freccia?' · vince di più '+pName(R.freccia.p)+' ('+R.freccia.n+')':'')));
+  if(R.pz)righe.push(h('li',null,ic('bicchiere',18),h('span',null,R.pz+(R.pz===1?' consumazione':' consumazioni'),R.topProd.length?' · '+R.topProd.map(function(x){return x.n+' '+x.q;}).join(', '):'',R.beve?' · il più assetato: '+pName(R.beve.p):'')));
+  if(R.cassa||R.graffi)righe.push(h('li',null,ic('cassa',18),h('span',null,'Entrati in cassa '+eur(R.cassa),R.graffi?' · segnati sul ticket '+eur(R.graffi):'')));
+  return h('section',{class:'cartella riepilogo'},
+    h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Com’è andata '+nomeSerata(k)),h('span',{class:'timbro ok'},'Riepilogo')),
+    h('ul',{class:'riep'},righe));
+}
+
 /* ---------- compleanni nel Reparto ---------- */
 function cardCompleanno(){
   var l=prossimiCompleanni(S,today()).filter(function(x){return x.giorni===0;});
   if(!l.length)return null;
+  festa('compleanno',today());
   return h('section',{class:'festa'},
     h('div',{class:'festa-facce'},l.map(function(x){return ava(x.p,'grande');})),
     h('h2',{class:'festa-t'},'Oggi compie gli anni '+nomiLista(l.map(function(x){return x.p;}))+'!'),
@@ -4167,8 +4350,19 @@ var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifich
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};
 
 /* ---------- avvio ---------- */
+/* feedback al tocco (dalla 0.13.0): un'onda dove tocchi, anche se la pagina si ridisegna subito dopo */
+function onda(e){
+  var b=e.target&&e.target.closest?e.target.closest('button,.voce,label.spunta,a,[role="button"]'):null;
+  if(!b||b.disabled||e.button>0)return;
+  var o=document.createElement('span');o.className='onda';o.setAttribute('aria-hidden','true');
+  o.style.left=e.clientX+'px';o.style.top=e.clientY+'px';
+  (foglio&&foglio.open&&foglio.contains(b)?foglio:document.body).appendChild(o);
+  setTimeout(function(){o.remove();},500);
+}
 function start(){
   foglio=$('#foglio');foglioT=$('#foglio-t');foglioB=$('#foglio-b');
+  document.addEventListener('pointerdown',onda,{passive:true});
+  document.addEventListener('touchstart',function(){},{passive:true});   // su iPhone fa funzionare :active
   $('#foglio-x').addEventListener('click',tentaChiudere);
   foglio.addEventListener('close',function(){if(foglio.open)return;liveSheet=null;guardia=null;});   // già riaperto (un foglio dopo l'altro): niente da pulire
   foglio.addEventListener('cancel',function(e){e.preventDefault();tentaChiudere();});   // tasto indietro / Esc

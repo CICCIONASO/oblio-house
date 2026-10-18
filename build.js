@@ -7,7 +7,7 @@ const root = __dirname;
 const src = (f) => fs.readFileSync(path.join(root, 'src', f), 'utf8');
 const VERSIONE = (/APP_V='([^']+)'/.exec(src('app.js')) || [])[1] || '0.0.0';
 const FONT_CSS =
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Shrikhand&display=swap';
+  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Shrikhand&family=Caveat:wght@600&display=swap';
 const fontLink = '<link rel="stylesheet" href="' + FONT_CSS.replace(/&/g, '&amp;') + '">';
 
 const css = src('app.css');

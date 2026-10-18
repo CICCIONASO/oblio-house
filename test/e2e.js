@@ -102,7 +102,8 @@ const fail = (m) => {
   // e senza questi blocchi la prova scriverebbe i suoi movimenti finti nei dati veri
   const newContext = browser.newContext.bind(browser);
   browser.newContext = async (o) => {
-    const c = await newContext(o);
+    // animazioni spente (i post-it al vento si muovono e i clic aspetterebbero per sempre)
+    const c = await newContext({ reducedMotion: 'reduce', ...o });
     // sincronizzazione spenta (le prove dei telefoni la riaccendono col finto server);
     // in più la rete verso Firebase resta chiusa, nel caso qualcosa la riaccendesse
     await c.addInitScript(() => {
@@ -768,6 +769,7 @@ const fail = (m) => {
   await dart(1, 1);
   await dart(1, 1);
   await dart(1, 1);
+  if (!/Per chiudere 40:\s*D20/.test(await text('.consiglio'))) fail('manca il consiglio di chiusura: D20 per 40');
   await dart(2, 20);
   if (!/PJ vince/.test(await text('.vincitore'))) fail('PJ doveva chiudere con D20');
   await shot('22-partita-finita', true);
@@ -1026,8 +1028,18 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   if (!/QUATTRO[\s\S]*modificato/.test(await text('.postit'))) fail('il post-it modificato non si aggiorna');
+  await page.click('.capisco');
+  await page.waitForTimeout(60);
+  if ((await page.getAttribute('.capisco', 'aria-pressed')) !== 'true' || !/1/.test(await text('.capisco .n')))
+    fail('«Ti capisco» non si accende');
+  if (!(await page.$('.muro-tufo .omini svg'))) fail('mancano gli omini disperati sotto il muro');
   await shot('48-muro', true);
   await overflow('muro');
+  await tab('Ludoteca');
+  if ((await page.$$('.muro.mini .postit')).length !== 1) fail('la Ludoteca non mostra i post-it del muro');
+  await page.click('.muro.mini .capisco');
+  await page.waitForTimeout(60);
+  if (!/0/.test(await text('.muro.mini .capisco .n'))) fail('«Ti capisco» non si spegne al secondo tocco');
   await tab('Reparto');
   if (!/Dal Muroblio del pianto/.test(await text('#view'))) fail('il Reparto non mostra l’ultimo post-it');
   // compleanno di PESCE oggi (admin)
