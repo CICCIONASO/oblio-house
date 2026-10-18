@@ -134,7 +134,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .piede{font-size:12px;line-height:1.4;color:var(--lilla-2)}
 
 .nav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--notte);border-top:1px solid var(--viola-linea);padding-bottom:env(safe-area-inset-bottom,0px)}
-.nav-in{max-width:520px;margin-inline:auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:6px 4px 6px}
+.nav-in{max-width:520px;margin-inline:auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:6px 4px 6px}
 .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:58px;padding:0 2px;background:none;border:0;border-radius:12px;color:var(--lilla-2);font:600 clamp(10px,3.1vw,12px)/1.1 var(--f-etichetta);letter-spacing:.03em;text-transform:uppercase;min-width:0}
 .tab[aria-current="page"]{color:var(--giallo);font-weight:700}
 .ic{display:inline-flex}
