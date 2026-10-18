@@ -214,6 +214,7 @@ const fail = (m) => {
   await page.click('.posbar .pill:has-text("Sul ticket")');
   await page.waitForTimeout(100);
   if (!/ticket di PESCE/i.test(await text('#toast'))) fail('toast ticket mancante: ' + (await text('#toast')));
+  if (!(await page.$('#toast .toast-barra'))) fail('«Annulla» senza la barretta del tempo');
 
   // CICCIO paga subito una Coca Cola; importo fuori listino per CONTI
   await page.click('.chip:has-text("CICCIO")');

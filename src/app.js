@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.13.0';
+var APP_V='0.14.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -1557,9 +1557,12 @@ function paintSync(){
   el.hidden=!on;
   if(!on)return;
   var st=SYNC?SST.stato:'spento';
-  el.className='sync-et '+st+(io?' nome-io':'');
+  if(paintSync.prima==='attesa'&&st==='ok'){paintSync.inviato=Date.now();setTimeout(paintSync,1900);}
+  paintSync.prima=st;
+  var inv=st==='ok'&&Date.now()-(paintSync.inviato||0)<1800;
+  el.className='sync-et '+st+(io?' nome-io':'')+(inv?' inviato':'');
   // il nome di chi è entrato: verde collegato, giallo in coda, rosa non collegato
-  el.textContent=io?pName(io)+(st==='attesa'?' · '+SST.attesa+' da inviare':st==='errore'||st==='spento'?' · non collegato':''):syncBreve();
+  el.textContent=io?pName(io)+(inv?' · inviato a tutti':st==='attesa'?' · '+SST.attesa+' da inviare':st==='errore'||st==='spento'?' · non collegato':''):syncBreve();
   el.setAttribute('aria-label',(io?pName(io)+'. ':'')+'Telefoni: '+(SYNC?syncTesto():'non collegati'));
   el.title='Telefoni: '+(SYNC?syncTesto():'non collegati')+(SST.errore?' · '+SST.errore:'');
   var r=$('#sync-riga');if(r)r.textContent=syncTesto();
@@ -1722,7 +1725,7 @@ function vLogin(){
     return out;
   }
   var err=h('p',{class:'errore',role:'alert',hidden:true}),f,a,b;
-  function sbaglio(t,inp){err.textContent=t;err.hidden=false;if(inp){inp.value='';LOG.v[inp.id]='';try{inp.focus();}catch(e){}}}
+  function sbaglio(t,inp){err.textContent=t;err.hidden=false;scuoti(err);if(inp){scuoti(inp);inp.value='';LOG.v[inp.id]='';try{inp.focus();}catch(e){}}}
   function entra(nuovoPin){
     if(nuovoPin)p.pin=improntaPin(p.id,nuovoPin);
     legaTelefono(p.id);lsSet(KEY+'.io',p.id);LOG={chi:null,passo:'chi',admin:false,v:{}};
@@ -1801,7 +1804,7 @@ function conPin(azione,cosa,sempre){
     var vecchio=foglioB.querySelector('.pin-box');if(vecchio)vecchio.remove();
     var err=h('p',{class:'errore',role:'alert',hidden:true});
     var ok=function(){
-      if(!pinGiusto(io,i.value)){i.value='';err.textContent='PIN sbagliato.';err.hidden=false;try{i.focus();}catch(e){}return;}
+      if(!pinGiusto(io,i.value)){i.value='';err.textContent='PIN sbagliato.';err.hidden=false;scuoti(err);scuoti(i);try{i.focus();}catch(e){}return;}
       pinFino=Date.now()+10*60000;box.remove();azione();
     };
     i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();ok();}});
@@ -1834,9 +1837,10 @@ function soloAdmin(azione){if(isAdmin())azione();else toast('Solo l’admin può
 function toast(msg,undo,label){
   var box=$('#toast');clearTimeout(toastTimer);
   var d=h('div',null,h('span',null,msg));
-  if(undo)d.append(h('button',{type:'button',onclick:function(){box.replaceChildren();undo();}},label||'Annulla'));
+  var dur=label?20000:undo?7000:3200;
+  if(undo){d.append(h('button',{type:'button',onclick:function(){box.replaceChildren();undo();}},label||'Annulla'));d.classList.add('con-annulla');d.append(h('i',{class:'toast-barra',style:'animation-duration:'+dur+'ms','aria-hidden':'true'}));}
   box.replaceChildren(d);
-  toastTimer=setTimeout(function(){box.replaceChildren();},label?20000:undo?7000:3200);
+  toastTimer=setTimeout(function(){box.replaceChildren();},dur);
 }
 var foglio,foglioT,foglioB;
 var guardia=null;   // il modulo aperto nel foglio: se si esce senza salvare, si chiede cosa fare
@@ -1904,7 +1908,7 @@ function formSheet(title,fields,onSave,label,opz){
     ev.preventDefault();var r;
     var u=foglioB.querySelector('.uscita');if(u)u.remove();
     try{r=onSave();}catch(e){r='Qualcosa non va: '+(e&&e.message?e.message:e);}
-    if(typeof r==='string'){err.textContent=r;err.hidden=false;err.scrollIntoView({block:'center'});return;}
+    if(typeof r==='string'){err.textContent=r;err.hidden=false;scuoti(err);err.scrollIntoView({block:'center'});return;}
     if(!opz.noBozza)bozzaVia(title);
     if(form.isConnected)closeSheet();   // se il salvataggio ha già aperto un altro foglio, lo lascio
   });
@@ -2005,6 +2009,10 @@ function render(){
   document.body.classList.toggle('fuori',!regole);
   var vista=!dentro?vLogin:!regole?vRegolePrime:UI.sub&&SUBS[UI.sub]?(ADMIN_SUBS[UI.sub]&&!isAdmin()?vBloccato:SUBS[UI.sub]):VIEWS[UI.tab];
   $('#view').replaceChildren(frag(vista()));
+  var pagina=(dentro?'d':'f')+'|'+UI.tab+'|'+(UI.sub||'')+'|'+(UI.sub==='classifiche'?UI.cl:'');
+  if(UI.pagina&&UI.pagina!==pagina&&!movimentoRidotto()){var vw=$('#view');vw.classList.remove('entra');void vw.offsetWidth;vw.classList.add('entra');}
+  UI.pagina=pagina;
+  contaNumeri();
   Array.prototype.forEach.call(document.querySelectorAll('#view form.guardia'),function(f){f._iniz=valoriForm(f);});
   if(key){var el=document.querySelector('[data-k="'+key+'"]');if(el){try{el.focus({preventScroll:true});}catch(e){}}}
   refreshSheet();
@@ -2104,10 +2112,10 @@ function vReparto(){
     h('div',{class:'cart-h'},h('h2',{class:'etichetta'},'Bollettino di '+GIORNI[now.getDay()].toLowerCase()+' '+now.getDate()+'/'+(now.getMonth()+1)),
       h('span',{class:'timbro'+(urgente?'':' ok')},urgente?'Urgente':'Stabile')),
     h('div',{class:'bollettino cruscotto'},
-      tessera('Cassa',eur(D.cash),D.cash<0?'rosso':null,'cassa farmacia',function(){go('reparto','cassa');},'t-cassa'),
-      tessera('Ticket aperti',tot?eur(tot):'nessuno',tot?'rosso':null,tot?nDeb+(nDeb===1?' paziente':' pazienti'):'tutti in regola',function(){apriTicket();},'t-ticket'),
-      tessera('Soldi del locale',eur(P.attuale),P.attuale<0?'rosso':null,'previsionale '+eur(P.previsionale),function(){go('reparto','soldi');},'apri-soldi'),
-      S.quote.length||D.fondo?tessera('Fondo quota',eur(D.fondo),D.fondo<0?'rosso':null,'a parte dalla cassa',function(){go('reparto','quota');},'t-fondo')
+      tessera('Cassa',eur(D.cash),D.cash<0?'rosso':null,'cassa farmacia',function(){go('reparto','cassa');},'t-cassa',D.cash),
+      tessera('Ticket aperti',tot?eur(tot):'nessuno',tot?'rosso':null,tot?nDeb+(nDeb===1?' paziente':' pazienti'):'tutti in regola',function(){apriTicket();},'t-ticket',tot||null),
+      tessera('Soldi del locale',eur(P.attuale),P.attuale<0?'rosso':null,'previsionale '+eur(P.previsionale),function(){go('reparto','soldi');},'apri-soldi',P.attuale),
+      S.quote.length||D.fondo?tessera('Fondo quota',eur(D.fondo),D.fondo<0?'rosso':null,'a parte dalla cassa',function(){go('reparto','quota');},'t-fondo',D.fondo)
         :tessera('Scorte',low.length?low.length+' da prendere':'a posto',low.length?'rosso':null,'lista della spesa',function(){go('reparto','scorte');},'t-scorte')),
     gioco||comp?h('ul',{class:'bollettino-note'},
       gioco?h('li',null,ic('bersaglio',16),h('button',{type:'button',class:'link',onclick:function(){apriFreccette();}},'Partita in corso: '+nomeModo(gioco.mode))):null,
@@ -2121,9 +2129,9 @@ function vReparto(){
   return out;
 }
 /* un numero del bollettino: etichetta, cifra, riga sotto; si tocca per aprire la pagina giusta */
-function tessera(etich,valore,cls,sotto,onclick,k){
+function tessera(etich,valore,cls,sotto,onclick,k,num){
   return h('button',{type:'button',class:'tessera','data-k':k,onclick:onclick},
-    h('span',{class:'tessera-e'},etich),h('span',{class:'tessera-v'+(cls?' '+cls:'')},valore),sotto?h('span',{class:'tessera-s'},sotto):null);
+    h('span',{class:'tessera-e'},etich),h('span',{class:'tessera-v'+(cls?' '+cls:''),'data-conta':num!=null?num:null,'data-ck':k,'data-fmt':'eur'},valore),sotto?h('span',{class:'tessera-s'},sotto):null);
 }
 
 /* ---------- faccende: rifiuti e pulizie ---------- */
@@ -2403,7 +2411,7 @@ function prodTile(p){
   var n=UI.pos.qty[p.id]||0,st=D.stock[p.id];
   var bump=UI.bump===p.id;if(bump)UI.bump=null;
   return h('div',{class:'prod'+(n?' on':'')},
-    h('button',{type:'button',class:'prod-add','data-k':'add-'+p.id,onclick:function(){tocco();UI.bump=p.id;UI.pos.qty[p.id]=n+1;render();}},
+    h('button',{type:'button',class:'prod-add','data-k':'add-'+p.id,onclick:function(e){tocco();UI.bump=p.id;UI.totBump=true;UI.pos.qty[p.id]=n+1;volaPiu(e.currentTarget);render();}},
       h('span',{class:'prod-n'},p.name),h('span',{class:'prod-p'},eur(p.price)),
       st!=null?h('span',{class:'prod-s'+(st<=0?' zero':p.min!=null&&st<=p.min?' poco':'')},st<=0?'finito':p.min!=null&&st<=p.min?'ultimi '+st+' pz':st+' pz'):null),
     n?h('button',{type:'button',class:'prod-less','data-k':'less-'+p.id,'aria-label':'Togli uno: '+p.name,onclick:function(){if(n<=1)delete UI.pos.qty[p.id];else UI.pos.qty[p.id]=n-1;render();}},'−'):null,
@@ -2529,7 +2537,7 @@ function corpoBanco(){
   if(pos.p||t.n>0){
     out.push(h('div',{class:'posbar'},h('div',{class:'posbar-in'},
       h('div',{class:'pos-tot'},h('span',{class:'pos-who'},pos.p?pName(pos.p):'Scegli il paziente'),
-        h('span',{class:'pos-dx'},h('strong',null,t.n?eur(t.a)+' · '+t.n+(t.n===1?' pezzo':' pezzi'):'Scegli cosa prende'),
+        h('span',{class:'pos-dx'},h('strong',{class:UI.totBump&&!(UI.totBump=false)?'scatta':null},t.n?eur(t.a)+' · '+t.n+(t.n===1?' pezzo':' pezzi'):'Scegli cosa prende'),
           ok?h('button',{type:'button',class:'link chiaro','data-k':'ha-dato',onclick:openHaDato},'Resto o pagamento misto'):null)),
       h('div',{class:'pos-btns'},
         h('button',{type:'button',class:'pill duo-verde',disabled:!ok,onclick:function(){posSave('tab');}},'Sul ticket'),
@@ -3654,7 +3662,7 @@ function vPartita(g){
     var r=st.R[p],att=!fin&&i===st.cur,vin=st.win===p,colpo=p===UI.dart.chi&&Date.now()-(UI.dart.appena||0)<700;
     return h('div',{class:'gioc'+(att?' attivo':'')+(vin?' vince':'')+(colpo?' colpo':'')},
       h('span',{class:'gioc-h'},ava(p,'xs'),h('span',{class:'gioc-n'},pName(p))),
-      h('span',{class:'gioc-p'},st.x01?String(r.left):(r.tgt>20?'Fatto':'al '+r.tgt)),
+      h('span',{class:'gioc-p','data-conta':st.x01?r.left:null,'data-ck':'gioc-'+g.id+'-'+p,'data-fmt':'n'},st.x01?String(r.left):(r.tgt>20?'Fatto':'al '+r.tgt)),
       h('span',{class:'gioc-s'},vin?(g.players.length>1?'vince':'chiude'):att?'tocca a te':st.x01?'media '+media(r):r.darts+(r.darts===1?' freccetta':' freccette')));
   })));
   if(fin)out.push(cardFine(g,st));
@@ -4353,6 +4361,31 @@ var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifich
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};
 
 /* ---------- avvio ---------- */
+/* feedback (dalla 0.14.0): errori che tremano, +1 che vola, numeri che scorrono */
+function movimentoRidotto(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(e){return false;}}
+function scuoti(el){if(!el)return;el.classList.remove('scossa');void el.offsetWidth;el.classList.add('scossa');setTimeout(function(){el.classList.remove('scossa');},500);}
+function volaPiu(b){
+  if(!b||movimentoRidotto())return;
+  var r=b.getBoundingClientRect(),o=document.createElement('span');
+  o.className='piu-uno';o.textContent='+1';o.setAttribute('aria-hidden','true');
+  o.style.left=(r.left+r.width/2)+'px';o.style.top=(r.top+8)+'px';
+  document.body.appendChild(o);setTimeout(function(){o.remove();},800);
+}
+var CONTA={};
+function contaNumeri(){
+  var rid=movimentoRidotto();
+  Array.prototype.forEach.call(document.querySelectorAll('[data-conta]'),function(el){
+    var k=el.getAttribute('data-ck'),v=+el.getAttribute('data-conta'),eu=el.getAttribute('data-fmt')==='eur',old=CONTA[k];
+    CONTA[k]=v;
+    if(old==null||old===v||rid)return;
+    var t0=Date.now();el.classList.add('conta');
+    (function passo(){
+      var f=Math.min(1,(Date.now()-t0)/500),x=Math.round(old+(v-old)*(1-Math.pow(1-f,3)));
+      el.textContent=eu?eur(x):String(x);
+      if(f<1&&el.isConnected)requestAnimationFrame(passo);
+    })();
+  });
+}
 /* feedback al tocco (dalla 0.13.0): un'onda dove tocchi, anche se la pagina si ridisegna subito dopo */
 function onda(e){
   var b=e.target&&e.target.closest?e.target.closest('button,.voce,label.spunta,a,[role="button"]'):null;
