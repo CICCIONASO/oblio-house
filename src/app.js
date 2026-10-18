@@ -3868,20 +3868,23 @@ function postit(w,i,mini){
     !mini&&chi.length?h('p',{class:'chi'},nomiLista(chi)):null,
     mod?h('button',{type:'button',class:'postit-mod','data-k':'mod-'+w.id,'aria-label':'Modifica il post-it di '+pName(w.p),onclick:function(){openPostit(w.id);}},'Modifica'):null);
 }
-/* gli omini disperati ai piedi del muro: piangono, pregano, si buttano a terra */
-var OMINI={
-  prega:'<circle cx="20" cy="12" r="5.5"/><path d="M20 18l-2 16 7 11-11 2"/><path d="M20 22l7-5-3-12"/><path d="M20 22l5-3-1-12"/>',
-  piange:'<circle cx="20" cy="17" r="5.5"/><path d="M20 23v14l8-2v12M20 37l-8 2v8"/><path d="M20 27l-6-4 1-6M20 27l6-4-1-6"/>',
-  urla:'<circle cx="20" cy="10" r="5.5"/><circle cx="20" cy="12" r="1.3" class="bocca"/><path d="M20 16v18l-6 10-6 3M20 34l6 10 6 3"/><path d="M20 20L11 8 9 2M20 20l9-12 2-6"/>',
-  aterra:'<circle cx="9" cy="41" r="5"/><path d="M13 39q9-11 18 1l6 7M31 40l-4 7"/><path d="M13 41l-6 6M15 37l-4 9"/>'
+/* gli omini disperati ai piedi del muro: hanno le vostre facce, piangono, pregano, alzano le braccia al cielo */
+var POSE_OMINI={
+  prega:'<path class="gambe" d="M17 22l9 12-12 6M23 22l8 12-11 6"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6l3 6 4-14M27 6l-3 6-4-14"/><ellipse class="mano" cx="20" cy="-6" rx="2.6" ry="4"/>',
+  piange:'<path class="gambe" d="M16 22l-6 10 2 11M24 22l6 10-2 11"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6l-4-8 4-9M27 6l4-8-4-9"/><circle class="mano" cx="13" cy="-11" r="2.8"/><circle class="mano" cx="27" cy="-11" r="2.8"/>',
+  urla:'<path class="gambe" d="M17 22l-3 22M23 22l3 22"/><path class="busto" d="M13 3h14l2 20H11z"/><path class="braccia" d="M13 6L4-18M27 6l9-24"/><circle class="mano" cx="4" cy="-19" r="2.8"/><circle class="mano" cx="36" cy="-19" r="2.8"/>'
 };
-var FILA_OMINI=[['prega',0],['piange',0],['urla',1],['aterra',0],['prega',1],['piange',1],['urla',0]];
+var ORDINE_POSE=['prega','piange','urla'];
 function omini(){
   var e=h('div',{class:'omini','aria-hidden':'true'});
-  e.innerHTML=FILA_OMINI.map(function(o,i){
-    return '<svg viewBox="0 0 40 50" class="omino '+o[0]+(o[1]?' gira':'')+'" style="--oi:'+(-i*0.37).toFixed(2)+'s"><g class="corpo" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">'+OMINI[o[0]]+'</g>'+
-      (o[0]==='aterra'?'':'<path class="lacrima" d="M'+(o[0]==='piange'?23:22)+' '+(o[0]==='urla'?11:o[0]==='piange'?18:13)+'q1.6 2.6 0 3.6q-1.6-1 0-3.6z"/>')+'</svg>';
-  }).join('');
+  people().forEach(function(p,i){
+    var posa=ORDINE_POSE[i%3],o=h('div',{class:'omino-v '+posa,style:'--oi:'+(-i*0.41).toFixed(2)+'s;--maglia:'+TINTE[(i*3)%TINTE.length]});
+    var corpo=h('span',{class:'omino-corpo'});
+    corpo.innerHTML='<svg viewBox="0 0 40 46" overflow="visible">'+POSE_OMINI[posa]+'</svg>';
+    o.appendChild(h('span',{class:'omino-testa'},ava(p.id),h('i',{class:'lacr s'}),h('i',{class:'lacr d'})));
+    o.appendChild(corpo);
+    e.appendChild(o);
+  });
   return e;
 }
 function vMuro(){

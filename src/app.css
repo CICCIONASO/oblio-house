@@ -403,20 +403,27 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .capisco[aria-pressed="true"]{background:var(--inchiostro);color:var(--panna);border-color:var(--inchiostro)}
 .capisco .n{font-family:var(--f-testo);font-weight:600}
 .postit .chi{margin:0;font-size:10.5px;line-height:1.3;color:#3D3060}
-.omini{display:flex;justify-content:space-around;align-items:flex-end;gap:2px;padding:10px 4px 0;background:linear-gradient(to bottom,transparent,rgba(40,20,0,.3) 55%,#5C4426 82%);color:var(--inchiostro)}
-.omino{width:clamp(36px,12vw,54px);height:auto;overflow:visible}
-.omino.gira{transform:scaleX(-1)}
-.omino .corpo{transform-box:fill-box;transform-origin:50% 100%}
-.omino.prega .corpo{animation:prega 1.6s ease-in-out var(--oi,0s) infinite}
-.omino.piange .corpo{animation:singhiozzo .5s ease-in-out var(--oi,0s) infinite}
-.omino.urla .corpo{animation:urla 1.1s ease-in-out var(--oi,0s) infinite}
-.omino.aterra .corpo{animation:singhiozzo .7s ease-in-out var(--oi,0s) infinite}
-.omino .bocca{fill:currentColor;stroke:none}
-.lacrima{fill:#4FA6E0;animation:lacrima 1.2s ease-in var(--oi,0s) infinite}
-@keyframes prega{0%,100%{transform:rotate(0)}50%{transform:rotate(8deg)}}
-@keyframes singhiozzo{0%,100%{transform:translateY(0)}50%{transform:translateY(1.5px)}}
-@keyframes urla{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
-@keyframes lacrima{0%{transform:translateY(0);opacity:1}100%{transform:translateY(16px);opacity:0}}
+.omini{display:flex;justify-content:space-around;align-items:flex-end;gap:2px;padding:42px 4px 4px;background:linear-gradient(to bottom,transparent,rgba(40,20,0,.3) 45%,#5C4426 88%)}
+.omino-v{position:relative;flex:0 1 48px;min-width:0;height:78px;transform-origin:50% 100%}
+.omino-testa{position:absolute;left:50%;top:0;width:36px;height:36px;margin-left:-18px;z-index:1}
+.omino-testa .ava{width:36px;height:36px;border:2px solid var(--notte)}
+.omino-corpo{position:absolute;left:50%;bottom:0;width:40px;margin-left:-20px;z-index:2}
+.omino-corpo svg{display:block;width:40px;height:46px;overflow:visible}
+.omino-corpo .busto{fill:var(--maglia,#FFD23F);stroke:var(--notte);stroke-width:1.2;stroke-linejoin:round}
+.omino-corpo .braccia{fill:none;stroke:var(--maglia,#FFD23F);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.omino-corpo .gambe{fill:none;stroke:#2B2340;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+.omino-corpo .mano{fill:#F1C9A5;stroke:var(--notte);stroke-width:1}
+.lacr{position:absolute;top:17px;width:6px;height:9px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:#5DB7F0;box-shadow:0 0 0 1px rgba(22,6,51,.25);opacity:0;animation:lacr 1.3s ease-in var(--oi,0s) infinite;z-index:3}
+.lacr.s{left:8px}
+.lacr.d{right:8px;animation-delay:calc(var(--oi,0s) - .6s)}
+@keyframes lacr{0%{transform:translateY(0) scale(.6);opacity:0}15%{opacity:1}100%{transform:translateY(34px) scale(1);opacity:0}}
+.omino-v.prega{animation:prega 1.8s ease-in-out var(--oi,0s) infinite}
+.omino-v.piange .omino-testa{animation:singhiozzo .45s ease-in-out var(--oi,0s) infinite}
+.omino-v.piange .omino-corpo{animation:singhiozzo .45s ease-in-out var(--oi,0s) infinite}
+.omino-v.urla{animation:urla 1.2s ease-in-out var(--oi,0s) infinite}
+@keyframes prega{0%,100%{transform:rotate(0)}50%{transform:rotate(9deg)}}
+@keyframes singhiozzo{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
+@keyframes urla{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
 .tab{position:relative}
 .pallino{position:absolute;top:6px;left:calc(50% + 7px);width:10px;height:10px;border-radius:50%;background:var(--rosa);box-shadow:0 0 0 2px var(--notte)}
 .consiglio{flex:1 0 100%;margin:0;font-size:13px;color:var(--lilla)}
