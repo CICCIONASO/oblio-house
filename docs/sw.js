@@ -1,5 +1,5 @@
 /* The Oblio House: funziona senza rete dopo la prima apertura. */
-const VERSIONE = '0.11.0-mve2w1tb';
+const VERSIONE = '0.11.1-mve3vqen';
 const CACHE = 'oblio-' + VERSIONE;
 const FONT_CSS = 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=Shrikhand&display=swap';
 const FILES = [
