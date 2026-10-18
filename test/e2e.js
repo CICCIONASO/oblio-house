@@ -809,8 +809,11 @@ const fail = (m) => {
   await overflow('classifiche');
   await facce('classifiche');
   const cl = await text('#view');
-  if (!/Nessuna serata votata/.test(cl)) fail('re dell’oblio: la serata in corso non deve contare ancora');
   if (!/1 vinta/.test(cl)) fail('classifica freccette senza la vittoria di PJ');
+  if (/Consumi/.test(cl)) fail('dalle freccette la classifica deve aprirsi sulla linguetta Freccette');
+  await page.click('[data-k="cl-triage"]');
+  if (!/Nessuna serata votata/.test(await text('#view'))) fail('re dell’oblio: la serata in corso non deve contare ancora');
+  await page.click('[data-k="cl-bar"]');
   const primoConsumi = await page.$eval('section:has(h3:text("Consumi")) .classifica li:first-child .nome', (e) => e.textContent);
   if (!/PESCE/i.test(primoConsumi)) fail('consumi: primo atteso PESCE, trovato ' + primoConsumi);
   if (!/subito/.test(await page.textContent('section:has(h3:text("Migliori pagatori"))')))
@@ -1078,13 +1081,13 @@ const fail = (m) => {
   // statistiche, medaglie e albo, record
   await tab('Altro');
   await page.click('.voce:has-text("Classifiche")');
-  await page.click('[data-k="cl-statistiche"]');
+  await page.click('[data-k="cl-bar"]');
   if (!/Il mese in numeri/.test(await text('#view')) || !(await page.$('.scheda-mese'))) fail('statistiche del mese vuote');
   await shot('51-statistiche', true);
   await overflow('statistiche');
   await tab('Altro');
   await page.click('.voce:has-text("Classifiche")');
-  await page.click('[data-k="cl-medaglie"]');
+  await page.click('[data-k="cl-albo"]');
   if (!/Albo d’oro/.test(await text('#view')) || (await page.$$('.medaglia-riga')).length !== 8) fail('pagina medaglie e albo incompleta');
   await shot('52-medaglie', true);
   await overflow('medaglie');
@@ -1155,11 +1158,11 @@ const fail = (m) => {
   await shot('33e-muro-320', true);
   await tab('Altro');
   await page.click('.voce:has-text("Classifiche")');
-  await page.click('[data-k="cl-statistiche"]');
+  await page.click('[data-k="cl-bar"]');
   await overflow('statistiche 320');
   await tab('Altro');
   await page.click('.voce:has-text("Classifiche")');
-  await page.click('[data-k="cl-medaglie"]');
+  await page.click('[data-k="cl-albo"]');
   await overflow('medaglie 320');
   await tab('Altro');
   await page.click('.menu:not(.admin) .voce:has-text("Quota e fondo")');

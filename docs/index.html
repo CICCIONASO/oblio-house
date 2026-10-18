@@ -578,7 +578,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.11.1';
+var APP_V='0.12.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -2807,7 +2807,7 @@ function cardTriage(){
         diag.length?[h('br'),'Diagnosi di '+pName(ver.sm.winners[0])+': '+diag.map(function(x){return x.toLowerCase();}).join(', ')+'.']:null)):null,
     h('div',{class:'azioni'},
       h('button',{class:'pill sm',type:'button',disabled:!votiSerata(k).length,onclick:openVoti},'Vedi i voti'),
-      h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go(UI.tab,'classifiche');}},'Classifiche')));
+      h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='triage';go(UI.tab,'classifiche');}},'Classifiche')));
 }
 /* nel Reparto il triage è una riga: com'è finita ieri sera e il pulsante per votare (il triage intero è in Ludoteca) */
 function rigaTriage(){
@@ -3449,7 +3449,7 @@ function vAltro(){
       voceL({ic:'casa',col:'c-soldi',titolo:'Quota e fondo',sotto:qDue?(qDue.scaduta?'In ritardo: ':'Mancano: ')+qDue.mancano.length+' per '+meseNome(qDue.mese):'Quota del locale, a parte dalla cassa',sottoCls:qDue&&qDue.scaduta?'rosso':null,val:eur(D.fondo),onclick:function(){go('altro','quota');}}),
       voceL({ic:'scatola',col:'c-soldi',titolo:'Scorte e spesa',sotto:'Magazzino, scontrini, lista della spesa',val:da?da+' da prendere':'a posto',valCls:da?'rosso':null,onclick:function(){go('altro','scorte');}})]),
     gruppoAltro('Classifiche',[
-      voceL({ic:'podio',col:'c-reparto',titolo:'Classifiche',sotto:'Classifiche, statistiche, medaglie e albo d’oro',val:nMed?nMed+(nMed===1?' medaglia':' medaglie'):null,onclick:function(){go('altro','classifiche');}})]),
+      voceL({ic:'podio',col:'c-reparto',titolo:'Classifiche',sotto:'Triage, bar, freccette, medaglie e albo d’oro',val:nMed?nMed+(nMed===1?' medaglia':' medaglie'):null,onclick:function(){go('altro','classifiche');}})]),
     gruppoAltro('Io: '+(io?pName(io):'—'),[
       voceL({ic:'chiave',col:'c-app',titolo:'Cambia il mio PIN',sotto:'Il PIN che firma cassa, spese e debiti',onclick:openCambiaPin}),
       SYNC?voceL({ic:'rete',col:'c-app',titolo:'Telefoni collegati',sotto:SST.stato==='errore'?'Non collegati: tocca per i dettagli':SST.stato==='attesa'?syncTesto():'Versione '+APP_V,sottoCls:SST.stato==='errore'?'rosso':null,
@@ -4034,7 +4034,7 @@ function vLudoteca(){
   return [h('h2',{class:'titolo'},'Ludoteca'),
     cardTriage(),
     h('section',{class:'cartella'},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Freccette'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go('ludoteca','classifiche');}},'Classifica')),
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Freccette'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='freccette';go('ludoteca','classifiche');}},'Classifica')),
       h('div',{class:'azioni'},h('button',{class:'pill duo-verde largo',type:'button','data-k':'apri-freccette',onclick:apriFreccette},g?'Riprendi la partita: '+nomeModo(g.mode):'Nuova partita')),
       ult?h('p',{class:'aiuto'},'Ultima: '+nomeModo(ult.mode)+', '+(ult.players.length>1?'vince '+pName(playDarts(ult).win)+' su '+nomiLista(ult.players.filter(function(p){return p!==playDarts(ult).win;})):'allenamento di '+pName(ult.players[0]))+'.'):null),
     h('section',{class:'cartella'},
@@ -4083,7 +4083,7 @@ function vNuovaPartita(){
         h('button',{class:'pill',type:'button',disabled:st.players.length<2,onclick:function(){mescola(st.players);render();}},'Mescola'),
         h('button',{class:'pill duo-verde',type:'button','data-k':'inizia',disabled:!st.players.length,onclick:function(){nuovaPartita(st.mode,st.players);}},'Inizia la partita'))),
     h('section',{class:'cartella'},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime partite'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='classifiche';go('ludoteca','classifiche');}},'Classifica')),
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime partite'),h('button',{class:'pill sm',type:'button',onclick:function(){UI.cl='freccette';go('ludoteca','classifiche');}},'Classifica')),
       h('div',{class:'riga-tratt'}),
       recenti.length?h('ul',{class:'righe'},recenti.map(rigaPartita)):h('p',{class:'vuoto'},'Ancora nessuna partita. Il bersaglio aspetta.')),
     cardRecord()];
@@ -4392,40 +4392,40 @@ function mesiConDati(){
   return out;
 }
 /* statistiche del mese, dentro le Classifiche (dalla 0.11.0 non sono più una pagina a sé) */
-function corpoStatistiche(){
+/* il mese persona per persona, solo per un argomento: 'triage', 'bar' o 'freccette' */
+function meseArgomento(tipo){
   var k=openKey(),mesi=mesiConDati(),ym=UI.statM&&mesi.indexOf(UI.statM)>=0?UI.statM:mesi[0];
   var sel=h('select',{class:'inp',id:'st-mese','aria-label':'Mese'},mesi.map(function(m){return h('option',{value:m},meseNome(m)+(m===k.slice(0,7)?' (in corso)':''));}));
   sel.value=ym;sel.addEventListener('change',function(){UI.statM=sel.value;render();});
-  return [campo('Mese',sel,'st-mese')].concat(statisticheMese(ym),
-    h('p',{class:'nota-chiara'},'Tutto conta per serata: quello che succede prima delle '+(S.cfg.voteCut===0?'24':S.cfg.voteCut)+':00 vale per la sera prima. Le «serate» sono quelle in cui c’è qualcosa di segnato a suo nome: consumazioni, voti, partite, rifiuti.'));
-}
-function statisticheMese(ym){
-  var k=openKey(),st=statMese(S,ym,S.cfg.voteCut,k),tot=st.tot,out=[];
-  var ids=Object.keys(st.per).sort(function(a,b){var x=st.per[a],y=st.per[b];return (y.eur-x.eur)||(y.nSerate-x.nSerate)||pName(a).localeCompare(pName(b));});
-  out.push(h('section',{class:'cartella'},
+  var st=statMese(S,ym,S.cfg.voteCut,k),tot=st.tot;
+  var tieni=function(x){return tipo==='triage'?x.votiRic||x.rossi||x.votiDati:tipo==='freccette'?x.gare||x.darts:x.pz||x.tab||x.rifiuti||x.pulizie;};
+  var chiave=function(x){return tipo==='triage'?x.votiRic*100+x.rossi:tipo==='freccette'?x.vinte*1000+x.gare:x.eur;};
+  var ids=Object.keys(st.per).filter(function(id){return tieni(st.per[id]);}).sort(function(a,b){return chiave(st.per[b])-chiave(st.per[a])||pName(a).localeCompare(pName(b));});
+  var numeri=tipo==='triage'?[numero(String(tot.voti),'punti al triage'),numero(String(tot.nSerate),tot.nSerate===1?'serata':'serate')]
+    :tipo==='freccette'?[numero(String(tot.partite),tot.partite===1?'partita':'partite')]
+    :[numero(eur(tot.eur),'consumato in farmacia'),numero(String(tot.pz),tot.pz===1?'pezzo':'pezzi'),numero(eur(tot.tab),'segnato sul ticket')];
+  var out=[h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Il mese in numeri'),h('span',{class:'timbro'+(ym===k.slice(0,7)?'':' ok')},ym===k.slice(0,7)?'In corso':'Chiuso')),
-    h('div',{class:'numeri'},
-      numero(eur(tot.eur),'consumato in farmacia'),
-      numero(String(tot.pz),tot.pz===1?'pezzo':'pezzi'),
-      numero(String(tot.nSerate),tot.nSerate===1?'serata':'serate'),
-      numero(String(tot.voti),'punti al triage'),
-      numero(String(tot.partite),tot.partite===1?'partita':'partite'),
-      numero(eur(tot.tab),'segnato sul ticket')),
-    tot.top?h('p',{class:'aiuto'},'Il più preso: '+tot.top.n+' ('+tot.top.q+(tot.top.q===1?' pezzo).':' pezzi).')):null));
-  var schede=ids.map(function(id){
-    var x=st.per[id],avg=x.darts?x.pts/x.darts*3:0;
+    campo('Mese',sel,'st-mese'),
+    h('div',{class:'numeri'},numeri),
+    tipo==='bar'&&tot.top?h('p',{class:'aiuto'},'Il più preso: '+tot.top.n+' ('+tot.top.q+(tot.top.q===1?' pezzo).':' pezzi).')):null)];
+  if(!ids.length){out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},'Niente in questo mese.')));return out;}
+  out.push(ids.map(function(id){
+    var x=st.per[id],avg=x.darts?x.pts/x.darts*3:0,righe;
+    if(tipo==='triage')righe=[
+      [h('dt',null,'Ricevuto'),h('dd',null,(x.votiRic===1?'1 punto':x.votiRic+' punti')+(x.rossi?' · '+x.rossi+(x.rossi===1?' codice rosso':' codici rossi'):''))],
+      x.votiDati?[h('dt',null,'Ha votato'),h('dd',null,x.votiDati+(x.votiDati===1?' persona':' persone'))]:null];
+    else if(tipo==='freccette')righe=[
+      [h('dt',null,'Partite'),h('dd',null,x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento')],
+      x.darts?[h('dt',null,'Media'),h('dd',null,numIt(avg,1)+' ogni tre freccette')]:null];
+    else righe=[
+      x.pz?[h('dt',null,'Ha preso'),h('dd',null,x.pz+(x.pz===1?' pezzo':' pezzi')+(x.preferito?', soprattutto '+x.preferito.n+' ('+x.preferito.q+')':''))]:null,
+      x.tab?[h('dt',null,'Sul ticket'),h('dd',null,eur(x.tab))]:null,
+      x.rifiuti||x.pulizie?[h('dt',null,'Faccende'),h('dd',null,[x.rifiuti?'rifiuti '+x.rifiuti+(x.rifiuti===1?' volta':' volte'):'',x.pulizie?'pulizie '+x.pulizie:''].filter(Boolean).join(' · '))]:null];
     return h('section',{class:'cartella scheda-mese'},
-      h('div',{class:'cart-h'},h('span',{class:'linea'},ava(id,'sm'),h('h3',{class:'nome'},pName(id))),h('span',{class:'importo'},eur(x.eur))),
-      h('dl',{class:'scheda'},
-        x.pz?[h('dt',null,'Ha preso'),h('dd',null,x.pz+(x.pz===1?' pezzo':' pezzi')+(x.preferito?', soprattutto '+x.preferito.n+' ('+x.preferito.q+')':''))]:null,
-        x.tab?[h('dt',null,'Sul ticket'),h('dd',null,eur(x.tab))]:null,
-        h('dt',null,'Serate'),h('dd',null,x.nSerate+(x.nSerate===1?' serata':' serate')),
-        x.votiRic||x.rossi?[h('dt',null,'Triage'),h('dd',null,(x.votiRic===1?'1 punto ricevuto':x.votiRic+' punti ricevuti')+(x.rossi?' · '+x.rossi+(x.rossi===1?' codice rosso':' codici rossi'):''))]:null,
-        x.votiDati?[h('dt',null,'Ha votato'),h('dd',null,x.votiDati+(x.votiDati===1?' persona':' persone'))]:null,
-        x.gare||x.darts?[h('dt',null,'Freccette'),h('dd',null,(x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento')+(x.darts?' · media '+numIt(avg,1):''))]:null,
-        x.rifiuti||x.pulizie?[h('dt',null,'Faccende'),h('dd',null,[x.rifiuti?'rifiuti '+x.rifiuti+(x.rifiuti===1?' volta':' volte'):'',x.pulizie?'pulizie '+x.pulizie:''].filter(Boolean).join(' · '))]:null));
-  });
-  if(schede.length)out.push(schede);else out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},'Niente in questo mese.')));
+      h('div',{class:'cart-h'},h('span',{class:'linea'},ava(id,'sm'),h('h3',{class:'nome'},pName(id))),tipo==='bar'?h('span',{class:'importo'},eur(x.eur)):null),
+      h('dl',{class:'scheda'},righe));
+  }));
   return out;
 }
 function numero(v,l){return h('div',{class:'numero'},h('b',null,v),h('span',null,l));}
@@ -4597,41 +4597,33 @@ function linguette(k,voci,att,scegli){
     return h('button',{type:'button',role:'tab',class:'linguetta','data-k':k+'-'+v[0],'aria-selected':String(att===v[0]),onclick:function(){tocco();scegli(v[0]);}},v[1]);
   }));
 }
-/* Classifiche, Statistiche, Medaglie e albo d'oro: una pagina con tre linguette */
+/* Classifiche divise per argomento: Triage, Bar, Freccette, Albo (medaglie e albo d'oro) */
+var LINGUETTE_CL=[['triage','Triage'],['bar','Bar'],['freccette','Freccette'],['albo','Albo']];
 function vClassifiche(){
-  var t=UI.cl==='statistiche'||UI.cl==='medaglie'?UI.cl:'classifiche';
+  var t=LINGUETTE_CL.some(function(x){return x[0]===UI.cl;})?UI.cl:'triage';
   var out=[indietro(),h('h2',{class:'titolo'},'Classifiche'),
-    linguette('cl',[['classifiche','Classifiche'],['statistiche','Statistiche'],['medaglie','Medaglie e albo']],t,function(v){UI.cl=v;render();window.scrollTo(0,0);})];
-  return out.concat(t==='statistiche'?corpoStatistiche():t==='medaglie'?corpoMedaglie():corpoClassifiche());
+    linguette('cl',LINGUETTE_CL,t,function(v){UI.cl=v;render();window.scrollTo(0,0);})];
+  return out.concat(t==='albo'?corpoMedaglie():t==='bar'?corpoBar():t==='freccette'?corpoFreccette():corpoTriage());
 }
-function corpoClassifiche(){
-  var k=openKey(),per=UI.per,cut=S.cfg.voteCut,now=Date.now(),ym=k.slice(0,7);
+function periodoCl(){
+  var k=openKey(),per=UI.per,cut=S.cfg.voteCut,ym=k.slice(0,7);
   var quando=per==='mese'?meseNome(ym):per==='scorso'?meseNome(prevMonth(ym)):'da sempre';
-  var chips=h('div',{class:'chips',role:'group','aria-label':'Periodo'},[['mese','Questo mese'],['scorso','Mese scorso'],['sempre','Da sempre']].map(function(x){
-    return h('button',{type:'button',class:'chip','data-k':'per-'+x[0],'aria-pressed':String(per===x[0]),onclick:function(){UI.per=x[0];render();}},x[1]);
-  }));
-  var re=statRe(S,per,k),co=statConsumi(S,per,k,cut),fr=statFreccette(S,per,k,cut),pg=statPagatori(S,per,k,cut,now);
+  return [h('div',{class:'chips',role:'group','aria-label':'Periodo'},[['mese','Questo mese'],['scorso','Mese scorso'],['sempre','Da sempre']].map(function(x){
+      return h('button',{type:'button',class:'chip','data-k':'per-'+x[0],'aria-pressed':String(per===x[0]),onclick:function(){UI.per=x[0];render();}},x[1]);
+    })),
+    h('p',{class:'nota-chiara'},'Periodo: '+quando+'. Tutto si conta per serata: quello che succede prima delle '+(cut===0?'24':cut)+':00 vale per la sera prima.')];
+}
+function corpoTriage(){
+  var k=openKey(),per=UI.per,re=statRe(S,per,k);
   var iRe=ordina(Object.keys(re.by).filter(function(id){return re.by[id].voti>0;}).map(function(id){
     var x=re.by[id];
     return {id:id,a:x.voti,b:x.rossi,val:puntiTxt(x.voti),
       sub:x.pos.map(function(n,i){return n?(n===1?'1 volta ':n+' volte ')+POSTI[i]:'';}).filter(Boolean).join(' · ')||'mai sul podio'};}));
-  var iCo=ordina(Object.keys(co).map(function(id){var x=co[id];return {id:id,a:x.eur,b:x.pz,val:eur(x.eur),sub:x.pz+(x.pz===1?' pezzo':' pezzi')};}));
-  var iFr=ordina(Object.keys(fr).filter(function(id){return fr[id].gare>0||fr[id].darts>0;}).map(function(id){
-    var x=fr[id],avg=x.darts?x.pts/x.darts*3:0,pc=percFreccette(x);
-    return {id:id,a:pc>=0?Math.round(pc*1000):-1,b:x.gare,val:pc>=0?Math.round(pc*100)+'%':'—',
-      sub:[x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento',pc<0&&x.gare?'poche partite: ne servono '+FRECCE_MIN:null,x.darts?'media '+numIt(avg,1):null,x.co?'chiusura migliore '+x.co:null,x.ultimo?'ultimo '+x.ultimo+(x.ultimo===1?' volta':' volte'):null].filter(Boolean).join(' · ')};}));
-  var iDe=ordina(people(true).filter(function(p){return (D.debt[p.id]||0)>0;}).map(function(p){
-    var u=D.units[p.id]||0;return {id:p.id,a:D.debt[p.id],b:u,val:eur(D.debt[p.id]),cls:'rosso',sub:u+(u===1?' tacca':' tacche')};}));
-  var iPg=ordina(Object.keys(pg).map(function(id){
-    var x=pg[id],g10=Math.round(x.giorni*10);
-    // a parità di giorni passa avanti chi ha meno ancora da saldare
-    return {id:id,a:-g10,b:-x.open,val:g10===0&&!x.open?'subito':numIt(g10/10,1)+(g10===10?' giorno':' giorni'),
-      sub:'su '+eur(x.eur)+(x.open?' · '+eur(x.open)+' ancora sul ticket':' · tutto saldato')};}));
-  var sp=statSpazzatura(S,per,k);
-  var iSp=ordina(Object.keys(sp).map(function(id){var x=sp[id];return {id:id,a:x.n,b:0,val:x.n+(x.n===1?' volta':' volte'),sub:'ultima: '+dShort(x.ultima)};}));
-  var ch=serateChiuse(S,k),ks=Object.keys(ch).filter(function(s){return inPer(s,per,k)&&ch[s].n;}).sort().reverse().slice(0,10);
-  return [chips,
-    h('p',{class:'nota-chiara'},'Periodo: '+quando+'. Tutto si conta per serata: quello che succede prima delle '+(cut===0?'24':cut)+':00 vale per la sera prima.'),
+  var ch=serateChiuse(S,k),tutte=Object.keys(ch).filter(function(s){return inPer(s,per,k)&&ch[s].n;}).sort().reverse(),ks=tutte.slice(0,10);
+  // sintomi più dati nelle serate chiuse del periodo
+  var sy={};tutte.forEach(function(s){var si=ch[s].sint;Object.keys(si).forEach(function(c){Object.keys(si[c]).forEach(function(y){sy[y]=(sy[y]||0)+si[c][y];});});});
+  var tops=Object.keys(sy).sort(function(a,b){return sy[b]-sy[a]||a.localeCompare(b);}).slice(0,8);
+  return periodoCl().concat([
     boardC('Re dell’oblio','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
     ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime serate')),h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},ks.map(function(s){
@@ -4641,12 +4633,39 @@ function corpoClassifiche(){
           sm.winners.length===1?ava(sm.winners[0],'sm'):null,
           h('span',{class:'cresce'},h('span',{class:'nome'},testoPodio(sm)),h('span',{class:'sotto'},sm.n+(sm.n===1?' votante':' votanti')))));
       }))):null,
+    tops.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Sintomi più dati')),h('div',{class:'riga-tratt'}),
+      h('ul',{class:'righe'},tops.map(function(y){return h('li',null,h('div',{class:'riga'},h('span',{class:'cresce nome'},y),h('span',{class:'tri-v'},sy[y]+(sy[y]===1?' volta':' volte'))));}))):null
+  ],meseArgomento('triage'));
+}
+function corpoBar(){
+  var k=openKey(),per=UI.per,cut=S.cfg.voteCut,now=Date.now(),co=statConsumi(S,per,k,cut),pg=statPagatori(S,per,k,cut,now),sp=statSpazzatura(S,per,k);
+  var iCo=ordina(Object.keys(co).map(function(id){var x=co[id];return {id:id,a:x.eur,b:x.pz,val:eur(x.eur),sub:x.pz+(x.pz===1?' pezzo':' pezzi')};}));
+  var iDe=ordina(people(true).filter(function(p){return (D.debt[p.id]||0)>0;}).map(function(p){
+    var u=D.units[p.id]||0;return {id:p.id,a:D.debt[p.id],b:u,val:eur(D.debt[p.id]),cls:'rosso',sub:u+(u===1?' tacca':' tacche')};}));
+  var iPg=ordina(Object.keys(pg).map(function(id){
+    var x=pg[id],g10=Math.round(x.giorni*10);
+    // a parità di giorni passa avanti chi ha meno ancora da saldare
+    return {id:id,a:-g10,b:-x.open,val:g10===0&&!x.open?'subito':numIt(g10/10,1)+(g10===10?' giorno':' giorni'),
+      sub:'su '+eur(x.eur)+(x.open?' · '+eur(x.open)+' ancora sul ticket':' · tutto saldato')};}));
+  var iSp=ordina(Object.keys(sp).map(function(id){var x=sp[id];return {id:id,a:x.n,b:0,val:x.n+(x.n===1?' volta':' volte'),sub:'ultima: '+dShort(x.ultima)};}));
+  return periodoCl().concat([
     boardC('Consumi','Quanto ha preso ognuno in farmacia, pagato subito o sul ticket.',iCo,'Nessuna consumazione in questo periodo.'),
-    boardC('Freccette','Percentuale di vittorie sulle partite finite con almeno due giocatori. Si entra in classifica da '+FRECCE_MIN+' partite. La media è per tre freccette, solo 501 e 301.',iFr,'Nessuna partita finita in questo periodo.'),
     boardC('Debiti','Ticket aperti adesso: non dipende dal periodo.',iDe,'Nessun ticket aperto.'),
     boardC('Migliori pagatori','Giorni in media tra consumazione e saldo, pesati sugli euro. «Paga subito» conta zero; quello ancora sul ticket conta fino a oggi.',iPg,'Nessuna consumazione in questo periodo.'),
     boardC('Spazzatura','Chi ha portato giù i rifiuti: una volta per ogni serata di uscita.',iSp,
-      calPieno(S.cfg)?'Nessuno ha portato giù i rifiuti in questo periodo.':'Prima va compilato il calendario dei rifiuti, in Altro › Regole del reparto.')];
+      calPieno(S.cfg)?'Nessuno ha portato giù i rifiuti in questo periodo.':'Prima va compilato il calendario dei rifiuti, in Altro › Regole del reparto.')
+  ],meseArgomento('bar'));
+}
+function corpoFreccette(){
+  var k=openKey(),per=UI.per,fr=statFreccette(S,per,k,S.cfg.voteCut);
+  var iFr=ordina(Object.keys(fr).filter(function(id){return fr[id].gare>0||fr[id].darts>0;}).map(function(id){
+    var x=fr[id],avg=x.darts?x.pts/x.darts*3:0,pc=percFreccette(x);
+    return {id:id,a:pc>=0?Math.round(pc*1000):-1,b:x.gare,val:pc>=0?Math.round(pc*100)+'%':'—',
+      sub:[x.gare?x.vinte+(x.vinte===1?' vinta su ':' vinte su ')+x.gare:'solo allenamento',pc<0&&x.gare?'poche partite: ne servono '+FRECCE_MIN:null,x.darts?'media '+numIt(avg,1):null,x.co?'chiusura migliore '+x.co:null,x.ultimo?'ultimo '+x.ultimo+(x.ultimo===1?' volta':' volte'):null].filter(Boolean).join(' · ')};}));
+  return periodoCl().concat([
+    boardC('Freccette','Percentuale di vittorie sulle partite finite con almeno due giocatori. Si entra in classifica da '+FRECCE_MIN+' partite. La media è per tre freccette, solo 501 e 301.',iFr,'Nessuna partita finita in questo periodo.'),
+    cardRecord()
+  ],meseArgomento('freccette'));
 }
 
 /* ---------- regole ---------- */
@@ -4720,7 +4739,7 @@ function vRegole(){
 
 var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro};
 var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifiche,scorte:vScorte,listino:vListino,persone:vPersone,regole:vRegole,backup:vBackup,installa:vInstalla,
-  statistiche:function(){UI.cl='statistiche';return vClassifiche();},medaglie:function(){UI.cl='medaglie';return vClassifiche();},muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
+  statistiche:function(){UI.cl='triage';return vClassifiche();},medaglie:function(){UI.cl='albo';return vClassifiche();},muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};
 
 /* ---------- avvio ---------- */
