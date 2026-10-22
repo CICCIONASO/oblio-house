@@ -1137,3 +1137,21 @@ console.log('0.13.0: Ti capisco, post-it fissati, consiglio di chiusura, riepilo
   );
 }
 console.log('0.16.0: operazioni per conto di altri da confermare');
+
+// 0.17.0: l'ultimo giorno in cui ognuno ha aperto l'app (person.visto) resta nei dati, le date storte no
+{
+  const base = { people: [], moves: [], products: [] };
+  const N = normState({
+    ...base,
+    people: [
+      { id: 'a', name: 'A', kind: 'paziente', pin: 'x.1', tel: 'd1', visto: '2026-10-22' },
+      { id: 'b', name: 'B', kind: 'paziente', visto: 'ieri' },
+      { id: 'c', name: 'C', kind: 'paziente', visto: 20261022 },
+    ],
+  });
+  assert.strictEqual(N.people[0].visto, '2026-10-22');
+  assert.strictEqual(N.people[0].pin, 'x.1', 'il PIN resta un’impronta');
+  assert.ok(!('visto' in N.people[1]), 'data storta: via');
+  assert.ok(!('visto' in N.people[2]), 'non è un testo: via');
+}
+console.log('0.17.0: ultima apertura dell’app per persona');
