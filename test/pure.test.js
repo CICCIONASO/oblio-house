@@ -1081,3 +1081,59 @@ console.log('0.11.0: podio, voto dal proprio telefono, freccette in %, ELENA');
   assert.strictEqual(x.riepilogoSerata(R0, '2026-01-01', 6), null, 'serata vuota: niente scheda');
 }
 console.log('0.13.0: Ti capisco, post-it fissati, consiglio di chiusura, riepilogo della serata');
+
+/* ---------- 0.16.0: operazioni per conto di altri, da confermare dall'admin ---------- */
+{
+  const x = pure('{vaConfermato,daConfermare,confermaOp,annullaOp,derive,seedState,normState}');
+  assert.ok(x.vaConfermato('pj', 'conti', false), 'un non-admin segna per un altro: da confermare');
+  assert.ok(!x.vaConfermato('conti', 'conti', false), 'per sé: niente conferma');
+  assert.ok(!x.vaConfermato('pj', 'conti', true), "l'admin non deve confermare sé stesso");
+  assert.ok(!x.vaConfermato('pj', null, false));
+  const S = x.seedState(1);
+  S.people.push({ id: 'a1', name: 'GIGI', kind: 'amico', on: true, img: '' });
+  const T = Date.parse('2026-11-02T21:00:00+01:00');
+  S.moves.push({ id: 'i1', t: T, k: 'tab', p: 'pj', a: 300, items: [{ n: 'Birra', q: 1, pr: 300 }], da: 'conti', dc: 1 });
+  S.moves.push({ id: 'i2', t: T + 1, k: 'tab', p: 'conti', a: 200, items: [{ n: 'Coca', q: 1, pr: 200 }], da: 'conti' });
+  S.moves.push({ id: 'p1', t: T + 2, k: 'dplus', p: 'a1', a: 1000, g: 'g1', pc: 1, da: 'conti', dc: 1 });
+  S.moves.push({ id: 'p2', t: T + 3, k: 'exp', a: 1000, cat: 'Preso dalla cassa', paidBy: 'cassa', g: 'g1', pc: 1, da: 'conti' });
+  S.votes.push({ id: 'v1', s: '2026-11-02', v: 'a1', c: 'pj', cs: ['pj'], t: T + 4, da: 'conti', dc: 1 });
+  // conta subito: il debito è già sul ticket
+  const D0 = x.derive(S);
+  assert.strictEqual(D0.debt.pj, 300);
+  assert.strictEqual(D0.debt.a1, 1000);
+  // il campo resta dopo la normalizzazione (e quindi nella sincronizzazione)
+  const N = x.normState(JSON.parse(JSON.stringify(S)));
+  assert.strictEqual(N.moves.find((m) => m.id === 'i1').dc, 1);
+  assert.strictEqual(N.votes.find((v) => v.id === 'v1').dc, 1);
+  assert.ok(!('dc' in N.moves.find((m) => m.id === 'i2')));
+  // tre voci: ticket, prende dalla cassa (i due movimenti insieme) e voto
+  let L = x.daConfermare(S);
+  assert.deepStrictEqual(
+    L.map((o) => o.id),
+    ['mi1', 'mg1', 'vv1']
+  );
+  assert.strictEqual(L[1].mv.length, 2, 'prende dalla cassa: i due movimenti sono una voce sola');
+  // conferma: resta com'è e sparisce dalla lista
+  x.confermaOp(L[0]);
+  assert.ok(!('dc' in S.moves[0]));
+  assert.strictEqual(x.derive(S).debt.pj, 300);
+  // annulla come sospetta: debito e cassa tornano, il movimento resta nel registro annullato
+  L = x.daConfermare(S);
+  x.annullaOp(S, L[0], T + 10);
+  const D1 = x.derive(S);
+  assert.strictEqual(D1.debt.a1 || 0, 0);
+  assert.strictEqual(D1.cash, D0.cash + 1000);
+  assert.ok(S.moves.find((m) => m.id === 'p1').x && S.moves.find((m) => m.id === 'p2').x, 'annullati insieme');
+  assert.ok(/sospetta/.test(S.moves.find((m) => m.id === 'p1').xm));
+  // il voto sospetto si toglie
+  x.annullaOp(S, x.daConfermare(S)[0], T + 11);
+  assert.strictEqual(S.votes.length, 0);
+  assert.strictEqual(x.daConfermare(S).length, 0);
+  // ripristinato da qualcuno: torna da confermare
+  S.moves.filter((m) => m.g === 'g1').forEach((m) => delete m.x);
+  assert.deepStrictEqual(
+    x.daConfermare(S).map((o) => o.id),
+    ['mg1']
+  );
+}
+console.log('0.16.0: operazioni per conto di altri da confermare');

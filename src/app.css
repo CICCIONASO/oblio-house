@@ -360,6 +360,9 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .resto p.aiuto{font-size:13px}
 .importo.blu{color:#1F5FA8}
 .tag.rosso{color:var(--rosso)}
+.tag.attesa{background:var(--giallo);border-color:var(--giallo);color:var(--inchiostro)}
+.conferme .conferma{padding-bottom:10px}
+.conferme .conferma .azioni{margin-top:4px}
 .cartella.allarme{border-color:var(--rosso);box-shadow:none}
 .cartella.sospeso{background:#FFF1C7}
 .avviso-riga{padding:7px 10px;border-radius:10px;background:#FFE3EE;color:var(--rosso);font-size:13px;font-weight:600;line-height:1.35}
