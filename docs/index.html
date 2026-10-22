@@ -4217,7 +4217,7 @@ function riepilogoApp(){
   if(!tutti.length)return null;
   return h('section',{class:'cartella','data-k':'riep-app'},
     h('h3',{class:'etichetta'},'Chi ha l’app'),
-    h('p',{class:'nota-chiara'},tutti.length-senza.length+' su '+tutti.length+' pazienti hanno l’app'+(senza.length?'. Senza: '+senza.map(nomeP).join(', ')+'.':'. Ci sono tutti.')),
+    h('p',null,h('strong',null,tutti.length-senza.length+' su '+tutti.length),' pazienti hanno l’app'+(senza.length?'. Senza: '+senza.map(nomeP).join(', ')+'.':'. Ci sono tutti.')),
     ospitiCheEntrano().length?h('p',null,h('strong',null,ospitiCheEntrano().filter(haApp).length+' su '+ospitiCheEntrano().length),' ospiti con il codice sono già entrati.'):null,
     h('p',{class:'aiuto'},'«Ha l’app» vuol dire che ha creato il suo PIN ed è entrato dal suo telefono. I PIN non si vedono: chi lo dimentica lo fa azzerare e ne crea uno nuovo.'));
 }
