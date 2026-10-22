@@ -248,6 +248,8 @@ const fail = (m) => {
   await facce('cartella');
   if (!(await page.$('#foglio .segnaletica img'))) fail('la cartella di PESCE non mostra la caricatura');
   await shot('06-cartella-pesce');
+  // 0.16.0: CICCIO (non admin) ha segnato sul ticket di PESCE: la riga porta il bollino «da confermare»
+  if (!/da confermare/.test(await text('#foglio'))) fail('nella cartella di PESCE manca il bollino «da confermare»');
   await page.click('#foglio .pill:has-text("Incassa")');
   await page.fill('#py-a', '2,00');
   await page.click('#foglio button[type=submit]');
@@ -338,6 +340,32 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(100);
   if (!(await page.$('.menu.admin .voce:has-text("Listino")'))) fail('dopo il codice admin il Listino non compare');
+  // 0.16.0: l'admin trova nel Reparto le operazioni segnate da CICCIO per altri (ticket di PESCE, CONTI e Gigi, CONTI
+  // che prende dalla cassa); annulla quella di Gigi come sospetta e conferma le altre
+  await tab('Reparto');
+  if (!/4 operazioni da confermare/.test(await text('#view'))) fail('manca la riga «4 operazioni da confermare» per l’admin');
+  await page.click('[data-k="apri-conferme"]');
+  await page.waitForTimeout(80);
+  if ((await page.$$('#foglio .conferma')).length !== 4) fail('da confermare: attese 4 voci');
+  if (!/CONTI prende dalla cassa[\s\S]*segnato da CICCIO/i.test(await text('#foglio'))) fail('da confermare: manca chi ha segnato');
+  await shot('11c-da-confermare');
+  await page.click('#foglio .conferma:has-text("Gigi") [data-k^="sospetta-"]');
+  await page.waitForTimeout(80);
+  for (let i = 0; i < 3; i++) {
+    await page.click('#foglio .conferma [data-k^="conferma-"]');
+    await page.waitForTimeout(60);
+  }
+  if (!/Niente da confermare/.test(await text('#foglio'))) fail('dopo le conferme la lista non si svuota');
+  await page.click('#foglio-x');
+  if (/da confermare/.test(await text('#view'))) fail('la riga «da confermare» resta dopo le conferme');
+  {
+    const st = await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')));
+    const gigi = st.people.find((p) => p.name === 'Gigi').id;
+    const mv = st.moves.find((m) => m.p === gigi && m.k === 'tab');
+    if (!mv.x || !/sospetta/.test(mv.xm)) fail('il ticket di Gigi doveva restare nel registro, annullato come sospetto');
+    if (st.moves.some((m) => m.dc && !m.x)) fail('restano movimenti da confermare');
+  }
+  await tab('Altro');
   await shot('11b-altro-admin', true);
   await overflow('altro admin');
   await page.click('.voce:has-text("Scorte e spesa")');

@@ -381,6 +381,9 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 .resto p.aiuto{font-size:13px}
 .importo.blu{color:#1F5FA8}
 .tag.rosso{color:var(--rosso)}
+.tag.attesa{background:var(--giallo);border-color:var(--giallo);color:var(--inchiostro)}
+.conferme .conferma{padding-bottom:10px}
+.conferme .conferma .azioni{margin-top:4px}
 .cartella.allarme{border-color:var(--rosso);box-shadow:none}
 .cartella.sospeso{background:#FFF1C7}
 .avviso-riga{padding:7px 10px;border-radius:10px;background:#FFE3EE;color:var(--rosso);font-size:13px;font-weight:600;line-height:1.35}
@@ -670,7 +673,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.15.0';
+var APP_V='0.16.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -895,6 +898,27 @@ function votoConta(S,v){
   if(!v.da||v.da===v.v)return true;
   var p=S.people.find(function(x){return x.id===v.v;});
   return !!p&&p.kind==='amico';
+}
+/* operazioni da confermare (dalla 0.16.0). Se un non-admin segna per un altro una consumazione sul ticket, soldi presi
+   dalla cassa o il voto di un visitatore, la cosa conta subito ma porta «dc» (da confermare) finché l'admin non la
+   conferma (via «dc») o la annulla come sospetta (il movimento resta nel registro annullato, con «dc»: se qualcuno lo
+   ripristina torna da confermare; il voto invece si toglie). io = chi è entrato, chi = per chi si segna. */
+function vaConfermato(chi,io,admin){return !admin&&!!io&&!!chi&&chi!==io;}
+/* le voci in attesa, dalla più vecchia: i movimenti che vanno insieme (stesso «g») sono una voce sola */
+function daConfermare(S){
+  var out=[],visti={};
+  S.moves.forEach(function(m){
+    if(!m.dc||m.x)return;
+    var key=m.g||m.id;if(visti[key])return;visti[key]=1;
+    out.push({id:'m'+key,t:m.t,da:m.da||'',mv:m.g?S.moves.filter(function(x){return x.g===m.g;}):[m]});
+  });
+  S.votes.forEach(function(v){if(v.dc)out.push({id:'v'+v.id,t:v.t,da:v.da||'',voto:v});});
+  return out.sort(function(a,b){return a.t-b.t;});
+}
+function confermaOp(op){(op.voto?[op.voto]:op.mv).forEach(function(x){delete x.dc;});}
+function annullaOp(S,op,t){
+  if(op.voto){var i=S.votes.indexOf(op.voto);if(i>=0)S.votes.splice(i,1);return;}
+  op.mv.forEach(function(m){if(!m.x){m.x={t:t};m.xm='Operazione sospetta, annullata dall’admin';}});
 }
 /* i sintomi più votati (a pari merito tutti, al massimo «quanti») */
 function topSintomi(conta,quanti){
@@ -1573,8 +1597,8 @@ var NOTI={
   cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto'],
   people:['id','name','kind','on','img','nato','tel','pin','noq'],
   products:['id','name','cat','price','min','on','cost','al','ph'],
-  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da'],
-  votes:['id','s','v','c','t','y','ys','cs','cy','da','m'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da','dc'],
+  votes:['id','s','v','c','t','y','ys','cs','cy','da','m','dc'],
   quote:['id','mese','a','chi','scad','note','t'],
   muro:['id','t','p','testo','col','dv','mod','fis'],
   capisco:['id','w','p','t'],
@@ -1684,6 +1708,7 @@ function normState(raw){
     if(m.g)o.g=str(m.g,40);                         // movimenti che vanno insieme (pagamento misto, resto in più)
     if(m.pc)o.pc=1;                                 // preso dalla cassa: debito + uscita, non è una spesa del locale
     if(m.da)o.da=str(m.da,24);                      // chi l'ha segnato (dalla 0.11.0, con il login)
+    if(m.dc)o.dc=1;                                 // da confermare dall'admin (dalla 0.16.0)
     if(m.mese&&/^\d{4}-\d{2}$/.test(String(m.mese)))o.mese=String(m.mese);   // quota del locale: di che mese
     S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
@@ -1705,6 +1730,7 @@ function normState(raw){
     metiVoto(o,cs.slice(0,5),cy);
     if(v.da)o.da=str(v.da,24);                                          // chi l'ha segnato (il telefono di chi)
     if(v.m==='p')o.m='p';                                               // voto a podio: 3, 2 e 1 punto
+    if(v.dc)o.dc=1;                                                     // da confermare dall'admin (dalla 0.16.0)
     vv.push(tieniAltro(v,o,NOTI.votes));
   });
   vv.sort(function(a,b){return a.t-b.t;});
@@ -2779,7 +2805,7 @@ function moveRow(mv,withDay){
   var inf=moveInfo(mv);
   return h('li',null,h('button',{type:'button',class:'riga'+(mv.x?' annullato':''),onclick:function(){openMove(mv.id);}},
     h('span',{class:'ora'},withDay?GIORNI3[new Date(mv.t).getDay()]+' '+hm(mv.t):hm(mv.t)),
-    h('span',{class:'cresce'},h('span',{class:'nome'},inf.t,mv.x?h('span',{class:'tag'},'annullato'):null),inf.s?h('span',{class:'sotto'},inf.s):null),
+    h('span',{class:'cresce'},h('span',{class:'nome'},inf.t,mv.x?h('span',{class:'tag'},'annullato'):mv.dc?h('span',{class:'tag attesa'},'da confermare'):null),inf.s?h('span',{class:'sotto'},inf.s):null),
     amountNode(inf)));
 }
 /* calcoli che dipendono dalla data di oggi: rifatti quando cambiano i conti o il giorno */
@@ -2867,6 +2893,11 @@ function cardFaccende(st){
         h('button',{class:'pill sm duo-verde',type:'button','data-k':'riprendi-conto',onclick:function(){go('farmacia');}},'Riprendi'),
         h('button',{class:'link',type:'button','data-k':'scarta-conto',onclick:function(){UI.pos={p:null,qty:{},extra:[]};render();toast('Conto scartato.');}},'Scarta'))}));
   }
+  // operazioni fatte per conto di altri, da confermare: le vede solo l'admin
+  var att=isAdmin()?daConfermare(S):[];
+  if(att.length)urg.push(rigaFare({ic:'avviso',accesa:true,titolo:att.length===1?'1 operazione da confermare':att.length+' operazioni da confermare',
+    sotto:'Segnate per conto di altri. Contano già: se una è sospetta, annullala.',
+    azione:h('button',{class:'pill sm duo-verde',type:'button','data-k':'apri-conferme',onclick:openConferme},'Vedi')}));
   // rifiuti
   if(!st.cal){
     urg.push(rigaFare({ic:'sacco',titolo:'Rifiuti',sotto:'Calendario da compilare: l’app li ricorda la sera prima.',
@@ -2979,6 +3010,7 @@ function salvaVoto(chi,cs,cy){
     v.t=Date.now();metiVoto(v,cs,cy);
     if(podio())v.m='p';else delete v.m;
     var io=mio();if(io)v.da=io;else delete v.da;
+    if(vaConfermato(chi,io,isAdmin()))v.dc=1;else delete v.dc;
   }
   commit();tocco();
   toast(cs.length?pName(chi)+(prima?' cambia voto: ':' vota ')+descrVoto(v):'Tolto il voto di '+pName(chi)+'.',function(){
@@ -3104,7 +3136,7 @@ function openVoti(){
         var conta=votoConta(S,v);
         return candidatiVoto(v).map(function(c,i){
           var sy=sintomiPer(v,c),pt=puntiVoto(v,i);
-          var note=[v.m==='p'?POSTI[i]+', '+puntiTxt(pt):'',sy.join(', '),i===0&&!conta?'non conta: segnato dal telefono di '+(v.da?pName(v.da):'nessuno'):''].filter(Boolean).join(' · ');
+          var note=[v.m==='p'?POSTI[i]+', '+puntiTxt(pt):'',sy.join(', '),i===0&&!conta?'non conta: segnato dal telefono di '+(v.da?pName(v.da):'nessuno'):'',i===0&&conta&&v.dc?'da confermare, segnato da '+pName(v.da):''].filter(Boolean).join(' · ');
           return h('li',{class:conta&&pt?null:'spento'},h('div',{class:'riga'},
             h('span',{class:'ora'},i===0?hm(v.t):''),
             h('span',{class:'cresce'},h('span',{class:'nome'},pName(v.v)+' → '+pName(c)),note?h('span',{class:'sotto'},note):null),
@@ -3113,6 +3145,44 @@ function openVoti(){
       }))];
   };
   openSheet('Voti di stasera',live(),live);
+}
+
+/* ---------- operazioni da confermare (dalla 0.16.0): solo l'admin ---------- */
+function descrOp(op){
+  if(op.voto)return {t:'Voto di '+pName(op.voto.v)+' (visitatore)',s:descrVoto(op.voto),a:null};
+  var m=op.mv.find(function(x){return x.dc;})||op.mv[0],inf=moveInfo(m);
+  if(m.pc)return {t:pName(m.p)+' prende dalla cassa',s:m.note||'',a:eur(toInt(m.a))};
+  return {t:'Sul ticket di '+pName(m.p),s:inf.s,a:eur(toInt(m.a))};
+}
+function bottoniConferma(op){
+  return h('div',{class:'azioni'},
+    h('button',{class:'pill sm duo-verde',type:'button','data-k':'conferma-'+op.id,onclick:function(){
+      if(!isAdmin()){toast('Lo conferma solo l’admin.');return;}
+      confermaOp(op);commit();refreshSheet();toast('Confermata.');}},'Conferma'),
+    h('button',{class:'pill sm pericolo',type:'button','data-k':'sospetta-'+op.id,onclick:function(){
+      if(!isAdmin()){toast('La annulla solo l’admin.');return;}
+      var vecchio=op.voto?JSON.parse(JSON.stringify(op.voto)):null;
+      annullaOp(S,op,Date.now());commit();refreshSheet();
+      toast(op.voto?'Voto tolto.':'Annullata: resta nel registro come sospetta.',function(){
+        if(op.voto)S.votes.push(vecchio);else op.mv.forEach(function(m){delete m.x;delete m.xm;});
+        commit();refreshSheet();toast('Rimessa da confermare.');});}},'Annulla operazione sospetta'));
+}
+function openConferme(){
+  if(!isAdmin()){toast('Le operazioni da confermare le vede solo l’admin.');return;}
+  var live=function(){
+    var l=daConfermare(S);
+    if(!l.length)return [h('p',{class:'vuoto'},'Niente da confermare. Tutto a posto.')];
+    return [h('p',{class:'aiuto'},'Segnate da qualcuno per conto di un altro. Contano già: conferma quelle giuste, annulla quelle sospette.'),
+      h('ul',{class:'righe conferme'},l.map(function(op){
+        var d=descrOp(op);
+        return h('li',{class:'conferma'},
+          h('div',{class:'riga'},h('span',{class:'ora'},GIORNI3[new Date(op.t).getDay()]+' '+hm(op.t)),
+            h('span',{class:'cresce'},h('span',{class:'nome'},d.t),h('span',{class:'sotto'},[d.s,'segnato da '+(op.da?pName(op.da):'chi non si sa')].filter(Boolean).join(' · '))),
+            d.a?h('span',{class:'importo rosso'},d.a):null),
+          bottoniConferma(op));
+      }))];
+  };
+  openSheet('Da confermare',live(),live);
 }
 
 /* ---------- vista: Farmacia ---------- */
@@ -3146,7 +3216,7 @@ function posSave(kind,dato,modo){
   S.products.forEach(function(p){var q=pos.qty[p.id]||0;if(q){items.push({id:p.id,n:p.name,q:q,pr:p.price});a+=q*p.price;}});
   pos.extra.forEach(function(x){items.push({n:x.n,q:1,pr:x.pr});a+=x.pr;});
   if(!pos.p||!items.length)return;
-  var who=pName(pos.p),chi=pos.p,t=Date.now(),g='g'+rid();
+  var who=pName(pos.p),chi=pos.p,t=Date.now(),g='g'+rid(),dc=vaConfermato(chi,mio(),isAdmin());
   UI.pos={p:null,qty:{},extra:[]};tocco([12,40,12]);
   function due(m1,m2,msg){
     S.moves.push(firma(m1),firma(m2));commit();
@@ -3161,15 +3231,17 @@ function posSave(kind,dato,modo){
   }
   if(kind==='misto'&&dato>0&&dato<a){
     // pagamento misto: tutto il conto va sul ticket e subito dopo entra in cassa quello che ha dato
-    due({id:rid(),t:t,k:'tab',p:chi,items:items,a:a,g:g},{id:rid(),t:t+1,k:'pay',p:chi,a:dato,note:'Pagamento misto: contanti al momento',g:g},
-      who+': '+eur(dato)+' in contanti e '+eur(a-dato)+' sul ticket');
+    var mt={id:rid(),t:t,k:'tab',p:chi,items:items,a:a,g:g};if(dc)mt.dc=1;
+    due(mt,{id:rid(),t:t+1,k:'pay',p:chi,a:dato,note:'Pagamento misto: contanti al momento',g:g},
+      who+': '+eur(dato)+' in contanti e '+eur(a-dato)+' sul ticket'+(dc?' (da confermare)':''));
     return;
   }
   if(kind==='sale'&&modo==='resto'&&dato>a){
     addMove({k:'sale',p:chi,items:items,a:a},who+' ha pagato '+eur(a)+': resto da dare '+eur(dato-a));
     return;
   }
-  addMove({k:kind==='tab'?'tab':'sale',p:chi,items:items,a:a},kind==='tab'?'Sul ticket di '+who+': '+eur(a):who+' ha pagato in cassa: '+eur(a));
+  if(kind==='tab'){addMove(dc?{k:'tab',p:chi,items:items,a:a,dc:1}:{k:'tab',p:chi,items:items,a:a},'Sul ticket di '+who+': '+eur(a)+(dc?' (da confermare)':''));return;}
+  addMove({k:'sale',p:chi,items:items,a:a},who+' ha pagato in cassa: '+eur(a));
 }
 /* pagamento in contanti con il calcolo del resto, oppure misto (parte contanti, parte sul ticket) */
 function openHaDato(){
@@ -3385,8 +3457,9 @@ function openPrende_(id){
     var v=parseEur(a.value),nota=n.value.trim();
     if(!(v>0))return 'Scrivi quanto prende, per esempio 10,00.';
     var t=Date.now(),g='g'+rid(),m1={id:rid(),t:t,k:'dplus',p:id,a:v,note:nota,g:g,pc:1},m2={id:rid(),t:t+1,k:'exp',a:v,note:nota,cat:'Preso dalla cassa',paidBy:'cassa',g:g,pc:1};
+    if(vaConfermato(id,mio(),isAdmin()))m1.dc=1;
     S.moves.push(firma(m1),firma(m2));commit();
-    toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket',function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
+    toast(pName(id)+' ha preso '+eur(v)+' dalla cassa: sul suo ticket'+(m1.dc?' (da confermare)':''),function(){S.moves=S.moves.filter(function(m){return m!==m1&&m!==m2;});commit();toast('Annullato.');});
   },'Prende');
 }
 function openPerson(id,after){
@@ -3554,9 +3627,11 @@ function openMove(id){
       mv.shares?[h('dt',null,'Quote'),h('dd',null,Object.keys(mv.shares).map(function(k){return pName(k)+' '+eur(mv.shares[k]);}).join(', '))]:null,
       altri.length?[h('dt',null,'Va insieme a'),h('dd',null,altri.map(function(m){return moveInfo(m).t+' '+eur(Math.abs(toInt(m.a)));}).join(' · '))]:null,
       mv.x?[h('dt',null,'Stato'),h('dd',{class:'rosso'},'Annullato'+(mv.x.t?' il '+dLong(new Date(mv.x.t)).toLowerCase()+' alle '+hm(mv.x.t):''))]:null,
-      mv.x&&mv.xm?[h('dt',null,'Motivo'),h('dd',null,mv.xm)]:null);
-    var az;
-    if(mv.x)az=h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){
+      mv.x&&mv.xm?[h('dt',null,'Motivo'),h('dd',null,mv.xm)]:null,
+      !mv.x&&gr.some(function(m){return m.dc;})?[h('dt',null,'Stato'),h('dd',null,h('span',{class:'tag attesa'},'da confermare'),' Lo conferma l’admin.')]:null);
+    var az,op=!mv.x&&daConfermare(S).find(function(o){return o.mv&&o.mv.indexOf(mv)>=0;});
+    if(op&&isAdmin())az=bottoniConferma(op);
+    else if(mv.x)az=h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){
       conPin(function(){gr.forEach(function(m){delete m.x;delete m.xm;});commit();toast(gr.length>1?'Movimenti ripristinati.':'Movimento ripristinato.');},'Ripristinare un movimento');}},'Ripristina'));
     else if(chiedi){
       motivo=motivo||testo('mv-mot','Es. segnato due volte, persona sbagliata',120);
@@ -4649,7 +4724,9 @@ function cardMuroLudoteca(){
 function openPostit(id){
   var w=id?S.muro.find(function(x){return x.id===id;}):null;
   if(w&&!puoModificare(w)){toast('Lo può cambiare solo chi l’ha scritto, dal suo telefono, o l’admin.');return;}
-  var chi=w?null:chipSel(people().filter(function(p){return !ospite()||p.id===mio();}).map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null);
+  // dalla 0.16.0 il post-it lo firma sempre chi è entrato su questo telefono: niente post-it a nome di un altro
+  var io=mio();
+  if(!w&&!io){toast('Per scrivere sul muro entra con il tuo nome.');return;}
   var ta=h('textarea',{class:'inp',id:'pi-t',rows:5,maxlength:300,placeholder:'Scrivi qui. Massimo 300 caratteri.'});ta.value=w?w.testo:'';
   var conta=h('p',{class:'aiuto conta','aria-live':'polite'});
   function c(){conta.textContent=ta.value.length+'/300';}
@@ -4662,16 +4739,15 @@ function openPostit(id){
     toast('Post-it staccato.',function(){S.muro.push(w);S.muro.sort(function(a,b){return a.t-b.t;});S.capisco=S.capisco.concat(caps);commit();toast('Rimesso sul muro.');});
   }},'Stacca il post-it')):null;
   formSheet(w?'Post-it di '+pName(w.p):'Nuovo post-it',[
-    w?null:gruppo('Chi lo scrive (niente anonimi)',chi),
+    w?null:h('p',{class:'aiuto'},'Lo firmi tu: '+pName(io)+'.'),
     campo('Cosa vuoi dire',ta,'pi-t'),conta,
     gruppo('Colore',col),
     fis?h('label',{class:'spunta',for:'pi-fis'},fis,'Fissa in cima al muro (avvisi dell’admin)'):null,
     togli],function(){
     var t=ta.value.trim();
-    if(!w&&!chi.get())return 'Scegli chi lo scrive: sul muro niente anonimi.';
     if(t.length<2)return 'Scrivi qualcosa.';
     if(w){w.testo=t.slice(0,300);w.col=+col.get()||0;w.mod=Date.now();if(fis){if(fis.checked)w.fis=1;else delete w.fis;}commit();toast('Post-it aggiornato.');}
-    else{var nw={id:'w'+rid(),t:Date.now(),p:chi.get(),testo:t.slice(0,300),col:+col.get()||0,dv:devId()};if(fis&&fis.checked)nw.fis=1;S.muro.push(nw);commit();toast('Attaccato sul muro.');}
+    else{var nw={id:'w'+rid(),t:Date.now(),p:io,testo:t.slice(0,300),col:+col.get()||0,dv:devId()};if(fis&&fis.checked)nw.fis=1;S.muro.push(nw);commit();toast('Attaccato sul muro.');}
   },w?'Salva il post-it':'Attacca');
 }
 /* nel Reparto: l'ultimo post-it, se è dei 3 giorni passati */
