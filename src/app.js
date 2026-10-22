@@ -924,7 +924,7 @@ function tieniAltro(raw,o,noti){
 }
 var NOTI={
   cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto'],
-  people:['id','name','kind','on','img','nato','tel','pin','noq'],
+  people:['id','name','kind','on','img','nato','tel','pin','noq','visto'],
   products:['id','name','cat','price','min','on','cost','al','ph'],
   moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da','dc'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da','m','dc'],
@@ -1001,6 +1001,7 @@ function normState(raw){
       if(p.tel&&typeof p.tel==='string')o.tel=str(p.tel,40);              // il telefono di questa persona (id del dispositivo)
       if(p.pin&&typeof p.pin==='string')o.pin=str(p.pin,24);              // impronta del PIN personale
       if(p.noq)o.noq=1;                                                   // non paga la quota del locale
+      if(typeof p.visto==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.visto))o.visto=p.visto;   // ultimo giorno in cui ha aperto l'app (dalla 0.17.0)
       S.people.push(tieniAltro(p,o,NOTI.people));
     }
   });
@@ -1514,6 +1515,7 @@ function ricevi(changes,fromCache){
   var init=!SY.init;
   var cambiato=syncApply(S,changes,SY,init);
   if(init&&applyElena(S))cambiato=true;
+  if(!fromCache&&segnaVisto())cambiato=true;
   changes.forEach(function(ch){if(ch.s>SY.cursor)SY.cursor=ch.s;});
   if(init)SY.init=true;
   SST.errore='';SST.ultimo=Date.now();
@@ -1716,8 +1718,21 @@ function improntaPin(id,pin){return hashStr('oblio|pin|'+id+'|'+String(pin==null
 function pinGiusto(id,pin){var p=person(id);return !!p&&!!p.pin&&p.pin===improntaPin(id,pin);}
 function legaTelefono(id){
   var dev=devId();
-  S.people.forEach(function(p){if(p.id===id)p.tel=dev;else if(p.tel===dev)delete p.tel;});
+  S.people.forEach(function(p){if(p.id===id){p.tel=dev;p.visto=today();}else if(p.tel===dev)delete p.tel;});
 }
+/* l'ultimo giorno in cui ognuno ha aperto l'app, per l'elenco dell'admin (dalla 0.17.0). Si scrive al massimo una volta
+   al giorno e solo dopo aver ricevuto i dati veri del locale: così non si riscrive una persona con dati vecchi. */
+function segnaVisto(){
+  var id=mio(),p=id&&person(id);
+  if(!p||!p.pin||!SY||!SY.init||p.visto===today())return false;
+  p.visto=today();return true;
+}
+function vistoTxt(p){
+  if(!p.visto)return 'ultima apertura non ancora registrata';
+  var g=-giorniA(p.visto);
+  return g<=0?'visto oggi':g===1?'visto ieri':'visto '+g+' giorni fa';
+}
+function haApp(p){return !!(p.pin&&p.tel);}
 /* chi può fare il login: i pazienti in reparto; i visitatori solo se l'admin ha creato il loro codice ospite */
 function chiPuoEntrare(){return people().filter(function(p){return p.kind==='paziente';});}
 function ospitiCheEntrano(){return people().filter(function(p){return p.kind==='amico'&&!!p.pin;});}
@@ -2800,7 +2815,7 @@ function openPerson(id,after){
   var faccia=sceltaFaccia(p);
   // PIN e telefono: solo per i pazienti già in elenco (li vede solo l'admin)
   var pinBox=p&&p.kind==='paziente'?h('div',{class:'campo'},h('span',{class:'lab'},'PIN e telefono'),
-    h('p',{class:'aiuto'},(p.pin?'Ha il suo PIN. ':'Non ha ancora un PIN. ')+(p.tel?(p.tel===devId()?'Il suo telefono è questo.':'Ha il suo telefono.'):'Nessun telefono collegato.')),
+    h('p',{class:'aiuto'},(p.pin?'Ha il suo PIN. ':'Non ha ancora un PIN. ')+(p.tel?(p.tel===devId()?'Il suo telefono è questo.':'Ha il suo telefono.'):'Nessun telefono collegato.')+(p.pin?' '+vistoTxt(p).charAt(0).toUpperCase()+vistoTxt(p).slice(1)+'.':'')),
     h('div',{class:'azioni'},
       p.pin?h('button',{type:'button',class:'pill sm','data-k':'pe-azzera',onclick:function(){
         delete p.pin;commit();toast('PIN di '+pName(p.id)+' azzerato: al prossimo accesso ne crea uno nuovo.');closeSheet();}},'Azzera il PIN'):null,
@@ -3106,7 +3121,7 @@ function vAltro(){
         tesseraApp('scarica','Installa','sul telefono',function(){go('altro','installa');},'apri-installa')),
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-io',onclick:esci},ic('esci',18),'Esci dal mio nome'))])];
   out.push(adm?gruppoAltro('Admin',[
-      voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
+      voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, chi ha l’app, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
       voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){go('altro','listino');}}),
       voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
@@ -3517,15 +3532,36 @@ function confermaScontrino(letto,grezzo){
   guardia={form:lista,soloConferma:true,testo:'Le righe lette dalla foto vanno perse e lo scontrino va rifatto.'};
   aggSomma();
 }
+/* chi ha l'app: PIN creato e telefono collegato. I PIN non si vedono mai: nei dati c'è solo l'impronta. */
+function statoApp(p){
+  if(p.kind!=='paziente'){
+    if(!p.pin)return null;                                   // visitatore senza codice ospite: niente app
+    return haApp(p)?'ha l’app · '+vistoTxt(p):'codice ospite creato · non ancora entrato';
+  }
+  if(haApp(p))return 'ha l’app · '+vistoTxt(p);
+  return (p.pin?'PIN sì':'senza PIN')+' · '+(p.tel?'telefono collegato':'nessun telefono');
+}
+function riepilogoApp(){
+  var tutti=chiPuoEntrare(),senza=tutti.filter(function(p){return !haApp(p);});
+  if(!tutti.length)return null;
+  return h('section',{class:'cartella','data-k':'riep-app'},
+    h('h3',{class:'etichetta'},'Chi ha l’app'),
+    h('p',{class:'nota-chiara'},tutti.length-senza.length+' su '+tutti.length+' pazienti hanno l’app'+(senza.length?'. Senza: '+senza.map(nomeP).join(', ')+'.':'. Ci sono tutti.')),
+    ospitiCheEntrano().length?h('p',null,h('strong',null,ospitiCheEntrano().filter(haApp).length+' su '+ospitiCheEntrano().length),' ospiti con il codice sono già entrati.'):null,
+    h('p',{class:'aiuto'},'«Ha l’app» vuol dire che ha creato il suo PIN ed è entrato dal suo telefono. I PIN non si vedono: chi lo dimentica lo fa azzerare e ne crea uno nuovo.'));
+}
 function vPersone(){
   return [indietro(),h('h2',{class:'titolo'},'Pazienti'),
+    riepilogoApp(),
     h('section',{class:'cartella'},
       h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'In reparto'),h('button',{class:'pill sm',type:'button',onclick:function(){openPerson(null);}},'+ Visitatore')),
       h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},S.people.map(function(p){
+        var st=statoApp(p),senzaApp=p.kind==='paziente'&&p.on&&!haApp(p);
         return h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openPerson(p.id);}},
           ava(p.id),
-          h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},p.pin?'ospite':'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso')),
+          h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},p.pin?'ospite':'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso'),senzaApp?h('span',{class:'tag rosso'},'senza app'):null),
+            st?h('span',{class:'sotto','data-k':'app-'+p.id},st):null,
             p.img?null:h('span',{class:'sotto'},'senza faccia: tocca per sceglierla')),
           h('span',{class:'importo spento'},h('small',null,'modifica'))));
       })),
@@ -4566,7 +4602,7 @@ function start(){
   // a mezzanotte cambia il bollettino, all'ora di chiusura cambia la serata: ridisegno da solo
   var chiave=today()+'|'+openKey();
   function controlla(){var k=today()+'|'+openKey();if(k!==chiave){chiave=k;if(!foglio.open)render();}}
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)controlla();});
+  document.addEventListener('visibilitychange',function(){if(document.hidden)return;controlla();if(segnaVisto()){persist();D=derive(S);syncSpingi();}});
   setInterval(controlla,60000);
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
   render();

@@ -641,6 +641,16 @@ const fail = (m) => {
   await page.click('.indietro');
   await page.click('.voce:has-text("Pazienti")');
   await shot('15-pazienti', true);
+  // 0.17.0: chi ha l'app (PIN e telefono), senza mai mostrare un PIN
+  {
+    const r = await text('[data-k="riep-app"]');
+    if (!/\d+ su \d+ pazienti hanno l’app/.test(r)) fail('riepilogo «chi ha l’app» mancante: ' + r);
+    const io = await statoDi(page).then((st) => st.people.find((p) => p.pin && p.tel));
+    if (!io || !/ha l’app · visto oggi/.test(await text('[data-k="app-' + io.id + '"]')))
+      fail('chi è entrato oggi: atteso «ha l’app · visto oggi»');
+    if (/\b\d{4}\b/.test((await text('main')).replace(/20\d\d/g, ''))) fail('nella pagina delle persone compare un numero di 4 cifre');
+    note('Persone e PIN: ' + r);
+  }
   // faccia dal telefono per il visitatore Gigi
   await page.click('.riga:has-text("Gigi")');
   await page.waitForTimeout(80);
