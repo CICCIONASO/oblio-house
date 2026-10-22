@@ -568,6 +568,7 @@ body.in-gioco .toast{top:calc(10px + env(safe-area-inset-top,0px));bottom:auto}
 /* il nome di chi è entrato, in alto a destra: verde collegato, giallo in coda, rosa non collegato */
 .sync-et.nome-io{color:var(--notte);background:var(--acido);border-color:var(--notte);font-weight:700}
 .sync-et.nome-io::before{background:var(--notte)}
+.sync-et.tocca{cursor:pointer}
 .sync-et.nome-io.attesa,.sync-et.nome-io.collego{background:var(--giallo);color:var(--notte)}
 .sync-et.nome-io.errore,.sync-et.nome-io.spento{background:var(--rosa-chiaro);color:var(--notte);border-color:var(--notte)}
 .sync-et.nome-io.attesa::before,.sync-et.nome-io.collego::before,.sync-et.nome-io.errore::before{background:var(--notte)}

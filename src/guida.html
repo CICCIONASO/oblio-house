@@ -87,6 +87,7 @@ a{color:inherit}
   <div class="novita">
     <p><strong>Novità delle versioni 0.11, 0.12, 0.13 e 0.14</strong></p>
     <ul>
+      <li>0.15: gli <strong>ospiti</strong> entrano dal loro telefono con il <strong>codice ospite</strong> che gli crea l'admin. Vedono solo <strong>Ludoteca</strong> e <strong>Classifiche</strong> (senza Bar) e votano solo per sé, a podio.</li>
       <li>0.14: l'app risponde a ogni gesto. In Farmacia vola un <strong>+1</strong> e il totale salta; il PIN sbagliato e i moduli con errori <strong>tremano</strong>; cassa, ticket e punteggi delle freccette <strong>scorrono</strong> fino al numero nuovo; «Annulla» ha una barretta che mostra quanto tempo resta; il tuo nome in alto lampeggia «<strong>inviato a tutti</strong>» quando una modifica è arrivata agli altri telefoni.</li>
       <li>0.13: il <strong>Muroblio del pianto</strong> è un muro di tufo con i bigliettini che si muovono al vento e gli omini disperati in basso. Sotto ogni post-it c'è <span class="t">Ti capisco</span>; gli ultimi quattro si vedono già nella Ludoteca, e un pallino rosa ti avvisa dei post-it nuovi.</li>
       <li>0.13: nelle freccette (501 e 301) l'app ti dice <strong>come chiudere</strong> con le freccette che ti restano; chi vince prende i coriandoli. Al mattino, nel Reparto, c'è <strong>com'è andata ieri sera</strong>.</li>
@@ -147,6 +148,7 @@ a{color:inherit}
       <li>Possono entrare solo i pazienti del reparto, <strong>un telefono a testa</strong>. Chi non è entrato vede solo «Chi sei?».</li>
       <li><strong>Telefono nuovo</strong>: tocca il tuo nome, poi serve il <strong>codice admin</strong> e il tuo PIN. Il vecchio telefono esce da solo.</li>
       <li><strong>PIN dimenticato</strong>: lo azzera l'admin, poi al prossimo accesso ne crei uno nuovo.</li>
+      <li><strong>Ospiti</strong>: l'admin, in <span class="t">Persone e PIN</span>, tocca un visitatore e poi <span class="t">Crea codice ospite</span>, sceglie 4 cifre e le dà all'ospite. L'ospite, in «Chi sei?», tocca il suo nome sotto <strong>Sei un ospite?</strong> e scrive il codice. Vede solo <strong>Ludoteca</strong> e <strong>Classifiche</strong> (senza Bar), vota solo per sé e firma i post-it solo a suo nome. Per uscire tocca il suo nome in alto a destra. Telefono nuovo o codice dimenticato: l'admin crea un <span class="t">Nuovo codice ospite</span> e il vecchio telefono esce. Con <span class="t">Togli accesso</span> l'ospite non entra più.</li>
       <li><strong>Uscire</strong>: <span class="t">Altro</span> › <span class="t">Esci dal mio nome</span>, con il tuo PIN. Il PIN si cambia da <span class="t">Altro</span> › <span class="t">Cambia il mio PIN</span>.</li>
     </ul>
     <p class="nota">La prima apertura va fatta con internet: l'app scarica i dati del locale e controlla chi ha già il telefono. Poi si apre anche senza rete. Quando esce una versione nuova compare il pulsante <span class="t">Aggiorna</span>: toccalo.</p>
@@ -266,7 +268,7 @@ a{color:inherit}
     </ol>
     <ul>
       <li><strong>Ognuno vota dal suo telefono</strong>, solo per sé. Fino alla chiusura il voto si cambia con <span class="t">Cambia il tuo voto</span>.</li>
-      <li>I <strong>visitatori</strong>, che non hanno l'app, votano dal telefono di uno di voi con <span class="t">Voto di un visitatore</span>.</li>
+      <li>I <strong>visitatori</strong>, che non hanno l'app, votano dal telefono di uno di voi con <span class="t">Voto di un visitatore</span>. Gli <strong>ospiti</strong> con il codice votano solo dal loro telefono, e solo per sé.</li>
       <li>Il voto è <strong>palese</strong>: con <span class="t">Vedi i voti</span> tutti vedono chi ha votato chi. I voti li toglie solo l'admin.</li>
       <li>L'admin, nelle Regole, può scegliere al posto del podio <strong>«fino a N persone»</strong>: ogni persona votata prende 1 punto.</li>
       <li>La serata si chiude alle <strong>6:00</strong>. Chi ha più punti è il <strong>codice rosso</strong> (a pari punti lo sono tutti), e la sua diagnosi sono i sintomi più votati per lui. Nelle serate chiuse si vede il podio: 1°, 2° e 3°.</li>
@@ -349,7 +351,7 @@ a{color:inherit}
     </ul>
     <h3>La modalità admin</h3>
     <ul>
-      <li>Le impostazioni stanno in <span class="t">Altro</span> › <strong>Admin</strong> e si aprono solo con il <strong>codice admin</strong>: persone e PIN (azzerare un PIN, scollegare un telefono, chi non paga la quota), listino e prezzi, regole del reparto (anche come si vota), soglie, compleanni, codice admin, ripristino dei backup. La quota del mese si imposta da <span class="t">Quota e fondo</span>.</li>
+      <li>Le impostazioni stanno in <span class="t">Altro</span> › <strong>Admin</strong> e si aprono solo con il <strong>codice admin</strong>: persone e PIN (azzerare un PIN, scollegare un telefono, codici ospite, chi non paga la quota), listino e prezzi, regole del reparto (anche come si vota), soglie, compleanni, codice admin, ripristino dei backup. La quota del mese si imposta da <span class="t">Quota e fondo</span>.</li>
       <li>Il telefono resta admin finché non tocchi <span class="t">Esci dalla modalità admin</span>. Se il telefono dell'admin è scarico, con lo stesso codice si entra da un altro telefono (e poi si esce).</li>
       <li>I <strong>prezzi</strong> cambiati valgono dalle consumazioni successive: quelle già segnate restano al prezzo di allora, e il prezzo di prima resta scritto nel listino.</li>
       <li>Tutto quello che l'admin cambia, cambia per tutti i telefoni.</li>

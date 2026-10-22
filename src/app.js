@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.14.0';
+var APP_V='0.15.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -1560,7 +1560,9 @@ function paintSync(){
   if(paintSync.prima==='attesa'&&st==='ok'){paintSync.inviato=Date.now();setTimeout(paintSync,1900);}
   paintSync.prima=st;
   var inv=st==='ok'&&Date.now()-(paintSync.inviato||0)<1800;
-  el.className='sync-et '+st+(io?' nome-io':'')+(inv?' inviato':'');
+  el.className='sync-et '+st+(io?' nome-io':'')+(inv?' inviato':'')+(ospite()?' tocca':'');
+  if(ospite()){el.onclick=openOspite;el.setAttribute('role','button');el.tabIndex=0;}
+  else{el.onclick=null;el.removeAttribute('role');el.removeAttribute('tabindex');}
   // il nome di chi è entrato: verde collegato, giallo in coda, rosa non collegato
   el.textContent=io?pName(io)+(inv?' · inviato a tutti':st==='attesa'?' · '+SST.attesa+' da inviare':st==='errore'||st==='spento'?' · non collegato':''):syncBreve();
   el.setAttribute('aria-label',(io?pName(io)+'. ':'')+'Telefoni: '+(SYNC?syncTesto():'non collegati'));
@@ -1693,8 +1695,13 @@ function legaTelefono(id){
   var dev=devId();
   S.people.forEach(function(p){if(p.id===id)p.tel=dev;else if(p.tel===dev)delete p.tel;});
 }
-/* chi può fare il login: i pazienti in reparto (i visitatori non hanno l'app) */
+/* chi può fare il login: i pazienti in reparto; i visitatori solo se l'admin ha creato il loro codice ospite */
 function chiPuoEntrare(){return people().filter(function(p){return p.kind==='paziente';});}
+function ospitiCheEntrano(){return people().filter(function(p){return p.kind==='amico'&&!!p.pin;});}
+/* ospite (dalla 0.15.0): un visitatore entrato con il codice che gli ha dato l'admin. Vede solo Ludoteca e Classifiche
+   e vota solo per sé, dal suo telefono. */
+function ospite(){return loggato()&&isVisitor(mio());}
+function codiceOspite(p){return !!p&&p.kind==='amico'&&!!p.pin;}
 var LOG={chi:null,passo:'chi',admin:false,v:{}};
 function campoPin(id,label){
   // il valore resta in LOG.v: se arrivano dati dagli altri telefoni e la pagina si ridisegna, non si perde
@@ -1711,7 +1718,8 @@ function vLogin(){
     return out;
   }
   var p=LOG.chi?person(LOG.chi):null;
-  if(!p){LOG.passo='chi';LOG.admin=false;}
+  if(!p||(p.kind==='amico'&&(!p.pin||LOG.passo!=='pin'))){LOG.passo='chi';LOG.admin=false;}
+  var ospiteP=!!p&&p.kind==='amico';
   if(LOG.passo==='chi'){
     out.push(h('p',{class:'nota-chiara'},'Succede una volta sola: da qui in poi questo telefono entra sempre a nome tuo.'),
       h('section',{class:'cartella'},
@@ -1722,6 +1730,16 @@ function vLogin(){
             ava(x.id,'xs'),nomeP(x),altrove?h('small',{class:'chip-s'},'ha già il telefono'):null);
         })),
         h('p',{class:'aiuto'},'Chi ha già il suo telefono può entrare da qui solo con il codice admin e il suo PIN.')));
+    var osp=ospitiCheEntrano();
+    if(osp.length)out.push(h('section',{class:'cartella'},
+      h('h3',{class:'etichetta'},'Sei un ospite?'),
+      h('div',{class:'chips'},osp.map(function(x){
+        var altrove=x.tel&&x.tel!==dev;
+        return h('button',{type:'button',class:'chip con-ava amico'+(altrove?' altrove':''),'data-k':'chi-sono-'+x.id,onclick:function(){
+          LOG.chi=x.id;LOG.admin=false;LOG.passo='pin';render();}},
+          ava(x.id,'xs'),nomeP(x),altrove?h('small',{class:'chip-s'},'ha già il telefono'):null);
+      })),
+      h('p',{class:'aiuto'},'Entra con il codice che ti ha dato l’admin.')));
     return out;
   }
   var err=h('p',{class:'errore',role:'alert',hidden:true}),f,a,b;
@@ -1740,12 +1758,13 @@ function vLogin(){
       if(!codiceOk(a.i.value,'admH',ADMIN0))return sbaglio('Codice admin sbagliato.',a.i);
       LOG.admin=true;LOG.passo=p.pin?'pin':'nuovo';render();});
   }else if(LOG.passo==='pin'){
-    a=campoPin('lg-pin','Il PIN di '+pName(p.id));
+    a=campoPin('lg-pin',ospiteP?'Il codice ospite di '+pName(p.id):'Il PIN di '+pName(p.id));
     f=h('form',{class:'modulo'},a.el,err,h('button',{class:'pill duo-verde largo',type:'submit','data-k':'lg-ok'},'Entra'),
-      h('p',{class:'aiuto'},'PIN dimenticato? Lo azzera l’admin, poi ne crei uno nuovo.'));
+      h('p',{class:'aiuto'},ospiteP?'Codice dimenticato o telefono nuovo? Te ne crea uno nuovo l’admin.':'PIN dimenticato? Lo azzera l’admin, poi ne crei uno nuovo.'));
     f.addEventListener('submit',function(ev){ev.preventDefault();
+      if(ospiteP&&p.tel&&p.tel!==dev)return sbaglio(pName(p.id)+' è già entrato da un altro telefono. Per entrare da questo chiedi all’admin un codice nuovo.',a.i);
       if(p.tel&&p.tel!==dev&&!LOG.admin){LOG.passo='admin';render();return;}
-      if(!pinGiusto(p.id,a.i.value))return sbaglio('PIN sbagliato.',a.i);
+      if(!pinGiusto(p.id,a.i.value))return sbaglio(ospiteP?'Codice sbagliato.':'PIN sbagliato.',a.i);
       entra(null);});
   }else{
     a=campoPin('lg-n1','Crea il tuo PIN (4 cifre)');b=campoPin('lg-n2','Riscrivilo');
@@ -1769,14 +1788,28 @@ var REGOLE=[
   ['Il tuo PIN firma.','Cassa, spese, debiti a mano e inventario lo chiedono, e nel registro resta il tuo nome.'],
   ['Ogni consumazione si segna:','sul ticket oppure paga subito.'],
   ['PIN dimenticato?','Lo azzera l’admin e ne crei uno nuovo.']];
+var REGOLE_OSPITE=[
+  ['Sei ospite.','Vedi la Ludoteca e le Classifiche.'],
+  ['Voti solo per te,','con il podio: 1°, 2° e 3°.'],
+  ['Questo telefono è tuo.','Ogni volta che apri l’app sei già tu.'],
+  ['Codice dimenticato o telefono nuovo?','Te ne crea uno nuovo l’admin.']];
 function vRegolePrime(){
+  var osp=ospite();
   return [h('h2',{class:'titolo'},'Benvenuto, '+pName(mio())),
-    h('p',{class:'nota-chiara'},'Le regole del reparto, in breve. Le ritrovi nella Guida.'),
-    h('section',{class:'cartella'},h('ol',{class:'righe regole-prime'},REGOLE.map(function(r){return h('li',null,h('b',null,r[0]),' '+r[1]);}))),
-    h('button',{class:'pill duo-verde largo',type:'button','data-k':'regole-ok',onclick:function(){lsSet(KEY+'.regole','1');go('reparto');}},'Ho capito, entra')];
+    h('p',{class:'nota-chiara'},osp?'Le regole per gli ospiti, in breve.':'Le regole del reparto, in breve. Le ritrovi nella Guida.'),
+    h('section',{class:'cartella'},h('ol',{class:'righe regole-prime'},(osp?REGOLE_OSPITE:REGOLE).map(function(r){return h('li',null,h('b',null,r[0]),' '+r[1]);}))),
+    h('button',{class:'pill duo-verde largo',type:'button','data-k':'regole-ok',onclick:function(){lsSet(KEY+'.regole','1');go(osp?'ludoteca':'reparto');}},'Ho capito, entra')];
+}
+/* l'ospite tocca il suo nome in alto: esce da qui */
+function openOspite(){
+  var io=mio();if(!io)return;
+  openSheet(pName(io)+' · ospite',[
+    h('p',{class:'aiuto'},'Sei entrato come ospite: vedi la Ludoteca e le Classifiche e voti solo per te.'),
+    h('div',{class:'azioni'},h('button',{type:'button',class:'pill viola','data-k':'esci-ospite',onclick:function(){closeSheet();esci();}},ic('esci',18),'Esci'))]);
 }
 function esci(){
-  conPin(function(){lsSet(KEY+'.io','');lsSet(KEY+'.dentro','');pinFino=0;LOG={chi:null,passo:'chi',admin:false,v:{}};render();toast('Sei uscito. Per rientrare serve il tuo PIN.');},'Uscire dal tuo nome',true);
+  var osp=ospite();
+  conPin(function(){lsSet(KEY+'.io','');lsSet(KEY+'.dentro','');pinFino=0;LOG={chi:null,passo:'chi',admin:false,v:{}};render();toast(osp?'Sei uscito. Per rientrare serve il tuo codice.':'Sei uscito. Per rientrare serve il tuo PIN.');},'Uscire dal tuo nome',true);
 }
 function openCambiaPin(){
   var io=mio(),v=campoPin('cp-v','PIN attuale'),a=campoPin('cp-1','Nuovo PIN (4 cifre)'),b=campoPin('cp-2','Riscrivilo');
@@ -1953,7 +1986,10 @@ function peopleOpts(extraAll){
 
 /* ---------- navigazione ---------- */
 var TABS=[['reparto','Reparto','croce'],['farmacia','Farmacia','bicchiere'],['ludoteca','Ludoteca','bersaglio'],['altro','Altro','altro']];
-var NOMI_TAB={reparto:'Reparto',farmacia:'Farmacia',ludoteca:'Ludoteca',altro:'Altro'};
+var NOMI_TAB={reparto:'Reparto',farmacia:'Farmacia',ludoteca:'Ludoteca',altro:'Altro',classifiche:'Classifiche'};
+/* l'ospite ha due tasti: Ludoteca e Classifiche (dalla 0.15.0) */
+var TABS_OSPITE=[['ludoteca','Ludoteca','bersaglio'],['classifiche','Classifiche','podio']];
+var TAB_OSPITE={ludoteca:1,classifiche:1},SUB_OSPITE={freccette:1,classifiche:1,statistiche:1,medaglie:1,muro:1};
 /* i Ticket stanno nella Farmacia, le freccette nella Ludoteca (dalla 0.11.0) */
 function apriTicket(){UI.farm='ticket';go('farmacia');}
 function apriFreccette(){go('ludoteca','freccette');}
@@ -1989,7 +2025,9 @@ function render(){
   var act=document.activeElement,key=act&&act.dataset?act.dataset.k:null;
   $('#nav').hidden=!(loggato()&&lsGet(KEY+'.regole')==='1');
   var nuovi=loggato()&&UI.sub!=='muro'?muroNuovi():0;
-  $('#nav').replaceChildren(frag(TABS.map(function(t){
+  var osp=ospite();
+  if(osp&&(!TAB_OSPITE[UI.tab]||(UI.sub&&!SUB_OSPITE[UI.sub]))){UI.tab='ludoteca';UI.sub=null;}
+  $('#nav').replaceChildren(frag((osp?TABS_OSPITE:TABS).map(function(t){
     var pall=t[0]==='ludoteca'&&nuovi;
     return h('button',{type:'button',class:'tab','aria-current':UI.tab===t[0]?'page':null,'aria-label':pall?t[1]+', '+nuovi+(nuovi===1?' post-it nuovo':' post-it nuovi'):null,onclick:function(){go(t[0]);}},
       pall?h('i',{class:'pallino','aria-hidden':'true'}):null,ic(t[2]),h('span',null,t[1]));
@@ -2004,7 +2042,9 @@ function render(){
   document.body.classList.toggle('in-gioco',UI.sub==='freccette');
   // senza login l'app mostra solo «Chi sei?»; dopo il primo login, una volta, le regole
   var dentro=loggato(),regole=dentro&&lsGet(KEY+'.regole')==='1';
-  if(!dentro&&lsGet(KEY+'.dentro')==='1'){lsSet(KEY+'.dentro','');setTimeout(function(){toast('Il tuo nome adesso è su un altro telefono: qui sei uscito.');},0);}
+  if(!dentro&&lsGet(KEY+'.dentro')==='1'){
+    var ex=person(lsGet(KEY+'.io')||''),tolto=!!ex&&ex.kind==='amico'&&!ex.pin;
+    lsSet(KEY+'.dentro','');setTimeout(function(){toast(tolto?'L’admin ha tolto il tuo accesso da ospite.':'Il tuo nome adesso è su un altro telefono: qui sei uscito.');},0);}
   else if(dentro)lsSet(KEY+'.dentro','1');
   document.body.classList.toggle('fuori',!regole);
   var vista=!dentro?vLogin:!regole?vRegolePrime:UI.sub&&SUBS[UI.sub]?(ADMIN_SUBS[UI.sub]&&!isAdmin()?vBloccato:SUBS[UI.sub]):VIEWS[UI.tab];
@@ -2254,10 +2294,11 @@ function descrVoto(v){
   var cs=candidatiVoto(v);
   return cs.map(function(c,i){return (v.m==='p'&&cs.length>1?POSTI[i]+' ':'')+pName(c);}).join(', ');
 }
-/* da questo telefono si vota solo per sé (il padrone del telefono) e per i visitatori */
-function puoVotare(chi){return !!chi&&(chi===mio()||isVisitor(chi));}
+/* da questo telefono si vota solo per sé (il padrone del telefono) e per i visitatori senza codice ospite (gli ospiti
+   votano dal loro telefono). L'ospite vota solo per sé. */
+function puoVotare(chi){return !!chi&&(chi===mio()||(!ospite()&&isVisitor(chi)&&!codiceOspite(person(chi))));}
 function puoTogliere(){return isAdmin();}
-function nonPuoiVotare(){toast(mio()?'Da questo telefono vota solo '+pName(mio())+', più i visitatori.':'Per votare entra con il tuo nome.');}
+function nonPuoiVotare(){toast(ospite()?'Da questo telefono voti solo tu.':mio()?'Da questo telefono vota solo '+pName(mio())+', più i visitatori.':'Per votare entra con il tuo nome.');}
 /* il voto di «chi» nella serata: cs = i votati in ordine, cy = i sintomi di ognuno; cs vuoto = toglie il voto.
    Un documento per votante e serata: stesso voto = stesso documento su tutti i telefoni. */
 function salvaVoto(chi,cs,cy){
@@ -2314,7 +2355,7 @@ function cardTriage(){
     h('div',{class:'azioni'},
       io?h('button',{class:'pill duo-rosa',type:'button','data-k':'vota',onclick:function(){openVoto(io);}},tuo?'Cambia il tuo voto':'Vota')
         :null,
-      h('button',{class:'pill sm',type:'button','data-k':'vota-visitatore',onclick:openVotoVisitatore},'Voto di un visitatore')),
+      ospite()?null:h('button',{class:'pill sm',type:'button','data-k':'vota-visitatore',onclick:openVotoVisitatore},'Voto di un visitatore')),
     ver?h('div',{class:'verdetto'},ver.sm.winners.length===1?ava(ver.sm.winners[0],'sm'):null,
       h('p',null,h('b',null,nomeSerataDi(ver.k)+': '),testoPodio(ver.sm)+' ('+ver.sm.n+(ver.sm.n===1?' votante':' votanti')+').',
         diag.length?[h('br'),'Diagnosi di '+pName(ver.sm.winners[0])+': '+diag.map(function(x){return x.toLowerCase();}).join(', ')+'.']:null)):null,
@@ -2367,9 +2408,9 @@ function openVoto(chi){
 /* i visitatori non hanno l'app: il loro voto si segna da qualsiasi telefono */
 function openVotoVisitatore(){
   var live=function(){
-    var vis=people().filter(function(p){return p.kind==='amico';});
+    var vis=people().filter(function(p){return p.kind==='amico'&&!p.pin;});
     return [
-      h('p',{class:'aiuto'},'I visitatori votano dal telefono di uno di voi. Scegli chi vota.'),
+      h('p',{class:'aiuto'},'I visitatori votano dal telefono di uno di voi. Scegli chi vota. Gli ospiti con il codice votano dal loro telefono.'),
       vis.length?h('div',{class:'chips'},vis.map(function(p){
         return h('button',{type:'button',class:'chip con-ava amico','data-k':'vv-'+p.id,onclick:function(){closeSheet();openVoto(p.id);}},ava(p.id,'xs'),nomeP(p));
       })):h('p',{class:'vuoto'},'Nessun visitatore in reparto.'),
@@ -2695,6 +2736,13 @@ function openPerson(id,after){
         delete p.pin;commit();toast('PIN di '+pName(p.id)+' azzerato: al prossimo accesso ne crea uno nuovo.');closeSheet();}},'Azzera il PIN'):null,
       p.tel?h('button',{type:'button',class:'pill sm','data-k':'pe-scollega',onclick:function(){
         delete p.tel;commit();toast(pName(p.id)+' scollegato dal suo telefono: rientra con il suo PIN su qualsiasi telefono.');closeSheet();}},'Scollega il telefono'):null)):null;
+  // codice ospite: lo crea l'admin e lo dà al visitatore, che entra dal suo telefono (dalla 0.15.0)
+  if(p&&p.kind==='amico')pinBox=h('div',{class:'campo'},h('span',{class:'lab'},'Accesso ospite'),
+    h('p',{class:'aiuto'},p.pin?'Ha il codice ospite: entra dal suo telefono e vede solo Ludoteca e Classifiche. '+(p.tel?'È già entrato.':'Non è ancora entrato.'):'Senza codice non entra nell’app: a segnare a suo nome è uno di voi.'),
+    h('div',{class:'azioni'},
+      h('button',{type:'button',class:'pill sm','data-k':'pe-codice',onclick:function(){closeSheet();setTimeout(function(){openCodiceOspite(p.id);},60);}},p.pin?'Nuovo codice ospite':'Crea codice ospite'),
+      p.pin?h('button',{type:'button',class:'pill sm pericolo','data-k':'pe-togli',onclick:function(){
+        delete p.pin;delete p.tel;commit();toast(pName(p.id)+' non entra più come ospite.');closeSheet();}},'Togli accesso'):null));
   formSheet(p?'Modifica '+nomeP(p):'Nuovo visitatore',[
     campo('Nome',n,'pe-n'),
     gruppo('Tipo',kind),
@@ -2710,6 +2758,19 @@ function openPerson(id,after){
     if(p){p.name=nome;p.kind=kind.get()||p.kind;p.on=on.checked;if(p.kind==='paziente'&&noq.checked)p.noq=1;else delete p.noq;mettiFaccia(p,faccia.get());commit();toast('Aggiornato: '+nome);}
     else{var np={id:'a'+rid(),name:nome,kind:kind.get()||'amico',on:true,img:''};mettiFaccia(np,faccia.get());S.people.push(np);if(after)after(np.id);commit();toast('Aggiunto: '+nome);}
   });
+}
+
+/* l'admin sceglie il codice (4 cifre) e lo dà all'ospite. Un codice nuovo fa uscire il telefono vecchio. */
+function openCodiceOspite(id){
+  var p=person(id);if(!p)return;
+  var c=h('input',{class:'inp pin',type:'text',inputmode:'numeric',autocomplete:'off',maxlength:4,pattern:'[0-9]*'});
+  formSheet('Codice ospite di '+pName(id),[
+    campo('Codice (4 cifre)',c,'co-c'),
+    h('p',{class:'aiuto'},'Scegli tu il codice e dallo a '+pName(id)+': si sceglie in «Chi sei?» e lo scrive per entrare.'+(p.tel?' Il telefono da cui è entrato finora esce da solo.':''))],function(){
+    var v=c.value.trim();
+    if(!/^\d{4}$/.test(v))return 'Il codice è di 4 cifre.';
+    p.pin=improntaPin(id,v);delete p.tel;commit();toast('Codice ospite di '+pName(id)+': '+v+'. Daglielo.');
+  },'Crea il codice',{noBozza:true});
 }
 
 /* ---------- vista: Cassa ---------- */
@@ -2973,7 +3034,7 @@ function vAltro(){
         tesseraApp('scarica','Installa','sul telefono',function(){go('altro','installa');},'apri-installa')),
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-io',onclick:esci},ic('esci',18),'Esci dal mio nome'))])];
   out.push(adm?gruppoAltro('Admin',[
-      voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, azzera un PIN, scollega un telefono'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
+      voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
       voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){go('altro','listino');}}),
       voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
@@ -3392,7 +3453,7 @@ function vPersone(){
       h('ul',{class:'righe'},S.people.map(function(p){
         return h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openPerson(p.id);}},
           ava(p.id),
-          h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso')),
+          h('span',{class:'cresce'},h('span',{class:'nome'},nomeP(p),p.kind==='amico'?h('span',{class:'tag'},p.pin?'ospite':'visitatore'):null,p.on?null:h('span',{class:'tag'},'dimesso')),
             p.img?null:h('span',{class:'sotto'},'senza faccia: tocca per sceglierla')),
           h('span',{class:'importo spento'},h('small',null,'modifica'))));
       })),
@@ -3579,7 +3640,7 @@ function vNuovaPartita(){
       'aria-label':nomeP(p)+(i>=0?', tira per '+(i===0?'primo':i===1?'secondo':i===2?'terzo':(i+1)+'°'):''),
       onclick:function(){if(i>=0)st.players.splice(i,1);else if(st.players.length<8)st.players.push(p.id);render();}},
       i>=0?h('span',{class:'ordine'},String(i+1)):ava(p.id,'xs'),nomeP(p));
-  }),h('button',{type:'button',class:'chip piu',onclick:function(){openPerson(null,function(id){if(st.players.length<8)st.players.push(id);});}},'+ Visitatore'));
+  }),ospite()?null:h('button',{type:'button',class:'chip piu',onclick:function(){openPerson(null,function(id){if(st.players.length<8)st.players.push(id);});}},'+ Visitatore'));
   var regola=st.mode==='orologio'
     ?'Dall’1 al 20 in ordine: conta solo il numero di turno. Il doppio fa avanzare di 2, il triplo di 3. Niente centro alla fine: vince chi supera il 20 per primo.'
     :'Si parte da '+st.mode+' e si scala. Chiusura libera: vince chi arriva a zero preciso, con qualsiasi settore. Chi va sotto zero è sballato: il turno non conta e torna al punteggio di prima.';
@@ -3920,7 +3981,7 @@ function cardMuroLudoteca(){
 function openPostit(id){
   var w=id?S.muro.find(function(x){return x.id===id;}):null;
   if(w&&!puoModificare(w)){toast('Lo può cambiare solo chi l’ha scritto, dal suo telefono, o l’admin.');return;}
-  var chi=w?null:chipSel(people().map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null);
+  var chi=w?null:chipSel(people().filter(function(p){return !ospite()||p.id===mio();}).map(function(p){return {v:p.id,label:nomeP(p),cls:p.kind==='amico'?'amico':''};}),mio()||null);
   var ta=h('textarea',{class:'inp',id:'pi-t',rows:5,maxlength:300,placeholder:'Scrivi qui. Massimo 300 caratteri.'});ta.value=w?w.testo:'';
   var conta=h('p',{class:'aiuto conta','aria-live':'polite'});
   function c(){conta.textContent=ta.value.length+'/300';}
@@ -4218,9 +4279,11 @@ function linguette(k,voci,att,scegli){
 /* Classifiche divise per argomento: Triage, Bar, Freccette, Albo (medaglie e albo d'oro) */
 var LINGUETTE_CL=[['triage','Triage'],['bar','Bar'],['freccette','Freccette'],['albo','Albo']];
 function vClassifiche(){
-  var t=LINGUETTE_CL.some(function(x){return x[0]===UI.cl;})?UI.cl:'triage';
-  var out=[indietro(),h('h2',{class:'titolo'},'Classifiche'),
-    linguette('cl',LINGUETTE_CL,t,function(v){UI.cl=v;render();window.scrollTo(0,0);})];
+  // l'ospite non vede la linguetta Bar (consumi e ticket di tutti, in euro)
+  var voci=ospite()?LINGUETTE_CL.filter(function(x){return x[0]!=='bar';}):LINGUETTE_CL;
+  var t=voci.some(function(x){return x[0]===UI.cl;})?UI.cl:'triage';
+  var out=[UI.sub?indietro():null,h('h2',{class:'titolo'},'Classifiche'),
+    linguette('cl',voci,t,function(v){UI.cl=v;render();window.scrollTo(0,0);})];
   return out.concat(t==='albo'?corpoMedaglie():t==='bar'?corpoBar():t==='freccette'?corpoFreccette():corpoTriage());
 }
 function periodoCl(){
@@ -4355,7 +4418,7 @@ function vRegole(){
       formS)];
 }
 
-var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro};
+var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro,classifiche:vClassifiche};
 var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifiche,scorte:vScorte,listino:vListino,persone:vPersone,regole:vRegole,backup:vBackup,installa:vInstalla,
   statistiche:function(){UI.cl='triage';return vClassifiche();},medaglie:function(){UI.cl='albo';return vClassifiche();},muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};

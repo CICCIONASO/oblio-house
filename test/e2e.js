@@ -1472,6 +1472,83 @@ const fail = (m) => {
     if (ver === '0.5.0' || !ver) fail('dopo l’aggiornamento la sincronizzazione non segna la versione nuova: ' + ver);
     note('aggiornamento: B rilegge il locale, ripara il voto ridotto e non rimanda niente');
   }
+  // ospite (0.15.0): l'admin (A) crea il codice di un visitatore; l'ospite entra dal suo telefono, vede solo Ludoteca e
+  // Classifiche (senza Bar) e vota solo per sé. Poi l'admin gli toglie l'accesso e il suo telefono esce.
+  {
+    await A.tab('Altro');
+    await A.p.click('.voce:has-text("Persone e PIN")');
+    await A.p.click('#view .pill:has-text("+ Visitatore")');
+    await A.p.fill('#pe-n', 'Ospite1');
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(100);
+    await A.p.click('#view .riga:has-text("Ospite1")');
+    await A.p.click('#foglio [data-k="pe-codice"]');
+    await A.p.waitForSelector('#co-c');
+    await A.p.fill('#co-c', '12');
+    await A.p.click('#foglio button[type=submit]');
+    if (!/4 cifre/.test(await A.p.textContent('#foglio'))) fail('codice ospite corto non segnalato');
+    await A.p.fill('#co-c', '7777');
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(100);
+    if (!/ospite/.test(await A.p.textContent('#view .riga:has-text("Ospite1")')))
+      fail('in Persone il visitatore con codice non è segnato «ospite»');
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
+    await c.addInitScript(() => {
+      window.OBLIO_SYNC = { room: 'prova', mock: location.origin + '/mock/' };
+    });
+    const g = await c.newPage();
+    ascolta(g);
+    await g.goto(base);
+    const chip = '[data-k^="chi-sono-"]:has-text("Ospite1")';
+    await aspetta(
+      g,
+      () => /Sei un ospite/.test(document.querySelector('#view').textContent),
+      null,
+      'in «Chi sei?» manca la riga degli ospiti'
+    );
+    await g.click(chip);
+    await g.fill('#lg-pin', '1234');
+    await g.click('[data-k="lg-ok"]');
+    if (!/Codice sbagliato/.test(await g.textContent('#view'))) fail('ospite: codice sbagliato non segnalato');
+    await g.fill('#lg-pin', '7777');
+    await g.click('[data-k="lg-ok"]');
+    await g.click('[data-k="regole-ok"]');
+    await g.waitForSelector('.tab');
+    const tasti = await g.$$eval('.tab', (t) => t.map((x) => x.textContent.trim()));
+    if (tasti.join('|') !== 'Ludoteca|Classifiche') fail('ospite: tasti attesi Ludoteca e Classifiche, trovati ' + tasti.join(', '));
+    if (await g.$('[data-k="vota-visitatore"]')) fail('ospite: vede «Voto di un visitatore»');
+    await g.click('[data-k="vota"]');
+    await g.click('#foglio [data-k="vt-pesce"]');
+    await g.click('#foglio [data-k="vt-pj"]');
+    await g.click('#foglio [data-k="salva-voto"]');
+    const gid = await g.evaluate(() => localStorage.getItem('oblio.v1.io'));
+    await aspetta(
+      A.p,
+      (id) =>
+        (JSON.parse(localStorage.getItem('oblio.v1')).votes || []).some(
+          (v) => v.v === id && v.da === id && v.m === 'p' && v.cs && v.cs.length === 2
+        ),
+      gid,
+      'A non riceve il voto a podio dell’ospite'
+    );
+    await shot('43-ospite-ludoteca', false, g);
+    await g.click('.tab:has-text("Classifiche")');
+    await g.waitForSelector('[data-k="cl-triage"]');
+    if (await g.$('[data-k="cl-bar"]')) fail('ospite: vede la linguetta Bar');
+    await shot('44-ospite-classifiche', false, g);
+    await g.goto(base + '#farmacia');
+    await g.reload(); // cambiare solo il # non ricarica la pagina
+    await g.waitForSelector('.tab');
+    if (!/Ludoteca/.test(await g.textContent('.tab[aria-current=page]'))) fail('ospite: dall’indirizzo #farmacia entra in Farmacia');
+    if (await g.$('[data-k="farm-banco"]')) fail('ospite: vede il banco della Farmacia');
+    // l'admin toglie l'accesso: il telefono dell'ospite esce
+    await A.p.click('#view .riga:has-text("Ospite1")');
+    await A.p.click('#foglio [data-k="pe-togli"]');
+    await aspetta(g, () => !!document.querySelector('[data-k^="chi-sono-"]'), null, 'tolto l’accesso, il telefono dell’ospite non esce');
+    if (await g.$(chip)) fail('tolto l’accesso, l’ospite resta in «Chi sei?»');
+    await c.close();
+    note('ospite: codice dall’admin, solo Ludoteca e Classifiche, voto a podio solo per sé, accesso tolto');
+  }
   // login: PESCE prova a entrare da un telefono nuovo. Serve il codice admin e poi il suo PIN; A esce da solo.
   {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
