@@ -199,6 +199,11 @@ assert.ok(inPer('2026-10-03', 'mese', '2026-10-12'));
 assert.ok(!inPer('2026-09-30', 'mese', '2026-10-12'));
 assert.ok(inPer('2026-09-30', 'scorso', '2026-10-12'));
 assert.ok(inPer('2020-01-01', 'sempre', '2026-10-12'));
+assert.ok(inPer('2026-10-05', '7g', '2026-10-12'), 'ultimi 7 giorni: la serata di 7 giorni fa conta');
+assert.ok(!inPer('2026-10-04', '7g', '2026-10-12'), 'ultimi 7 giorni: 8 giorni fa no');
+assert.ok(inPer('2026-10-12', '7g', '2026-10-12'), 'ultimi 7 giorni: la serata in corso conta');
+assert.ok(inPer('2026-09-28', '7g', '2026-10-03'), 'ultimi 7 giorni: anche a cavallo del mese');
+assert.ok(!inPer('2026-10-13', '7g', '2026-10-12'));
 
 // ---------- voto palese ----------
 const vs = voteSummary([

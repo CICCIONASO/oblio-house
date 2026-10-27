@@ -854,6 +854,9 @@ const fail = (m) => {
   if (/Consumi/.test(cl)) fail('dalle freccette la classifica deve aprirsi sulla linguetta Freccette');
   await page.click('[data-k="cl-triage"]');
   if (!/Nessuna serata votata/.test(await text('#view'))) fail('re dell’oblio: la serata in corso non deve contare ancora');
+  await page.click('[data-k="per-7g"]');
+  if (!/ultimi 7 giorni/.test(await text('#view'))) fail('classifiche: manca il periodo «Ultimi 7 giorni»');
+  await page.click('[data-k="per-mese"]');
   await page.click('[data-k="cl-bar"]');
   const primoConsumi = await page.$eval('section:has(h3:text("Consumi")) .classifica li:first-child .nome', (e) => e.textContent);
   if (!/PESCE/i.test(primoConsumi)) fail('consumi: primo atteso PESCE, trovato ' + primoConsumi);
