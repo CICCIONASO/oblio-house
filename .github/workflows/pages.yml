@@ -29,6 +29,13 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # senza la config della sincronizzazione i telefoni si staccherebbero dal locale senza nessun avviso
+      - name: Controlla la config della sincronizzazione
+        run: |
+          if ! grep -q 'window.OBLIO_SYNC=' docs/index.html; then
+            echo "Manca src/sync-config.json: il sito non sincronizzerebbe"
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

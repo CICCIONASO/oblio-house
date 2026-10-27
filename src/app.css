@@ -71,6 +71,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .pill.pericolo{color:var(--rosso)}
 .pill.largo{width:100%}
 .pill.sm{min-height:40px;font-size:13px;padding:0 12px;border-width:1px}
+.pill.piu{display:flex;margin:12px auto 0}
 .pill:disabled{opacity:.45;cursor:not-allowed}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px}

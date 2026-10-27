@@ -2,8 +2,10 @@
 process.env.TZ = 'Europe/Rome';
 const assert = require('assert');
 const pure = require('./pure.js');
-const A_ = pure(`{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt}`);
-const { seedState, derive, canon, hashStr, entita, syncDiff, syncApply, normEnt } = A_;
+const A_ = pure(
+  `{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt,syncRipara,syncMancanti,SOGLIA_LAPIDI}`
+);
+const { seedState, derive, canon, hashStr, entita, syncDiff, syncApply, normEnt, syncRipara, syncMancanti, SOGLIA_LAPIDI } = A_;
 
 // impronta canonica: l'ordine delle chiavi non conta
 assert.strictEqual(canon({ b: 1, a: [1, { d: 2, c: 3 }] }), canon({ a: [1, { c: 3, d: 2 }], b: 1 }));
@@ -214,5 +216,33 @@ B.giro(srv);
 C.giro(srv);
 assert.strictEqual(B.push(srv) + C.push(srv) + A.push(srv), 0, 'niente ping-pong per differenze di forma');
 assert.deepStrictEqual(derive(A.S), derive(B.S));
+
+// protezione dalle cancellazioni a catena (dalla 0.19.0)
+{
+  const lapidi = (ph) => syncDiff(ph.S, ph.SY).filter((x) => x.j === null).length;
+  // poche cose tolte davvero (Annulla, «Preso»): le lapidi partono come sempre
+  const copia = JSON.parse(JSON.stringify(C.S.moves));
+  C.S.moves.pop();
+  assert.strictEqual(syncRipara(C.S, C.SY, SOGLIA_LAPIDI), 0, 'una cancellazione vera non si tocca');
+  assert.strictEqual(lapidi(C), 1);
+  C.S.moves = copia;
+  // il telefono non è riuscito a salvare: tanti movimenti nel registro ma non nei dati
+  for (let i = 0; i < 30; i++) A.S.moves.push({ id: 'pr' + i, t: tick(), k: 'dplus', p: 'conti', a: 100, note: 'prova ' + i });
+  A.giro(srv);
+  C.giro(srv);
+  const salvati = C.S.moves.length;
+  C.S.moves = C.S.moves.filter((m) => !/^pr/.test(m.id)); // dati vecchi ricaricati dal telefono
+  assert.strictEqual(syncMancanti(C.S, C.SY).length, 30);
+  assert.strictEqual(syncRipara(C.S, C.SY, SOGLIA_LAPIDI), 30, 'troppe sparite insieme: rilettura');
+  assert.strictEqual(C.SY.cursor, 0);
+  assert.strictEqual(lapidi(C), 0, 'nessuna lapide parte');
+  C.giro(srv);
+  assert.strictEqual(C.S.moves.length, salvati, 'i movimenti tornano dal server');
+  assert.strictEqual(Object.values(srv.docs).filter((d) => d.j === null && /^moves~pr/.test(d.key)).length, 0);
+  uguali(A, C);
+  // un telefono che non ha mai fuso col locale non ripara niente
+  const E = new Phone('E', seedState(10));
+  assert.strictEqual(syncRipara(E.S, E.SY, 0), 0);
+}
 
 console.log('sincronizzazione: tutto torna (' + Object.keys(srv.docs).length + ' documenti sul finto server, 3 telefoni allineati)');
