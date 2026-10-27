@@ -673,7 +673,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.17.0';
+var APP_V='0.18.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -842,6 +842,7 @@ function inPer(key,per,openKey){
   if(per==='sempre')return true;
   if(per.slice(0,2)==='a:')return String(key).slice(0,4)===per.slice(2);   // un anno: «a:2026»
   if(per.slice(0,2)==='m:')return String(key).slice(0,7)===per.slice(2);   // un mese: «m:2026-10»
+  if(per==='7g'){var d=openKey.split('-');return String(key)>=ymd(new Date(+d[0],+d[1]-1,+d[2]-7,12))&&String(key)<=openKey;}   // le ultime 7 serate e quella in corso
   var ym=openKey.slice(0,7);
   if(per==='scorso')ym=prevMonth(ym);
   return String(key).slice(0,7)===ym;
@@ -5068,8 +5069,8 @@ function vClassifiche(){
 }
 function periodoCl(){
   var k=openKey(),per=UI.per,cut=S.cfg.voteCut,ym=k.slice(0,7);
-  var quando=per==='mese'?meseNome(ym):per==='scorso'?meseNome(prevMonth(ym)):'da sempre';
-  return [h('div',{class:'chips',role:'group','aria-label':'Periodo'},[['mese','Questo mese'],['scorso','Mese scorso'],['sempre','Da sempre']].map(function(x){
+  var quando=per==='7g'?'ultimi 7 giorni':per==='mese'?meseNome(ym):per==='scorso'?meseNome(prevMonth(ym)):'da sempre';
+  return [h('div',{class:'chips',role:'group','aria-label':'Periodo'},[['7g','Ultimi 7 giorni'],['mese','Questo mese'],['scorso','Mese scorso'],['sempre','Da sempre']].map(function(x){
       return h('button',{type:'button',class:'chip','data-k':'per-'+x[0],'aria-pressed':String(per===x[0]),onclick:function(){UI.per=x[0];render();}},x[1]);
     })),
     h('p',{class:'nota-chiara'},'Periodo: '+quando+'. Tutto si conta per serata: quello che succede prima delle '+(cut===0?'24':cut)+':00 vale per la sera prima.')];
@@ -5080,12 +5081,17 @@ function corpoTriage(){
     var x=re.by[id];
     return {id:id,a:x.voti,b:x.rossi,val:puntiTxt(x.voti),
       sub:x.pos.map(function(n,i){return n?(n===1?'1 volta ':n+' volte ')+POSTI[i]:'';}).filter(Boolean).join(' · ')||'mai sul podio'};}));
+  // Re dell'oblio: chi ha vinto più serate (codici rossi), come nell'Albo e nella medaglia; a pari serate, più punti
+  var iRo=ordina(Object.keys(re.by).filter(function(id){return re.by[id].rossi>0;}).map(function(id){
+    var x=re.by[id];
+    return {id:id,a:x.rossi,b:x.voti,val:x.rossi+(x.rossi===1?' codice rosso':' codici rossi'),sub:puntiTxt(x.voti)};}));
   var ch=serateChiuse(S,k),tutte=Object.keys(ch).filter(function(s){return inPer(s,per,k)&&ch[s].n;}).sort().reverse(),ks=tutte.slice(0,10);
   // sintomi più dati nelle serate chiuse del periodo
   var sy={};tutte.forEach(function(s){var si=ch[s].sint;Object.keys(si).forEach(function(c){Object.keys(si[c]).forEach(function(y){sy[y]=(sy[y]||0)+si[c][y];});});});
   var tops=Object.keys(sy).sort(function(a,b){return sy[b]-sy[a]||a.localeCompare(b);}).slice(0,8);
   return periodoCl().concat([
-    boardC('Re dell’oblio','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
+    boardC('Il più votato','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
+    iRo.length?boardC('Re dell’oblio','Chi ha vinto più serate (codice rosso). A pari serate passa avanti chi ha più punti.',iRo,''):null,
     ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime serate')),h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},ks.map(function(s){
         var sm=ch[s];
