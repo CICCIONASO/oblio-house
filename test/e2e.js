@@ -865,6 +865,27 @@ const fail = (m) => {
   if (!/Ludoteca/.test(await text('.indietro'))) fail('dalla classifica il tasto indietro deve tornare alla Ludoteca');
   const spz = await page.textContent('section:has(h3:text("Spazzatura"))');
   if (!/PJ/.test(spz) || !/1 volta/.test(spz)) fail('classifica spazzatura senza PJ: ' + spz);
+  // classifiche compatte (0.19): primi 3, poi «Vedi tutti (N)» / «Mostra meno»
+  {
+    let piu = null;
+    for (const t of ['cl-bar', 'cl-triage', 'cl-freccette', 'cl-albo']) {
+      if (!(await page.$(`[data-k="${t}"]`))) continue;
+      await page.click(`[data-k="${t}"]`);
+      piu = await page.$('[data-k^="piu-"]');
+      if (piu) break;
+    }
+    if (!piu) fail('classifiche compatte: nessun «Vedi tutti»');
+    else {
+      const k = await piu.getAttribute('data-k');
+      if (!/Vedi tutti \(\d+\)/.test(await piu.textContent())) fail('classifiche compatte: testo del tasto');
+      await piu.click();
+      await page.waitForTimeout(50);
+      if (!/Mostra meno/.test(await page.textContent(`[data-k="${k}"]`))) fail('classifiche compatte: dopo il tocco manca «Mostra meno»');
+      await page.click(`[data-k="${k}"]`);
+      await page.waitForTimeout(50);
+      if (!/Vedi tutti/.test(await page.textContent(`[data-k="${k}"]`))) fail('classifiche compatte: «Mostra meno» non richiude');
+    }
+  }
 
   // Backup: scarica, poi controlla che contenga voti e partite
   await tab('Altro');

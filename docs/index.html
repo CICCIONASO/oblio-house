@@ -92,6 +92,7 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .pill.pericolo{color:var(--rosso)}
 .pill.largo{width:100%}
 .pill.sm{min-height:40px;font-size:13px;padding:0 12px;border-width:1px}
+.pill.piu{display:flex;margin:12px auto 0}
 .pill:disabled{opacity:.45;cursor:not-allowed}
 
 .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -673,7 +674,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.18.0';
+var APP_V='0.19.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -1850,17 +1851,43 @@ function perT(a,b){return (a.t||0)-(b.t||0);}
 /* app aggiornata: le copie già confermate che cambiano solo di forma (normalizzazione nuova) NON si rimandano,
    perché una copia impoverita da una versione vecchia cancellerebbe dati veri sugli altri telefoni.
    Si segnano «da rileggere» e si rilegge tutto il locale: per la stessa scrittura vince il server. */
+/* Rilettura completa solo per chi arriva da una versione più vecchia di RILEGGI_DAL: rileggere tutto costa una lettura
+   per documento e per telefono (quota gratuita di Firebase: 50.000 al giorno). Va alzata alla versione che si pubblica
+   quando una versione cambia il formato di un campo che esiste già (come i sintomi della 0.5.0). */
+var RILEGGI_DAL='0.19.0';
+function versionePrima(a,b){
+  var x=String(a||'0').split('.'),y=String(b||'0').split('.');
+  for(var i=0;i<3;i++){var d=(+x[i]||0)-(+y[i]||0);if(d)return d<0;}
+  return false;
+}
 function syncNuovaVersione(S,SY,ver){
   if(SY.ver===ver)return false;
+  var rilegge=versionePrima(SY.ver,RILEGGI_DAL);
   var h={};entita(S).forEach(function(x){h[x.k]=hashStr(canon(x.e));});
   Object.keys(SY.ent).forEach(function(k){
     var e=SY.ent[k];
     if(!e||!e[2]||!(k in h))return;   // in coda: si manda come sempre; tolta qui: lapide come sempre
-    e[1]=h[k];e[3]='r';
+    e[1]=h[k];if(rilegge)e[3]='r';
   });
   SY.ver=ver;
-  if(SY.init)SY.cursor=0;
+  if(rilegge&&SY.init)SY.cursor=0;
   return true;
+}
+/* Protezione dalle cancellazioni a catena. Le cose che il registro dà per ricevute ma che mancano nei dati
+   (un salvataggio fallito, dati del telefono persi) diventerebbero lapidi per tutti i telefoni. Se sono più di «soglia»
+   non è una cancellazione fatta da qualcuno: le tolgo dal registro e rileggo tutto, così tornano dal server. */
+var SOGLIA_LAPIDI=20;
+function syncMancanti(S,SY){
+  var vivi={};entita(S).forEach(function(x){vivi[x.k]=1;});
+  return Object.keys(SY.ent).filter(function(k){var e=SY.ent[k];return !vivi[k]&&e&&e[1]!=='-'&&e[2];});
+}
+function syncRipara(S,SY,soglia){
+  if(!SY.init)return 0;
+  var m=syncMancanti(S,SY);
+  if(m.length<=soglia)return 0;
+  m.forEach(function(k){delete SY.ent[k];});
+  SY.cursor=0;
+  return m.length;
 }
 /* applica le modifiche arrivate dagli altri telefoni, sul posto. Alla prima unione (init) vince il locale condiviso. */
 function syncApply(S,changes,SY,init){
@@ -2096,7 +2123,7 @@ function tally(n,max){
 
 /* ---------- stato ---------- */
 var S,D,storageOk=true,liveSheet=null,toastTimer=0,installEvt=null;
-var UI={tab:'reparto',sub:null,pos:{p:null,qty:{},extra:[]},filter:'tutto',limit:40,per:'mese',dart:{mode:'501',players:[],mol:1,vista:null}};
+var UI={tab:'reparto',sub:null,pos:{p:null,qty:{},extra:[]},filter:'tutto',limit:40,per:'mese',aperte:{},dart:{mode:'501',players:[],mol:1,vista:null}};
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){storageOk=false;return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){storageOk=false;return false;}}
 function loadState(){
@@ -2113,7 +2140,7 @@ function persist(){
 function commit(){persist();D=derive(S);render();syncSpingi();}
 
 /* ---------- sincronizzazione tra telefoni ---------- */
-var SYNC=null,SY=null,remote=null,DEV='',syncTimer=0,inVolo={};
+var SYNC=null,SY=null,remote=null,DEV='',syncTimer=0,inVolo={},stopAscolto=null,lapidiOk=false;
 var SST={stato:'spento',errore:'',ultimo:0,attesa:0};   // spento · collego · ok · attesa · errore
 var SDK='https://www.gstatic.com/firebasejs/10.12.2/';
 function syncCarica(){
@@ -2121,7 +2148,8 @@ function syncCarica(){
   if(!SY||typeof SY!=='object'||!SY.ent||typeof SY.ent!=='object')SY={cursor:0,init:false,ent:{},ver:APP_V};
   devId();
 }
-function syncSalva(){lsSet(KEY+'.sync',JSON.stringify(SY));}
+// il registro si salva solo se anche i dati sono salvati: un registro più avanti dei dati farebbe partire lapidi
+function syncSalva(){if(storageOk)lsSet(KEY+'.sync',JSON.stringify(SY));}
 function errTesto(e){if(!e)return 'errore sconosciuto';return (e.code?e.code+': ':'')+String(e.message||e).slice(0,200);}
 function remoteFirestore(cfg){
   return Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-firestore.js')]).then(function(m){
@@ -2172,6 +2200,7 @@ function syncAvvia(){
   SYNC=window.OBLIO_SYNC||null;
   if(!SYNC||!SYNC.room||IN_CLAUDE||(!SYNC.firebase&&!SYNC.mock))return;
   syncCarica();SST.stato='collego';
+  if(syncRipara(S,SY,SOGLIA_LAPIDI))syncSalva();
   // se qualcosa è rimasto in coda (rete caduta), riprovo ogni tanto
   setInterval(function(){
     if(!remote||!SY||!SY.init)return;
@@ -2179,8 +2208,12 @@ function syncAvvia(){
   },10000);
   (SYNC.mock?remoteMock(SYNC):remoteFirestore(SYNC)).then(function(r){
     remote=r;
-    r.subscribe(SY.init?SY.cursor:0,ricevi,function(e){SST.errore=errTesto(e);SST.stato=SY.init?'attesa':'errore';statoSync();});
+    ascolta();
   },function(e){SST.stato='errore';SST.errore='Non riesco a caricare la sincronizzazione ('+(e&&e.message||e)+'). Riprovo alla prossima apertura con internet.';statoSync();});
+}
+function ascolta(){
+  if(stopAscolto){try{stopAscolto();}catch(e){}}
+  stopAscolto=remote.subscribe(SY.init?SY.cursor:0,ricevi,function(e){SST.errore=errTesto(e);SST.stato=SY.init?'attesa':'errore';statoSync();});
 }
 function ricevi(changes,fromCache){
   if(fromCache&&!SY.init)return;   // prima di fondere aspetto i dati veri del locale
@@ -2199,6 +2232,8 @@ function syncSpingi(subito){
   if(!remote||!SY||!SY.init){statoSync();return;}
   clearTimeout(syncTimer);
   syncTimer=setTimeout(function(){
+    if(!lapidiOk&&syncRipara(S,SY,SOGLIA_LAPIDI)){syncSalva();ascolta();}
+    lapidiOk=false;
     var w=syncDiff(S,SY);
     w.forEach(function(x){
       if(inVolo[x.key]===x.h)return;
@@ -4287,7 +4322,7 @@ function chiediImport(b){
       h('dt',null,'Contiene'),h('dd',null,st.people.length+' persone, '+st.products.length+' prodotti, '+st.moves.length+' movimenti, '+st.votes.length+' voti, '+st.games.length+' partite')),
     h('p',{class:'errore'},SYNC&&remote?'I dati attuali vengono sostituiti su tutti i telefoni collegati, non solo su questo.':'I dati che ci sono adesso su questo telefono vengono sostituiti.'),
     h('div',{class:'azioni'},
-      h('button',{class:'pill pericolo',type:'button',onclick:function(){S=st;closeSheet();commit();toast('Backup ripristinato.');}},'Sostituisci i dati'),
+      h('button',{class:'pill pericolo',type:'button',onclick:function(){var cur=lsGet(KEY);if(cur){lsSet(KEY+'.snap',cur);lsSet(KEY+'.snapT',String(Date.now()));}S=st;lapidiOk=true;closeSheet();commit();toast('Backup ripristinato. I dati di prima sono nella copia automatica.');}},'Sostituisci i dati'),
       h('button',{class:'pill',type:'button',onclick:closeSheet},'Lascia stare'))]);
 }
 function vBackup(){
@@ -4825,7 +4860,7 @@ function meseArgomento(tipo){
     h('div',{class:'numeri'},numeri),
     tipo==='bar'&&tot.top?h('p',{class:'aiuto'},'Il più preso: '+tot.top.n+' ('+tot.top.q+(tot.top.q===1?' pezzo).':' pezzi).')):null)];
   if(!ids.length){out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},'Niente in questo mese.')));return out;}
-  out.push(ids.map(function(id){
+  var schede=compatta('mese-'+tipo,ids.map(function(id){
     var x=st.per[id],avg=x.darts?x.pts/x.darts*3:0,righe;
     if(tipo==='triage')righe=[
       [h('dt',null,'Ricevuto'),h('dd',null,(x.votiRic===1?'1 punto':x.votiRic+' punti')+(x.rossi?' · '+x.rossi+(x.rossi===1?' codice rosso':' codici rossi'):''))],
@@ -4841,6 +4876,7 @@ function meseArgomento(tipo){
       h('div',{class:'cart-h'},h('span',{class:'linea'},ava(id,'sm'),h('h3',{class:'nome'},pName(id))),tipo==='bar'?h('span',{class:'importo'},eur(x.eur)):null),
       h('dl',{class:'scheda'},righe));
   }));
+  out.push(schede.righe,schede.tasto);
   return out;
 }
 function numero(v,l){return h('div',{class:'numero'},h('b',null,v),h('span',null,l));}
@@ -5044,12 +5080,21 @@ function righeClassifica(items){
       h('span',{class:'importo'+(it.cls?' '+it.cls:'')},it.val));
   });
 }
+/* classifiche compatte (dalla 0.19.0): si vedono i primi 3, il resto con «Vedi tutti». k = chiave per ricordarsi cosa è aperto */
+var COMPATTA=3;
+function compatta(k,list){
+  if(list.length<=COMPATTA+1)return {righe:list,tasto:null};
+  var aperto=!!UI.aperte[k];
+  return {righe:aperto?list:list.slice(0,COMPATTA),
+    tasto:h('button',{type:'button',class:'pill sm piu','data-k':'piu-'+k,'aria-expanded':String(aperto),onclick:function(){tocco();UI.aperte[k]=!aperto;render();}},aperto?'Mostra meno':'Vedi tutti ('+list.length+')')};
+}
 function boardC(titolo,sotto,items,vuoto){
+  var c=compatta(titolo,righeClassifica(items));
   return h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},titolo)),
     sotto?h('p',{class:'aiuto'},sotto):null,
     h('div',{class:'riga-tratt'}),
-    items.length?h('ol',{class:'classifica'},righeClassifica(items)):h('p',{class:'vuoto'},vuoto));
+    items.length?h('ol',{class:'classifica'},c.righe):h('p',{class:'vuoto'},vuoto),c.tasto);
 }
 /* linguette in cima a una pagina (Farmacia, Classifiche): [valore, etichetta] */
 function linguette(k,voci,att,scegli){
@@ -5086,22 +5131,24 @@ function corpoTriage(){
     var x=re.by[id];
     return {id:id,a:x.rossi,b:x.voti,val:x.rossi+(x.rossi===1?' codice rosso':' codici rossi'),sub:puntiTxt(x.voti)};}));
   var ch=serateChiuse(S,k),tutte=Object.keys(ch).filter(function(s){return inPer(s,per,k)&&ch[s].n;}).sort().reverse(),ks=tutte.slice(0,10);
-  // sintomi più dati nelle serate chiuse del periodo
-  var sy={};tutte.forEach(function(s){var si=ch[s].sint;Object.keys(si).forEach(function(c){Object.keys(si[c]).forEach(function(y){sy[y]=(sy[y]||0)+si[c][y];});});});
-  var tops=Object.keys(sy).sort(function(a,b){return sy[b]-sy[a]||a.localeCompare(b);}).slice(0,8);
-  return periodoCl().concat([
-    boardC('Il più votato','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
-    iRo.length?boardC('Re dell’oblio','Chi ha vinto più serate (codice rosso). A pari serate passa avanti chi ha più punti.',iRo,''):null,
-    ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime serate')),h('div',{class:'riga-tratt'}),
-      h('ul',{class:'righe'},ks.map(function(s){
+  var cSe=compatta('serate',ks.map(function(s){
         var sm=ch[s];
         return h('li',null,h('div',{class:'riga'},
           h('span',{class:'ora'},dShort(s)),
           sm.winners.length===1?ava(sm.winners[0],'sm'):null,
           h('span',{class:'cresce'},h('span',{class:'nome'},testoPodio(sm)),h('span',{class:'sotto'},sm.n+(sm.n===1?' votante':' votanti')))));
-      }))):null,
+      }));
+  // sintomi più dati nelle serate chiuse del periodo
+  var sy={};tutte.forEach(function(s){var si=ch[s].sint;Object.keys(si).forEach(function(c){Object.keys(si[c]).forEach(function(y){sy[y]=(sy[y]||0)+si[c][y];});});});
+  var tops=Object.keys(sy).sort(function(a,b){return sy[b]-sy[a]||a.localeCompare(b);}).slice(0,8);
+  var cSy=compatta('sintomi',tops.map(function(y){return h('li',null,h('div',{class:'riga'},h('span',{class:'cresce nome'},y),h('span',{class:'tri-v'},sy[y]+(sy[y]===1?' volta':' volte'))));}));
+  return periodoCl().concat([
+    boardC('Il più votato','I punti del triage di tutte le serate chiuse, e quante volte ognuno è salito sul podio.'+(re.serate?' '+re.serate+(re.serate===1?' serata votata.':' serate votate.'):''),iRe,'Nessuna serata votata in questo periodo. La serata in corso conta da quando si chiude, '+chiusuraTxt()+'.'),
+    iRo.length?boardC('Re dell’oblio','Chi ha vinto più serate (codice rosso). A pari serate passa avanti chi ha più punti.',iRo,''):null,
+    ks.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Ultime serate')),h('div',{class:'riga-tratt'}),
+      h('ul',{class:'righe'},cSe.righe),cSe.tasto):null,
     tops.length?h('section',{class:'cartella'},h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Sintomi più dati')),h('div',{class:'riga-tratt'}),
-      h('ul',{class:'righe'},tops.map(function(y){return h('li',null,h('div',{class:'riga'},h('span',{class:'cresce nome'},y),h('span',{class:'tri-v'},sy[y]+(sy[y]===1?' volta':' volte'))));}))):null
+      h('ul',{class:'righe'},cSy.righe),cSy.tasto):null
   ],meseArgomento('triage'));
 }
 function corpoBar(){
@@ -5261,6 +5308,11 @@ function start(){
   window.addEventListener('pagehide',function(){if(sporco(guardia)&&!guardia.soloConferma)bozzaSalva(guardia.titolo,valoriForm(guardia.form));salvaConto();});
   devId();
   var st=loadState();
+  if(!st){
+    // dati illeggibili o spariti: li metto da parte e butto il registro, così si rilegge tutto dal locale condiviso
+    var rotto=lsGet(KEY);if(rotto)lsSet(KEY+'.rotto',rotto);
+    try{localStorage.removeItem(KEY+'.sync');}catch(e){}
+  }
   S=st||seedState(Date.now());
   if(st&&lsGet(KEY+'.sync')){syncCarica();if(syncNuovaVersione(S,SY,APP_V))syncSalva();}
   var cambiato=applyImg0(S);

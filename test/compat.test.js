@@ -413,3 +413,20 @@ console.log(
     NUOVA.APP_V +
     ' sullo stesso locale, nessun dato perso; voti vecchi azzerati)'
 );
+
+// dalla 0.19.0: rilettura completa solo per chi arriva da prima di RILEGGI_DAL (costa letture sulla quota gratuita)
+{
+  const S = NUOVA.normState(JSON.parse(JSON.stringify(A.S)));
+  const ent = () => JSON.parse(JSON.stringify(A.SY.ent));
+  const recente = { cursor: 50, init: true, ent: ent(), ver: '0.19.0' };
+  assert.ok(NUOVA.syncNuovaVersione(S, recente, '0.20.0'));
+  assert.strictEqual(recente.cursor, 50, 'da 0.19.0 in poi niente rilettura completa');
+  assert.ok(Object.values(recente.ent).every((e) => e[3] !== 'r'));
+  assert.strictEqual(recente.ver, '0.20.0');
+  const vecchio = { cursor: 50, init: true, ent: ent(), ver: '0.17.0' };
+  assert.ok(NUOVA.syncNuovaVersione(S, vecchio, '0.20.0'));
+  assert.strictEqual(vecchio.cursor, 0, 'da prima della 0.19.0 si rilegge tutto');
+  const senza = { cursor: 50, init: true, ent: ent() };
+  NUOVA.syncNuovaVersione(S, senza, '0.20.0');
+  assert.strictEqual(senza.cursor, 0, 'registro senza versione: si rilegge');
+}
