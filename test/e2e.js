@@ -10,7 +10,7 @@ const PURE = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(
   fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8')
 )[1];
 const calc = new Function(PURE + '\nreturn {derive,previsione,normState,canon,hashStr};')();
-const statoDi = async (pg) => calc.normState(await pg.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1'))));
+const statoDi = async (pg) => calc.normState(await pg.evaluate(() => window.__dati('oblio.v1')));
 // «1.234,56 €» → 123456 centesimi
 const centesimi = (s) => {
   const m = /([-−])?\s*([\d.]+),(\d{2})/.exec(s || '');
@@ -108,6 +108,25 @@ const fail = (m) => {
     // in più la rete verso Firebase resta chiusa, nel caso qualcosa la riaccendesse
     await c.addInitScript(() => {
       window.OBLIO_SYNC = {};
+      // dati salvati dall'app (dalla 0.20.0 in IndexedDB; prima del trasloco, o senza IndexedDB, in localStorage)
+      window.__dati = (k) =>
+        new Promise((ok) => {
+          const ls = () => ok(JSON.parse(localStorage.getItem(k) || 'null'));
+          const r = indexedDB.open('oblio');
+          r.onupgradeneeded = () => r.transaction.abort(); // database non ancora creato dall'app: non lo creo io
+          r.onerror = ls;
+          r.onsuccess = () => {
+            const db = r.result;
+            if (!db.objectStoreNames.contains('kv')) return (db.close(), ls());
+            const g = db.transaction('kv').objectStore('kv').get(k);
+            g.onsuccess = () => {
+              db.close();
+              if (typeof g.result === 'string') ok(JSON.parse(g.result));
+              else ls();
+            };
+            g.onerror = () => (db.close(), ls());
+          };
+        });
     });
     await c.route(/gstatic\.com\/firebasejs|firestore\.googleapis\.com|firebaseio\.com|firebaseapp\.com/, (r) => r.abort());
     return c;
@@ -359,7 +378,7 @@ const fail = (m) => {
   await page.click('#foglio-x');
   if (/da confermare/.test(await text('#view'))) fail('la riga «da confermare» resta dopo le conferme');
   {
-    const st = await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')));
+    const st = await page.evaluate(() => window.__dati('oblio.v1'));
     const gigi = st.people.find((p) => p.name === 'Gigi').id;
     const mv = st.moves.find((m) => m.p === gigi && m.k === 'tab');
     if (!mv.x || !/sospetta/.test(mv.xm)) fail('il ticket di Gigi doveva restare nel registro, annullato come sospetto');
@@ -442,7 +461,7 @@ const fail = (m) => {
   await shot('13d-soldi', true);
   await overflow('soldi');
   {
-    const st = calc.normState(await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1'))));
+    const st = calc.normState(await page.evaluate(() => window.__dati('oblio.v1')));
     const P = calc.previsione(st, calc.derive(st));
     if (P.attuale !== P.cassa + P.scorte) fail('soldi: l’attuale non è cassa + scorte');
     if (P.previsionale !== P.attuale + P.incassare - P.restituire) fail('soldi: il previsionale non torna');
@@ -749,7 +768,7 @@ const fail = (m) => {
     fail('in «Vedi i voti» manca il podio con i sintomi: ' + (await text('#foglio')).slice(0, 300));
   await page.click(
     '#foglio [data-k="togli-' +
-      (await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')).people.find((p) => p.name === 'Gigi').id)) +
+      (await page.evaluate(async () => (await window.__dati('oblio.v1')).people.find((p) => p.name === 'Gigi').id)) +
       '-conti"]'
   );
   await page.waitForTimeout(80);
@@ -924,8 +943,11 @@ const fail = (m) => {
   const rep = await text('#view');
   if (!/Urgente|Stabile/.test(rep)) fail('bollettino senza timbro');
   if (!/Stasera hai già votato/.test(rep)) fail('i voti non restano dopo la ricarica');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1')).moves.length);
+  const saved = await page.evaluate(async () => (await window.__dati('oblio.v1')).moves.length);
   if (saved !== bk.state.moves.length) fail('movimenti salvati ' + saved + ' diversi dal backup ' + bk.state.moves.length);
+  // dalla 0.20.0 i dati stanno in IndexedDB: in localStorage non resta la copia grande
+  if (await page.evaluate(() => localStorage.getItem('oblio.v1') !== null || localStorage.getItem('oblio.v1.sync') !== null))
+    fail('i dati grandi sono ancora in localStorage');
 
   // senza rete: l'app si riapre dal service worker, caricature comprese
   await page
@@ -1377,11 +1399,14 @@ const fail = (m) => {
       tab: (n) => tab(n, p),
     };
   };
+  // la condizione può essere asincrona (i dati salvati si leggono da IndexedDB): la ricontrollo finché diventa vera
   const aspetta = async (pg, fn, arg, cosa) => {
-    const ok = await pg.waitForFunction(fn, arg, { timeout: 15000 }).then(
-      () => true,
-      () => false
-    );
+    const fine = Date.now() + 15000;
+    let ok = false;
+    while (!ok && Date.now() < fine) {
+      ok = !!(await pg.evaluate(fn, arg).catch(() => false));
+      if (!ok) await pg.waitForTimeout(100);
+    }
     if (!ok) fail(cosa);
     return ok;
   };
@@ -1491,7 +1516,7 @@ const fail = (m) => {
     st[key] = { key, c: 'votes', i: voto.id, j: calc.canon(voto), u, by: 'P', s: ++orologio };
     await aspetta(
       B.p,
-      () => (JSON.parse(localStorage.getItem('oblio.v1')).votes || []).some((v) => v.id === 'vprova_conti'),
+      async () => ((await window.__dati('oblio.v1')).votes || []).some((v) => v.id === 'vprova_conti'),
       null,
       'B non riceve il voto scritto dalla 0.5.0'
     );
@@ -1499,11 +1524,11 @@ const fail = (m) => {
     const ridotto = { id: 'vprova_conti', s: '2026-10-10', v: 'conti', c: 'pesce', t: tv, y: 'Dormire al locale' };
     await B.p.goto(base + 'guida.html'); // pagina senza app: posso toccare i dati salvati senza che l'app li riscriva
     await B.p.evaluate(
-      ([rid, h, u]) => {
-        const S = JSON.parse(localStorage.getItem('oblio.v1'));
+      async ([rid, h, u]) => {
+        const S = await window.__dati('oblio.v1');
         S.votes = S.votes.map((v) => (v.id === rid.id ? rid : v));
         localStorage.setItem('oblio.v1', JSON.stringify(S));
-        const SY = JSON.parse(localStorage.getItem('oblio.v1.sync'));
+        const SY = await window.__dati('oblio.v1.sync');
         SY.ent['votes~' + rid.id] = [u, h, 1];
         SY.ver = '0.5.0';
         localStorage.setItem('oblio.v1.sync', JSON.stringify(SY));
@@ -1520,8 +1545,8 @@ const fail = (m) => {
     await B.p.waitForSelector('.tab');
     await aspetta(
       B.p,
-      () => {
-        const v = JSON.parse(localStorage.getItem('oblio.v1')).votes.find((x) => x.id === 'vprova_conti');
+      async () => {
+        const v = (await window.__dati('oblio.v1')).votes.find((x) => x.id === 'vprova_conti');
         return !!v && Array.isArray(v.ys) && v.ys.length === 2;
       },
       null,
@@ -1530,7 +1555,7 @@ const fail = (m) => {
     await aspetta(B.p, () => document.querySelector('#sync').classList.contains('ok'), null, 'B aggiornato non torna sincronizzato');
     await B.p.waitForTimeout(600);
     if (scritture() !== prima) fail('B aggiornato ha riscritto qualcosa sul server');
-    const ver = await B.p.evaluate(() => JSON.parse(localStorage.getItem('oblio.v1.sync')).ver);
+    const ver = await B.p.evaluate(async () => (await window.__dati('oblio.v1.sync')).ver);
     if (ver === '0.5.0' || !ver) fail('dopo l’aggiornamento la sincronizzazione non segna la versione nuova: ' + ver);
     note('aggiornamento: B rilegge il locale, ripara il voto ridotto e non rimanda niente');
   }
@@ -1586,10 +1611,8 @@ const fail = (m) => {
     const gid = await g.evaluate(() => localStorage.getItem('oblio.v1.io'));
     await aspetta(
       A.p,
-      (id) =>
-        (JSON.parse(localStorage.getItem('oblio.v1')).votes || []).some(
-          (v) => v.v === id && v.da === id && v.m === 'p' && v.cs && v.cs.length === 2
-        ),
+      async (id) =>
+        ((await window.__dati('oblio.v1')).votes || []).some((v) => v.v === id && v.da === id && v.m === 'p' && v.cs && v.cs.length === 2),
       gid,
       'A non riceve il voto a podio dell’ospite'
     );

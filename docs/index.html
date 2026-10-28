@@ -674,7 +674,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.19.0';
+var APP_V='0.20.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -2124,8 +2124,97 @@ function tally(n,max){
 /* ---------- stato ---------- */
 var S,D,storageOk=true,liveSheet=null,toastTimer=0,installEvt=null;
 var UI={tab:'reparto',sub:null,pos:{p:null,qty:{},extra:[]},filter:'tutto',limit:40,per:'mese',aperte:{},dart:{mode:'501',players:[],mol:1,vista:null}};
-function lsGet(k){try{return localStorage.getItem(k);}catch(e){storageOk=false;return null;}}
-function lsSet(k,v){try{localStorage.setItem(k,v);return true;}catch(e){storageOk=false;return false;}}
+/* Dalla 0.20.0 i dati grandi (stato, registro della sincronizzazione, copie di riserva) stanno in IndexedDB, che ha
+   spazio per centinaia di MB; localStorage (circa 5 MB) tiene solo le cose piccole. All'avvio i dati grandi si leggono
+   tutti in memoria (BIG.mem), così lsGet resta immediato; le scritture partono in coda, una transazione alla volta.
+   Se una transazione fallisce, il suo lotto si fonde con il successivo: il registro non viene mai salvato senza
+   i dati scritti insieme a lui. Senza IndexedDB tutto resta in localStorage come prima. */
+var BIGK={};BIGK[KEY]=1;BIGK[KEY+'.sync']=1;BIGK[KEY+'.snap']=1;BIGK[KEY+'.rotto']=1;
+var BIG=null;
+function lsGet(k){
+  if(BIG&&BIGK[k])return Object.prototype.hasOwnProperty.call(BIG.mem,k)?BIG.mem[k]:null;
+  try{return localStorage.getItem(k);}catch(e){storageOk=false;return null;}
+}
+function lsSet(k,v){
+  if(BIG&&BIGK[k]){BIG.mem[k]=v;BIG.coda[k]=v;bigScrivi();return BIG.ok;}
+  try{localStorage.setItem(k,v);return true;}catch(e){storageOk=false;return false;}
+}
+function lsDel(k){
+  if(BIG&&BIGK[k]){delete BIG.mem[k];BIG.coda[k]=null;bigScrivi();return;}
+  try{localStorage.removeItem(k);}catch(e){}
+}
+function bigScrivi(){
+  if(BIG.inVolo||BIG.pronta)return;
+  BIG.pronta=true;
+  Promise.resolve().then(function(){
+    BIG.pronta=false;
+    var lotto=BIG.coda,chiavi=Object.keys(lotto),chiuso=false;
+    if(!chiavi.length)return;
+    BIG.coda={};BIG.inVolo=true;
+    function fine(ok){
+      if(chiuso)return;chiuso=true;BIG.inVolo=false;
+      if(!ok)chiavi.forEach(function(k){if(!(k in BIG.coda))BIG.coda[k]=lotto[k];});
+      if(BIG.ok!==ok){BIG.ok=ok;storageOk=ok;if(S)renderSoon();}
+      if(Object.keys(BIG.coda).length){if(ok)bigScrivi();else setTimeout(function(){if(!BIG.inVolo)bigScrivi();},5000);}
+    }
+    try{
+      var tx=BIG.db.transaction('kv','readwrite'),st=tx.objectStore('kv');
+      chiavi.forEach(function(k){if(lotto[k]==null)st.delete(k);else st.put(lotto[k],k);});
+      tx.oncomplete=function(){fine(true);};
+      tx.onabort=tx.onerror=function(){fine(false);};
+    }catch(e){fine(false);}
+  });
+}
+/* apre IndexedDB, legge i dati grandi e, la prima volta, li sposta da localStorage. cb() parte comunque:
+   se IndexedDB non c'è o non risponde entro 4 secondi, si resta su localStorage. */
+function bigApri(cb){
+  var fatto=false,timer=0;
+  function via(db){
+    if(fatto){if(db)try{db.close();}catch(e){}return;}
+    fatto=true;clearTimeout(timer);
+    if(!db){cb();return;}
+    var mem={},chiavi=Object.keys(BIGK);
+    try{
+      var tx=db.transaction('kv','readonly'),st=tx.objectStore('kv');
+      chiavi.forEach(function(k){var r=st.get(k);r.onsuccess=function(){if(typeof r.result==='string')mem[k]=r.result;};});
+      tx.oncomplete=function(){trasloca(db,mem);};
+      tx.onabort=tx.onerror=function(){try{db.close();}catch(e){}cb();};
+    }catch(e){try{db.close();}catch(x){}cb();}
+  }
+  function trasloca(db,mem){
+    var ls=null;try{ls=localStorage.getItem(KEY);}catch(e){}
+    if(ls==null){BIG={db:db,mem:mem,coda:{},ok:true,inVolo:false,pronta:false};cb();return;}
+    // dati in localStorage: sono i più recenti (dopo il trasloco non ci restano), quindi vincono su quelli di IndexedDB
+    var dal={};Object.keys(BIGK).forEach(function(k){var v=null;try{v=localStorage.getItem(k);}catch(e){}dal[k]=v;});
+    try{
+      var tx=db.transaction('kv','readwrite'),st=tx.objectStore('kv');
+      Object.keys(dal).forEach(function(k){
+        if(dal[k]!=null){st.put(dal[k],k);mem[k]=dal[k];}
+        else if(k===KEY+'.sync'){st.delete(k);delete mem[k];}   // il registro va sempre insieme ai suoi dati
+      });
+      tx.oncomplete=function(){
+        Object.keys(dal).forEach(function(k){if(dal[k]!=null)try{localStorage.removeItem(k);}catch(e){}});
+        BIG={db:db,mem:mem,coda:{},ok:true,inVolo:false,pronta:false};cb();
+      };
+      tx.onabort=tx.onerror=function(){try{db.close();}catch(e){}cb();};
+    }catch(e){try{db.close();}catch(x){}cb();}
+  }
+  function apri(ver){
+    var r;
+    try{r=ver?indexedDB.open('oblio',ver):indexedDB.open('oblio');}catch(e){via(null);return;}
+    r.onupgradeneeded=function(){var db=r.result;if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv');};
+    r.onsuccess=function(){
+      var db=r.result;
+      if(!db.objectStoreNames.contains('kv')){var v=db.version+1;db.close();apri(v);return;}
+      db.onversionchange=function(){try{db.close();}catch(e){}};
+      via(db);
+    };
+    r.onerror=r.onblocked=function(){via(null);};
+  }
+  if(IN_CLAUDE||typeof indexedDB==='undefined'){cb();return;}
+  timer=setTimeout(function(){via(null);},4000);
+  apri(0);
+}
 function loadState(){
   var raw=lsGet(KEY);
   if(raw){try{var st=normState(JSON.parse(raw));if(st)return st;}catch(e){}}
@@ -2221,6 +2310,7 @@ function ricevi(changes,fromCache){
   var cambiato=syncApply(S,changes,SY,init);
   if(init&&applyElena(S))cambiato=true;
   if(!fromCache&&segnaVisto())cambiato=true;
+  if(!fromCache)setTimeout(rimpicciolisciFoto,3000);
   changes.forEach(function(ch){if(ch.s>SY.cursor)SY.cursor=ch.s;});
   if(init)SY.init=true;
   SST.errore='';SST.ultimo=Date.now();
@@ -2353,19 +2443,44 @@ function ava(id,cls){
   for(var i=0;i<nm.length;i++)k=(k*31+nm.charCodeAt(i))>>>0;
   return h('span',{class:c+' iniz',style:'background:'+TINTE[k%TINTE.length],'aria-hidden':'true'},iniziali(nm));
 }
-function riduciFoto(f,cb){
-  var url,im=new Image();
-  try{url=URL.createObjectURL(f);}catch(e){cb(null);return;}
+/* foto profilo: quadrata, 176 px (il cerchio più grande è 84 px, 168 sugli schermi fitti), circa 15-25 KB.
+   Fino alla 0.19.0 erano 256 px e pesavano circa 60 KB l'una su ogni telefono. */
+var FOTO_PX=176,FOTO_Q=0.72,FOTO_GRANDE=36000;
+function riduciImg(src,ritaglia,cb,fine){
+  var im=new Image();
   im.onload=function(){
     try{
       var w=im.naturalWidth,hh=im.naturalHeight,s=Math.min(w,hh),c=document.createElement('canvas');
-      c.width=c.height=256;
-      c.getContext('2d').drawImage(im,(w-s)/2,(hh-s)*0.3,s,s,0,0,256,256);
-      URL.revokeObjectURL(url);cb(c.toDataURL('image/jpeg',0.82));
-    }catch(e){URL.revokeObjectURL(url);cb(null);}
+      c.width=c.height=FOTO_PX;
+      c.getContext('2d').drawImage(im,(w-s)/2,ritaglia?(hh-s)*0.3:(hh-s)/2,s,s,0,0,FOTO_PX,FOTO_PX);
+      if(fine)fine();cb(c.toDataURL('image/jpeg',FOTO_Q));
+    }catch(e){if(fine)fine();cb(null);}
   };
-  im.onerror=function(){URL.revokeObjectURL(url);cb(null);};
-  im.src=url;
+  im.onerror=function(){if(fine)fine();cb(null);};
+  im.src=src;
+}
+function riduciFoto(f,cb){
+  var url;
+  try{url=URL.createObjectURL(f);}catch(e){cb(null);return;}
+  riduciImg(url,true,cb,function(){URL.revokeObjectURL(url);});
+}
+/* le foto grandi di prima le rimpicciolisce un telefono solo: quello della persona, o quello dell'admin per chi
+   non ha l'app. Una per volta, al massimo una volta per apertura. */
+var fotoFatte={};
+function rimpicciolisciFoto(){
+  if(!SY||!SY.init)return;
+  var io=mio(),adm=isAdmin();
+  var p=S.people.find(function(x){
+    return !fotoFatte[x.id]&&/^data:image\//.test(x.img||'')&&x.img.length>FOTO_GRANDE&&(x.id===io||(adm&&!haApp(x)));
+  });
+  if(!p)return;
+  fotoFatte[p.id]=1;
+  var prima=p.img;
+  riduciImg(prima,false,function(nuova){
+    var q=person(p.id);
+    if(nuova&&q&&q.img===prima&&nuova.length<prima.length*0.8){q.img=nuova;persist();D=derive(S);renderSoon();syncSpingi();}
+    setTimeout(rimpicciolisciFoto,500);
+  });
 }
 function sceltaFaccia(p){
   var val=p?p.img:'',box=h('div',{class:'galleria',role:'group','aria-label':'Caricatura'});
@@ -3534,7 +3649,7 @@ function openPerson(id,after){
     h('div',{class:'azioni'},
       h('button',{type:'button',class:'pill sm','data-k':'pe-codice',onclick:function(){closeSheet();setTimeout(function(){openCodiceOspite(p.id);},60);}},p.pin?'Nuovo codice ospite':'Crea codice ospite'),
       p.pin?h('button',{type:'button',class:'pill sm pericolo','data-k':'pe-togli',onclick:function(){
-        delete p.pin;delete p.tel;commit();toast(pName(p.id)+' non entra più come ospite.');closeSheet();}},'Togli accesso'):null));
+        var q=person(p.id)||p;delete q.pin;delete q.tel;commit();toast(pName(p.id)+' non entra più come ospite.');closeSheet();}},'Togli accesso'):null));   // la persona può essere arrivata nuova da un altro telefono mentre il foglio era aperto
   formSheet(p?'Modifica '+nomeP(p):'Nuovo visitatore',[
     campo('Nome',n,'pe-n'),
     gruppo('Tipo',kind),
@@ -5291,7 +5406,8 @@ function onda(e){
   (foglio&&foglio.open&&foglio.contains(b)?foglio:document.body).appendChild(o);
   setTimeout(function(){o.remove();},500);
 }
-function start(){
+function start(){bigApri(avvia);}
+function avvia(){
   foglio=$('#foglio');foglioT=$('#foglio-t');foglioB=$('#foglio-b');
   document.addEventListener('pointerdown',onda,{passive:true});
   document.addEventListener('touchstart',function(){},{passive:true});   // su iPhone fa funzionare :active
@@ -5311,7 +5427,7 @@ function start(){
   if(!st){
     // dati illeggibili o spariti: li metto da parte e butto il registro, così si rilegge tutto dal locale condiviso
     var rotto=lsGet(KEY);if(rotto)lsSet(KEY+'.rotto',rotto);
-    try{localStorage.removeItem(KEY+'.sync');}catch(e){}
+    lsDel(KEY+'.sync');
   }
   S=st||seedState(Date.now());
   if(st&&lsGet(KEY+'.sync')){syncCarica();if(syncNuovaVersione(S,SY,APP_V))syncSalva();}
