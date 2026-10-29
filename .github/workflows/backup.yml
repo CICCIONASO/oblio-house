@@ -1,0 +1,30 @@
+name: Copia automatica
+
+# Ogni notte a mezzanotte (ora italiana d'inverno; d'estate all'una) legge il database del locale e ne salva una
+# copia cifrata, che resta 90 giorni tra gli artefatti della corsa. Si può lanciare anche a mano (Run workflow).
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  copia:
+    name: copia del database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/backup.js
+        env:
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oblio-copia-${{ github.run_number }}
+          path: backup/*.json
+          retention-days: 90
+          if-no-files-found: error

@@ -9,7 +9,7 @@ const dist = path.join(__dirname, '..', 'docs');
 const PURE = /\/\* =+ PURE =+ \*\/([\s\S]*?)\/\* =+ END PURE =+ \*\//.exec(
   fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8')
 )[1];
-const calc = new Function(PURE + '\nreturn {derive,previsione,normState,canon,hashStr};')();
+const calc = new Function(PURE + '\nreturn {derive,previsione,normState,canon,hashStr,cifraBackup};')();
 const statoDi = async (pg) => calc.normState(await pg.evaluate(() => window.__dati('oblio.v1')));
 // «1.234,56 €» → 123456 centesimi
 const centesimi = (s) => {
@@ -929,6 +929,29 @@ const fail = (m) => {
       bk.state.people.length +
       ' persone'
   );
+  // 0.21.0: la copia automatica cifrata di GitHub si apre con la password (qui l'admin è attivo)
+  {
+    const cifrato = await calc.cifraBackup(JSON.stringify(bk), 'password-prova');
+    const cp = path.join(shots, 'copia-cifrata.json');
+    fs.writeFileSync(cp, JSON.stringify({ app: 'the-oblio-house', v: 1, exported: bk.exported, cifrato }));
+    await page.setInputFiles('#bk-file', cp);
+    await page.waitForSelector('#bk-pw');
+    await page.fill('#bk-pw', 'sbagliata');
+    await page.click('[data-k="bk-apri"]');
+    await page.waitForTimeout(800);
+    if (!/Password sbagliata/.test(await page.textContent('body'))) fail('copia cifrata: password sbagliata non segnalata');
+    await page.fill('#bk-pw', 'password-prova');
+    await page.click('[data-k="bk-apri"]');
+    const okCopia = await page.waitForSelector('#foglio :text("Ripristina questo backup?")', { timeout: 5000 }).then(
+      () => true,
+      () => false
+    );
+    if (!okCopia) fail('copia cifrata: con la password giusta non si apre');
+    else if (!new RegExp(bk.state.moves.length + ' movimenti').test(await page.textContent('#foglio')))
+      fail('copia cifrata: il contenuto non corrisponde al backup');
+    await page.click('#foglio .pill:has-text("Lascia stare")');
+    await page.waitForTimeout(100);
+  }
   await page.click('.indietro');
   await page.click('[data-k="apri-installa"]');
   await shot('27-installa', true);
