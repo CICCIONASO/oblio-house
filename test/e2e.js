@@ -1092,6 +1092,25 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(80);
   const meseQ = (await statoDi(page)).quote.slice(-1)[0].mese;
+  // impostata una quota, l'admin può già impostare il mese dopo
+  const primaQ = await text('[data-k="nuova-quota"]');
+  if (!primaQ || /Imposta la quota di/.test(primaQ) === false) fail('dopo una quota non si può impostare il mese successivo');
+  const MESI_IT = [
+    'gennaio',
+    'febbraio',
+    'marzo',
+    'aprile',
+    'maggio',
+    'giugno',
+    'luglio',
+    'agosto',
+    'settembre',
+    'ottobre',
+    'novembre',
+    'dicembre',
+  ];
+  const dopoQ = MESI_IT[+meseQ.slice(5, 7) % 12];
+  if (!primaQ.toLowerCase().includes(dopoQ)) fail('il tasto doveva proporre ' + dopoQ + ': ' + primaQ);
   await page.click('[data-k="qv-' + meseQ + '-pj"]');
   if ((await page.inputValue('#vq-a')) !== '20,00') fail('versando la quota l’importo non è proposto');
   await page.click('#foglio button[type=submit]');
