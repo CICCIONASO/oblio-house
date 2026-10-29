@@ -674,7 +674,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.22.0';
+var APP_V='0.22.1';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -4785,8 +4785,8 @@ function quoteAperte(p){
 }
 function versatoIl(mese,p){var t=0;S.moves.forEach(function(m){if(!m.x&&m.k==='qin'&&m.mese===mese&&m.p===p&&m.t>t)t=m.t;});return t;}
 function vQuota(){
-  var oggi=today(),stati=statoQuote(S,D,oggi).reverse(),adm=isAdmin(),ok=openKey().slice(0,7);
-  var prossimo=new Date().getDate()>=15?meseDopo(ok):ok;
+  var oggi=today(),stati=statoQuote(S,D,oggi).reverse(),adm=isAdmin();
+  var prossimo=meseDaImpostare();
   var out=[indietro(),h('h2',{class:'titolo'},'Quota del locale')];
   var mov=S.moves.filter(function(m){return !m.x&&(m.k==='qin'||m.k==='qout');}).slice(-6).reverse();
   out.push(h('section',{class:'cartella'},
@@ -4806,7 +4806,7 @@ function vQuota(){
       h('span',{class:'cresce'},h('span',{class:'nome'},pName(pp)),h('span',{class:'sotto'},'fino a '+meseNome(ant[pp]).toLowerCase()+(D.qv[ant[pp]+'|'+pp]<S.quote[S.quote.length-1].a?' (acconto)':''))),
       h('span',{class:'importo verde'},'✓')));})),
     h('p',{class:'aiuto'},'Quando l’admin imposta quei mesi, i soldi sono già dentro.')));
-  if(adm&&!quotaPerMese(prossimo))out.push(h('div',{class:'azioni'},h('button',{class:'pill duo-rosa largo',type:'button','data-k':'nuova-quota',onclick:function(){openQuotaMese(null);}},'Imposta la quota di '+meseNome(prossimo))));
+  if(adm&&prossimo)out.push(h('div',{class:'azioni'},h('button',{class:'pill duo-rosa largo',type:'button','data-k':'nuova-quota',onclick:function(){openQuotaMese(null);}},'Imposta la quota di '+meseNome(prossimo))));
   if(!stati.length)out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},adm?'Nessuna quota ancora: impostala qui sopra. Dal 20 del mese si comincia a raccogliere, entro il 1° si paga.':'Nessuna quota ancora: la imposta l’admin, di solito tra il 20 e il 25 del mese.')));
   stati.slice(0,4).forEach(function(st){
     var q=st.q,tutti=!st.mancano.length;
@@ -4831,11 +4831,20 @@ function vQuota(){
     usc.length?h('ul',{class:'righe'},usc.map(function(m){return moveRow(m,true);})):h('p',{class:'vuoto'},'Ancora nessun pagamento segnato. Lo segna l’admin con «Pagato il locale».')));
   return out;
 }
+/* il mese che l'admin può impostare adesso: quello in corso (dal 15 il successivo) o, se è già impostato, il primo
+   dopo l'ultima quota, fino a 12 mesi avanti */
+function meseDaImpostare(){
+  var ok=openKey().slice(0,7),m=new Date().getDate()>=15?meseDopo(ok):ok,lim=ok;
+  for(var i=0;i<12;i++)lim=meseDopo(lim);
+  while(quotaPerMese(m)&&m<lim)m=meseDopo(m);
+  return quotaPerMese(m)?null:m;
+}
 function openQuotaMese(mese){
   if(!isAdmin()){toast('La quota la imposta l’admin.');return;}
-  var q=mese?quotaPerMese(mese):null,ok=openKey().slice(0,7),scelte=[ok,meseDopo(ok)];
+  var q=mese?quotaPerMese(mese):null,ok=openKey().slice(0,7),scelte=[ok,meseDopo(ok)],nuovo=meseDaImpostare();
   if(q&&scelte.indexOf(q.mese)<0)scelte.unshift(q.mese);
-  var def=q?q.mese:(new Date().getDate()>=15?meseDopo(ok):ok);
+  if(nuovo&&scelte.indexOf(nuovo)<0)scelte.push(nuovo);
+  var def=q?q.mese:(nuovo||(new Date().getDate()>=15?meseDopo(ok):ok));
   var mSel=chipSel(scelte.map(function(m){return {v:m,label:meseNome(m)};}),def);
   var a=soldi('qm-a',q?q.a:null);
   var pazienti=people().filter(function(p){return p.kind==='paziente'&&!p.noq;}).map(function(p){return p.id;});
