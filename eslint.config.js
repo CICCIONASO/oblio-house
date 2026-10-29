@@ -39,7 +39,7 @@ module.exports = [
     languageOptions: { sourceType: 'script', globals: { ...globals.worker } },
   },
   {
-    files: ['*.js', 'test/**/*.js'],
+    files: ['*.js', 'test/**/*.js', 'scripts/**/*.js'],
     languageOptions: { sourceType: 'commonjs', globals: { ...globals.node } },
   },
   {

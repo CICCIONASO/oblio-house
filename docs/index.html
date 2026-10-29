@@ -674,7 +674,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.20.0';
+var APP_V='0.21.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -1989,6 +1989,35 @@ function riepilogoSerata(S,k,cut){
   var tv=top(R.vinte);R.freccia=tv.length?{p:tv[0],n:R.vinte[tv[0]]}:null;
   if(!R.eur&&!R.cassa&&!R.partite&&!R.winners.length)return null;
   return R;
+}
+/* ---------- copia automatica cifrata (dalla 0.21.0) ----------
+   Ogni notte GitHub salva una copia del database del locale (scripts/backup.js). Il repository è pubblico, quindi la
+   copia è cifrata con una password (AES-GCM, chiave da PBKDF2-SHA256). Le stesse funzioni cifrano lì e decifrano qui. */
+var CIFRA_ITER=250000;
+function b64da(u8){var s='';for(var i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);}
+function b64a(t){var s=atob(t),u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;}
+function chiaveBackup(pw,salt,iter){
+  var C=crypto.subtle;
+  return C.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']).then(function(k){
+    return C.deriveKey({name:'PBKDF2',salt:salt,iterations:iter,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  });
+}
+// eslint-disable-next-line no-unused-vars -- la usa scripts/backup.js (e le prove), non l app
+function cifraBackup(txt,pw){
+  var salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  return chiaveBackup(pw,salt,CIFRA_ITER).then(function(k){
+    return crypto.subtle.encrypt({name:'AES-GCM',iv:iv},k,new TextEncoder().encode(txt));
+  }).then(function(d){return {kdf:'PBKDF2-SHA256',iter:CIFRA_ITER,salt:b64da(salt),iv:b64da(iv),dati:b64da(new Uint8Array(d))};});
+}
+/* restituisce il testo del backup, o null se la password è sbagliata o il file è rovinato */
+function decifraBackup(c,pw){
+  try{
+    var iter=+c.iter||0;if(!(iter>=1000&&iter<=5000000))return Promise.resolve(null);
+    var iv=b64a(c.iv),dati=b64a(c.dati);
+    return chiaveBackup(pw,b64a(c.salt),iter).then(function(k){
+      return crypto.subtle.decrypt({name:'AES-GCM',iv:iv},k,dati);
+    }).then(function(d){return new TextDecoder().decode(d);},function(){return null;});
+  }catch(e){return Promise.resolve(null);}
 }
 /* =================== END PURE =================== */
 
@@ -4429,6 +4458,26 @@ function leggiBackup(txt){
   var st=normState(j&&j.state?j.state:j);
   return st?{state:st,exported:j&&j.exported?String(j.exported):''}:null;
 }
+/* backup normale, o copia automatica cifrata (chiede la password) */
+function apriBackup(txt,errore){
+  var j=null;try{j=JSON.parse(txt);}catch(e){}
+  if(!(j&&j.cifrato&&typeof j.cifrato==='object')){var b=leggiBackup(txt);if(!b){toast(errore);return;}chiediImport(b);return;}
+  var pw=h('input',{class:'inp',id:'bk-pw',type:'password',autocomplete:'off'});
+  openSheet('Copia automatica cifrata',[
+    h('p',{class:'aiuto'},'È una copia fatta ogni notte da GitHub. Per aprirla serve la password delle copie automatiche.'),
+    campo('Password',pw,'bk-pw'),
+    h('div',{class:'azioni'},
+      h('button',{class:'pill duo-verde',type:'button','data-k':'bk-apri',onclick:function(){
+        var bt=this;bt.disabled=true;
+        decifraBackup(j.cifrato,pw.value).then(function(t){
+          bt.disabled=false;
+          var b=t&&leggiBackup(t);
+          if(!b){toast(t?errore:'Password sbagliata.');return;}
+          closeSheet();setTimeout(function(){chiediImport(b);},60);
+        });
+      }},'Apri'),
+      h('button',{class:'pill',type:'button',onclick:closeSheet},'Lascia stare'))]);
+}
 function chiediImport(b){
   var st=b.state;
   openSheet('Ripristina questo backup?',[
@@ -4445,7 +4494,7 @@ function vBackup(){
   file.addEventListener('change',function(){
     var f=file.files&&file.files[0];if(!f)return;
     var r=new FileReader();
-    r.onload=function(){var b=leggiBackup(String(r.result||''));if(!b){toast('Questo file non è un backup dell’Oblio House.');return;}chiediImport(b);};
+    r.onload=function(){apriBackup(String(r.result||''),'Questo file non è un backup dell’Oblio House.');};
     r.readAsText(f);
   });
   var incolla=h('textarea',{class:'inp',id:'bk-in',rows:3,placeholder:'Oppure incolla qui il testo del backup'});
@@ -4465,7 +4514,7 @@ function vBackup(){
       campo('File di backup',file,'bk-file'),
       h('div',{class:'campo'},h('label',{for:'bk-in'},'Testo di backup'),incolla),
       h('div',{class:'azioni'},
-        h('button',{class:'pill',type:'button',onclick:function(){var b=leggiBackup(incolla.value);if(!b){toast('Il testo incollato non è un backup valido.');return;}chiediImport(b);}},'Ripristina dal testo'),
+        h('button',{class:'pill',type:'button',onclick:function(){apriBackup(incolla.value,'Il testo incollato non è un backup valido.');}},'Ripristina dal testo'),
         snapT?h('button',{class:'pill',type:'button',onclick:function(){var b=leggiBackup(lsGet(KEY+'.snap')||'');if(!b){toast('Copia automatica non disponibile.');return;}b.exported=new Date(snapT).toISOString();chiediImport(b);}},'Copia automatica'):null),
       snapT?h('p',{class:'aiuto'},'Il telefono tiene da solo una copia di riserva al giorno: l’ultima è di '+relDay(ymd(new Date(snapT))).toLowerCase()+'.'):null)];
 }
