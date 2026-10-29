@@ -4,7 +4,7 @@ process.env.TZ = 'Europe/Rome';
 const assert = require('assert');
 const pure = require('./pure.js');
 const A =
-  pure(`{seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,
+  pure(`{seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,dividiQuota,meseDopo,
   candidatiVoto,sintomiPer,metiVoto,voteSummary,sintomiDi,serateChiuse,statMese,recordFreccette,medaglie,MEDAGLIE,alboOro,
   prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe}`);
 
@@ -102,6 +102,57 @@ const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, 
   assert.strictEqual(N.quote[0].a, 6500, 'vince la più recente');
   assert.strictEqual(N.quote[0].id, 'q2026-11');
   assert.strictEqual(N.moves.find((x) => x.id === 'q1').mese, '2026-11');
+}
+
+/* ---------- quota: più mesi insieme, acconti e anticipo (0.22.0) ---------- */
+{
+  const S = A.seedState(1);
+  const sei = ['pj', 'pesce', 'ciccio', 'peppecarlo', 'conti', 'chicco'];
+  S.quote.push({ id: 'q2026-10', mese: '2026-10', a: 6000, chi: sei, t: T0 });
+  S.quote.push({ id: 'q2026-11', mese: '2026-11', a: 6000, chi: sei, t: T0 });
+  S.moves.push({ id: 'a1', t: T0, k: 'qin', p: 'pesce', a: 2000, mese: '2026-10' });
+  let D = A.derive(S);
+  // 150 €: ottobre (40 rimasti), novembre 60, dicembre 50 in anticipo come acconto
+  let d = A.dividiQuota(S, D, '2026-10-20', 'pesce', 15000, 12);
+  assert.deepStrictEqual(
+    d.parti.map((x) => [x.mese, x.a, !!x.acconto, !!x.anticipo]),
+    [
+      ['2026-10', 4000, false, false],
+      ['2026-11', 6000, false, false],
+      ['2026-12', 5000, true, true],
+    ],
+    'i soldi coprono prima i mesi più vecchi, poi vanno in anticipo'
+  );
+  assert.strictEqual(d.avanzo, 0);
+  // acconto: meno della quota resta come «mancano»
+  d = A.dividiQuota(S, D, '2026-10-20', 'ciccio', 2500, 12);
+  assert.deepStrictEqual(
+    d.parti.map((x) => [x.mese, x.a, x.acconto]),
+    [['2026-10', 2500, true]]
+  );
+  // scritti come movimenti qin (uno per mese) contano giusto anche per i telefoni vecchi
+  A.dividiQuota(S, D, '2026-10-20', 'pesce', 15000, 12).parti.forEach((x, i) =>
+    S.moves.push({ id: 'b' + i, t: T0 + i, k: 'qin', p: 'pesce', a: x.a, mese: x.mese, g: 'g1' })
+  );
+  D = A.derive(S);
+  assert.strictEqual(D.fondo, 17000);
+  assert.deepStrictEqual(
+    A.dividiQuota(S, D, '2026-10-20', 'pesce', 1000, 12).parti,
+    [{ mese: '2026-12', a: 1000, resto: 1000, acconto: false, anticipo: true }],
+    'il saldo dell’acconto in anticipo'
+  );
+  // quando l'admin imposta dicembre, l'anticipo è già lì
+  S.quote.push({ id: 'q2026-12', mese: '2026-12', a: 6000, chi: sei, t: T0 });
+  const dic = A.statoQuote(S, D, '2026-11-20').find((x) => x.mese === '2026-12');
+  assert.strictEqual(dic.righe.find((r) => r.p === 'pesce').resto, 1000);
+  // limite di 12 mesi in anticipo: quello che avanza non si segna
+  d = A.dividiQuota(S, D, '2026-10-20', 'chicco', 6000 * 20, 12);
+  assert.strictEqual(d.parti.length, 3 + 12);
+  assert.strictEqual(d.avanzo, 6000 * 5);
+  assert.strictEqual(d.parti[d.parti.length - 1].mese, '2027-12');
+  assert.strictEqual(A.meseDopo('2026-12'), '2027-01');
+  // chi non è tra chi paga, e nessuna quota impostata
+  assert.deepStrictEqual(A.dividiQuota(A.seedState(1), A.derive(A.seedState(1)), '2026-10-20', 'pj', 6000, 12).parti, []);
 }
 
 /* ---------- voto a più persone ---------- */

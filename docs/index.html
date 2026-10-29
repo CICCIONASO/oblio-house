@@ -674,7 +674,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.21.0';
+var APP_V='0.22.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -831,6 +831,26 @@ function quoteArretrate(S,D,oggi){
   return o;
 }
 function totArretrato(l){return (l||[]).reduce(function(n,x){return n+x.a;},0);}
+function meseDopo(ym){var y=+ym.slice(0,4),m=+ym.slice(5,7)+1;if(m>12){m=1;y++;}return y+'-'+pad(m);}
+/* divide i soldi portati da p sulle quote: prima i mesi ancora aperti, dal più vecchio; quello che avanza va in
+   anticipo sui mesi non ancora impostati, al valore dell'ultima quota (al massimo «max» mesi in anticipo).
+   Restituisce {parti: [{mese, a, resto, acconto, anticipo}], avanzo} */
+function dividiQuota(S,D,oggi,p,v,max){
+  var parti=[],ultimo=null,base=0;
+  statoQuote(S,D,oggi).forEach(function(st){
+    ultimo=st.mese;
+    var r=st.righe.find(function(x){return x.p===p;});if(!r)return;
+    base=r.dovuto;
+    if(v>0&&r.resto>0){var a=Math.min(v,r.resto);v-=a;parti.push({mese:st.mese,a:a,resto:r.resto,acconto:a<r.resto});}
+  });
+  if(!ultimo)return {parti:parti,avanzo:v};
+  if(!base)base=S.quote[S.quote.length-1].a;
+  for(var m=meseDopo(ultimo),i=0;v>0&&base>0&&i<(max||12);m=meseDopo(m),i++){
+    var resto=Math.max(0,base-(D.qv[m+'|'+p]||0));if(!resto)continue;
+    var b=Math.min(v,resto);v-=b;parti.push({mese:m,a:b,resto:resto,acconto:b<resto,anticipo:true});
+  }
+  return {parti:parti,avanzo:v};
+}
 
 /* serata: vale fino all'ora di chiusura del mattino dopo (ora locale, anche nei cambi d'ora) */
 function serata(t,cut){
@@ -3119,7 +3139,7 @@ function cardFaccende(st){
     var g=giorniA(x.scad),mia=io&&x.mancano.indexOf(io)>=0;
     urg.push(rigaFare({ic:'casa',accesa:x.scaduta,titolo:'Quota di '+meseNome(x.mese)+': '+eur(x.q.a)+' a testa',
       sotto:(x.scaduta?'Scaduta il '+dataBreve(x.scad)+'. In ritardo: ':'Entro il '+dataBreve(x.scad)+(g===0?' (oggi)':g===1?' (domani)':' (tra '+g+' giorni)')+'. Mancano: ')+nomiLista(x.mancano)+'.',
-      azione:h('button',{class:'pill sm duo-verde',type:'button','data-k':'quota-segna',onclick:function(){openVersaQuota(x.mese,mia?io:null);}},mia?'La mia':'Segna')}));
+      azione:h('button',{class:'pill sm duo-verde',type:'button','data-k':'quota-segna',onclick:function(){openVersaQuota(mia?io:null);}},mia?'La mia':'Segna')}));
   });
   // scorte da ricomprare
   var low=lowStock();
@@ -3610,23 +3630,25 @@ function openCartella(id){
 /* incasso da una persona. Se ha anche la quota del locale da versare, chi incassa sceglie per cosa sono i soldi:
    le consumazioni vanno in cassa, la quota va nel fondo (nessuna scelta automatica) */
 function openPay(id){
-  var d=Math.max(0,D.debt[id]||0),qa=quoteAperte(id),a=soldi('py-a',qa.length?null:d);
-  var per=qa.length?chipSel([{v:'graffi',label:'Consumazioni'+(d?' ('+eur(d)+')':'')}].concat(qa.map(function(q){return {v:'q:'+q.mese,label:'Quota '+meseNome(q.mese)+' ('+eur(q.resto)+')'};})),null):null;
+  var d=Math.max(0,D.debt[id]||0),dq=quotaDaVersare(id),a=soldi('py-a',dq?null:d);
+  var per=dq?chipSel([{v:'graffi',label:'Consumazioni'+(d?' ('+eur(d)+')':'')},{v:'quota',label:'Quota del locale ('+eur(dq)+')'}],null):null;
+  var divi=h('p',{class:'aiuto',id:'py-divisi','aria-live':'polite'});
+  function upd(){var v=parseEur(a.value);divi.textContent=per&&per.get()==='quota'&&v>0?righeParti(dividiQuota(S,D,today(),id,v,12)):'';}
   if(per)per.addEventListener('change',function(){
     var x=per.get();if(!x)return;
-    var q=qa.find(function(z){return 'q:'+z.mese===x;});
-    a.value=c2s(x==='graffi'?d:q.resto);
+    a.value=c2s(x==='graffi'?d:dq);upd();
   });
+  a.addEventListener('input',upd);
   formSheet('Incassa da '+pName(id),[
-    h('p',{class:'aiuto'},'Ticket aperto: '+eur(d)+'. '+(qa.length?'Quota del locale da versare: '+qa.map(function(q){return meseNome(q.mese)+' '+eur(q.resto);}).join(', ')+'.':'I soldi entrano nella cassa della farmacia.')),
+    h('p',{class:'aiuto'},'Ticket aperto: '+eur(d)+'. '+(dq?'Quota del locale da versare: '+quoteAperte(id).map(function(q){return meseNome(q.mese)+' '+eur(q.resto);}).join(', ')+'.':'I soldi entrano nella cassa della farmacia.')),
     per?gruppo('Per cosa sono questi soldi',per):null,
-    campo('Quanto versa',a,'py-a'),
-    per?h('p',{class:'aiuto'},'Le consumazioni entrano in cassa; la quota va nel fondo del locale, a parte. Se porta soldi per tutte e due, fai due incassi.'):null],function(){
+    campo('Quanto versa',a,'py-a'),divi,
+    per?h('p',{class:'aiuto'},'Le consumazioni entrano in cassa; la quota va nel fondo del locale, a parte, dal mese più vecchio. Se porta soldi per tutte e due, fai due incassi.'):null],function(){
     var v=parseEur(a.value),x=per?per.get():'graffi';
     if(!x)return 'Scegli se sono per le consumazioni o per la quota del locale.';
     if(!(v>0))return 'Scrivi quanto versa, per esempio 5,00.';
     if(x==='graffi')addMove({k:'pay',p:id,a:v},'Incassati '+eur(v)+' da '+pName(id));
-    else{var m=x.slice(2);addMove({k:'qin',p:id,a:v,mese:m},'Quota di '+meseNome(m)+': '+eur(v)+' da '+pName(id)+', nel fondo');}
+    else return segnaQuota(id,v);
   },'Incassa');
 }
 function openDebt(id,segno){conPin(function(){openDebt_(id,segno);},segno>0?'Aggiungere un debito a mano':'Togliere un debito a mano');}
@@ -4752,7 +4774,6 @@ function openPartita(id){
 
 /* ---------- quota del locale: fondo a parte, una quota a testa al mese ---------- */
 function quotaPerMese(mese){return S.quote.find(function(q){return q.mese===mese;})||null;}
-function meseDopo(ym){var y=+ym.slice(0,4),m=+ym.slice(5,7)+1;if(m>12){m=1;y++;}return y+'-'+pad(m);}
 function giorniA(key){var p=String(key).split('-'),d=new Date(+p[0],+p[1]-1,+p[2],12),o=keyDate(today());return Math.round((d-o)/864e5);}
 /* le quote (anche non ancora scadute) che quella persona deve ancora versare, dalla più vecchia */
 function quoteAperte(p){
@@ -4773,9 +4794,18 @@ function vQuota(){
     h('span',{class:'cifrona'+(D.fondo<0?' rosso':''),id:'fondo-tot'},eur(D.fondo)),
     h('p',{class:'aiuto'},'Soldi a parte, non sono in cassa: entrano con le quote di ognuno, escono quando pagate il locale. La quota la pagate solo voi sei.'),
     h('div',{class:'azioni'},
-      S.quote.length?h('button',{class:'pill duo-verde',type:'button','data-k':'segna-quota',onclick:function(){openVersaQuota(null,mio()||null);}},'Segna una quota'):null,
+      S.quote.length?h('button',{class:'pill duo-verde',type:'button','data-k':'segna-quota',onclick:function(){openVersaQuota(mio()||null);}},'Segna una quota'):null,
       adm?h('button',{class:'pill',type:'button','data-k':'pagato-locale',onclick:openPagatoLocale},'Pagato il locale'):null),
     mov.length?[h('div',{class:'riga-tratt'}),h('span',{class:'etichetta'},'Ultimi movimenti del fondo'),h('ul',{class:'righe'},mov.map(function(m){return moveRow(m,true);}))]:null));
+  // chi ha già pagato mesi che l'admin non ha ancora impostato
+  var ult=S.quote.length?S.quote[S.quote.length-1].mese:null,ant={};
+  if(ult)Object.keys(D.qv).forEach(function(k){var m=k.slice(0,7),pp=k.slice(8);if(/^\d{4}-\d{2}\|/.test(k)&&m>ult&&D.qv[k]>0&&(!ant[pp]||m>ant[pp]))ant[pp]=m;});
+  var antK=Object.keys(ant);
+  if(antK.length)out.push(h('section',{class:'cartella'},h('h3',{class:'etichetta'},'Pagato in anticipo'),
+    h('ul',{class:'righe'},antK.map(function(pp){return h('li',null,h('div',{class:'riga'},ava(pp,'sm'),
+      h('span',{class:'cresce'},h('span',{class:'nome'},pName(pp)),h('span',{class:'sotto'},'fino a '+meseNome(ant[pp]).toLowerCase()+(D.qv[ant[pp]+'|'+pp]<S.quote[S.quote.length-1].a?' (acconto)':''))),
+      h('span',{class:'importo verde'},'✓')));})),
+    h('p',{class:'aiuto'},'Quando l’admin imposta quei mesi, i soldi sono già dentro.')));
   if(adm&&!quotaPerMese(prossimo))out.push(h('div',{class:'azioni'},h('button',{class:'pill duo-rosa largo',type:'button','data-k':'nuova-quota',onclick:function(){openQuotaMese(null);}},'Imposta la quota di '+meseNome(prossimo))));
   if(!stati.length)out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},adm?'Nessuna quota ancora: impostala qui sopra. Dal 20 del mese si comincia a raccogliere, entro il 1° si paga.':'Nessuna quota ancora: la imposta l’admin, di solito tra il 20 e il 25 del mese.')));
   stati.slice(0,4).forEach(function(st){
@@ -4787,7 +4817,7 @@ function vQuota(){
       h('p',{class:'aiuto'},'Raccolti '+eur(st.versato)+' su '+eur(st.dovuto)+'.'+(st.scaduta&&!tutti?' Chi non l’ha versata se la ritrova nei graffi, come voce a parte.':'')),
       h('ul',{class:'righe'},st.righe.map(function(r){
         var t=versatoIl(st.mese,r.p);
-        return h('li',null,h('button',{type:'button',class:'riga','data-k':'qv-'+st.mese+'-'+r.p,onclick:function(){if(r.resto>0)openVersaQuota(st.mese,r.p);else openCartella(r.p);}},ava(r.p,'sm'),
+        return h('li',null,h('button',{type:'button',class:'riga','data-k':'qv-'+st.mese+'-'+r.p,onclick:function(){if(r.resto>0)openVersaQuota(r.p);else openCartella(r.p);}},ava(r.p,'sm'),
           h('span',{class:'cresce'},h('span',{class:'nome'},pName(r.p)),
             h('span',{class:'sotto'},r.resto>0?(r.versato?'ha versato '+eur(r.versato)+', '+(st.scaduta?'in ritardo':'mancano '+eur(r.resto)):(st.scaduta?'in ritardo':'non ancora')):'versata il '+dShortT(t)+(r.piu?' · '+eur(r.piu)+' in più':''))),
           h('span',{class:'importo '+(r.resto>0?(st.scaduta?'rosso':''):'verde')},r.resto>0?eur(r.resto):'✓')));
@@ -4839,34 +4869,46 @@ function openQuotaMese(mese){
   },q?'Salva la quota':'Imposta la quota');
   upd();
 }
-function openVersaQuota(mese,p){
-  var st=statoQuote(S,D,today()),aperte=st.filter(function(x){return x.mancano.length;});
+/* come verranno divisi i soldi, da far vedere prima di confermare */
+function righeParti(d){
+  if(!d.parti.length)return '';
+  return 'Va così: '+d.parti.map(function(x){return meseNome(x.mese)+' '+eur(x.a)+(x.acconto?' (acconto, poi mancano '+eur(x.resto-x.a)+')':x.anticipo?' (in anticipo)':'');}).join(' · ')+'.';
+}
+/* scrive i versamenti della quota, uno per mese, tutti insieme: «Annulla» li toglie tutti */
+function segnaQuota(p,v){
+  var d=dividiQuota(S,D,today(),p,v,12);
+  if(!d.parti.length)return 'Non c’è nessuna quota su cui segnare questi soldi.';
+  if(d.avanzo>0)return 'Sono più di 12 mesi in anticipo: controlla la cifra.';
+  var t=Date.now(),g='g'+rid(),mm=d.parti.map(function(x,i){return firma({id:rid(),t:t+i,k:'qin',p:p,a:x.a,mese:x.mese,g:g});});
+  mm.forEach(function(m){S.moves.push(m);});commit();
+  var mesi=d.parti.map(function(x){return meseNome(x.mese).split(' ')[0].toLowerCase()+(x.acconto?' (acconto)':'');});
+  toast('Quota: '+eur(v)+' da '+pName(p)+' nel fondo, per '+(mesi.length<2?mesi.join(''):mesi.slice(0,-1).join(', ')+' e '+mesi[mesi.length-1]),function(){S.moves=S.moves.filter(function(m){return mm.indexOf(m)<0;});commit();toast('Annullato.');});
+}
+/* quanto deve ancora p per le quote già impostate */
+function quotaDaVersare(p){return quoteAperte(p).reduce(function(n,q){return n+q.resto;},0);}
+function openVersaQuota(p){
   if(!S.quote.length){toast('Non c’è ancora nessuna quota: la imposta l’admin.');return;}
-  var mesi=aperte.map(function(x){return x.mese;});
-  if(!mesi.length)mesi=[S.quote[S.quote.length-1].mese];
-  if(mese&&mesi.indexOf(mese)<0)mesi.push(mese);
-  var chiTutti=[];S.quote.forEach(function(q){if(mesi.indexOf(q.mese)>=0)q.chi.forEach(function(id){if(chiTutti.indexOf(id)<0)chiTutti.push(id);});});
-  var mSel=chipSel(mesi.map(function(m){return {v:m,label:meseNome(m)};}),mese||mesi[0]);
+  var chiTutti=[];S.quote.forEach(function(q){q.chi.forEach(function(id){if(chiTutti.indexOf(id)<0)chiTutti.push(id);});});
   var chi=chipSel(chiTutti.map(function(id){return {v:id,label:pName(id)};}),p&&chiTutti.indexOf(p)>=0?p:null);
-  var a=soldi('vq-a'),info=h('p',{class:'aiuto','aria-live':'polite'}),scritto=false;
+  var a=soldi('vq-a'),info=h('p',{class:'aiuto','aria-live':'polite'}),divi=h('p',{class:'aiuto',id:'vq-divisi','aria-live':'polite'}),scritto=false;
   function upd(){
-    var m=mSel.get(),c=chi.get(),x=st.find(function(z){return z.mese===m;});
-    if(!m||!c||!x){info.textContent='Scegli il mese e chi la porta.';return;}
-    var r=x.righe.find(function(z){return z.p===c;});
-    if(!r){info.textContent=pName(c)+' non è tra chi paga la quota di '+meseNome(m)+'.';return;}
-    info.textContent=r.resto>0?'Deve ancora '+eur(r.resto)+' (quota '+eur(r.dovuto)+(r.versato?', già versati '+eur(r.versato):'')+').':'Ha già versato tutta la quota di '+meseNome(m)+'.';
-    if(!scritto)a.value=r.resto>0?c2s(r.resto):'';
+    var c=chi.get();
+    if(!c){info.textContent='Scegli chi la porta.';divi.textContent='';return;}
+    var dv=quotaDaVersare(c);
+    info.textContent=dv>0?'Deve ancora '+eur(dv)+' ('+quoteAperte(c).map(function(q){return meseNome(q.mese)+' '+eur(q.resto);}).join(', ')+'). Può portare anche solo una parte, o di più per i mesi dopo.'
+      :'È in pari: quello che porta va in anticipo sui prossimi mesi.';
+    if(!scritto)a.value=dv>0?c2s(dv):'';
+    var v=parseEur(a.value);divi.textContent=v>0?righeParti(dividiQuota(S,D,today(),c,v,12)):'';
   }
-  a.addEventListener('input',function(){scritto=true;});
-  mSel.addEventListener('change',upd);chi.addEventListener('change',upd);
+  a.addEventListener('input',function(){scritto=true;upd();});
+  chi.addEventListener('change',upd);
   formSheet('Segna una quota',[
-    gruppo('Di che mese',mSel),gruppo('Chi la porta',chi),campo('Quanto',a,'vq-a'),info,
-    h('p',{class:'aiuto'},'I soldi vanno nel fondo del locale, non in cassa. Ognuno può segnare la sua quota da sé.')],function(){
-    var m=mSel.get(),c=chi.get(),v=parseEur(a.value);
-    if(!m)return 'Scegli il mese.';
+    gruppo('Chi la porta',chi),campo('Quanto',a,'vq-a'),info,divi,
+    h('p',{class:'aiuto'},'I soldi vanno nel fondo del locale, non in cassa, dal mese più vecchio ancora da pagare. Ognuno può segnare la sua quota da sé.')],function(){
+    var c=chi.get(),v=parseEur(a.value);
     if(!c)return 'Scegli chi porta la quota.';
     if(!(v>0))return 'Scrivi quanto ha portato, per esempio 60,00.';
-    addMove({k:'qin',p:c,a:v,mese:m},'Quota di '+meseNome(m)+': '+eur(v)+' da '+pName(c)+', nel fondo');
+    return segnaQuota(c,v);
   },'Segna la quota');
   upd();
 }

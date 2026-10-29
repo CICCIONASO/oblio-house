@@ -1122,6 +1122,20 @@ const fail = (m) => {
   await page.waitForTimeout(80);
   if (!/10,00/.test(await text('#fondo-tot'))) fail('pagato il locale: il fondo doveva scendere a 10,00');
   if (!/Pagato dal fondo/.test(await text('#view'))) fail('manca lo storico di quando avete pagato il locale');
+  // più mesi insieme: 50 € da CONTI su una quota di 20 → questo mese 20, i due dopo 20 e 10 di acconto, in anticipo
+  await page.click('[data-k="segna-quota"]');
+  await page.click('#foglio .chip:has-text("CONTI")');
+  await page.fill('#vq-a', '50');
+  if (!/in anticipo/.test(await text('#vq-divisi')) || !/acconto/.test(await text('#vq-divisi')))
+    fail('prima di segnare non si vede come vengono divisi i soldi: ' + (await text('#vq-divisi')));
+  await shot('48-quota-piu-mesi');
+  await page.click('#foglio button[type=submit]');
+  await page.waitForTimeout(80);
+  const qc = (await statoDi(page)).moves.filter((m) => m.k === 'qin' && m.p === 'conti');
+  if (qc.map((m) => m.a).join() !== '2000,2000,1000' || new Set(qc.map((m) => m.mese)).size !== 3 || new Set(qc.map((m) => m.g)).size !== 1)
+    fail('i 50 € non sono divisi in tre mesi: ' + JSON.stringify(qc));
+  if (!/60,00/.test(await text('#fondo-tot'))) fail('il fondo doveva salire a 60,00: ' + (await text('#fondo-tot')));
+  if (!/Pagato in anticipo/.test(await text('#view'))) fail('non si vede chi ha pagato in anticipo');
   // Muroblio del pianto
   await tab('Ludoteca');
   await page.click('[data-k="apri-muro"]');
