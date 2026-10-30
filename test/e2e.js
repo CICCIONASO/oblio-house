@@ -592,7 +592,13 @@ const fail = (m) => {
       const r = await righe();
       if (r.length !== 5 || r[2].sel !== '+ Prodotto nuovo' || r[1].sel !== 'Mars')
         fail('scontrino 2: righe proposte: ' + JSON.stringify(r));
-      await page.locator('#foglio .sc-riga').nth(1).locator('button:has-text("Confezione da 4")').click();
+      await page.locator('#foglio .sc-riga').nth(1).locator('button:has-text("Pacco da 4?")').click();
+      if (!/Pacchi[\s\S]*Pezzi per pacco[\s\S]*= 4 pezzi/.test(await text('#foglio .sc-riga:nth-child(2)')))
+        fail('scontrino 2: il pacco da 4 non mostra pacchi e pezzi per pacco: ' + (await text('#foglio .sc-riga:nth-child(2)')));
+      await page
+        .locator('#foglio .sc-riga')
+        .nth(1)
+        .screenshot({ path: path.join(shots, '13f-scontrino-pacco.png') });
       const nuovo = page.locator('#foglio .sc-riga').nth(2);
       if ((await nuovo.locator('.sc-nuovo input').first().inputValue()) !== 'Acqua naturale') fail('scontrino 2: nome proposto');
       await page.click('#foglio button:has-text("Registra lo scontrino")');
@@ -612,7 +618,8 @@ const fail = (m) => {
         mars = p1.products.find((p) => p.name === 'Mars');
       if (!acqua || acqua.price !== 50 || acqua.cost !== 110 || d1.stock[acqua.id] !== 3)
         fail('scontrino 2: prodotto nuovo sbagliato ' + JSON.stringify(acqua));
-      if (mars.cost !== 75 || d1.stock[mars.id] !== (d0.stock[mars.id] || 0) + 4) fail('scontrino 2: confezione da 4 non caricata');
+      if (mars.pk !== 4 || mars.cost !== 75 || d1.stock[mars.id] !== (d0.stock[mars.id] || 0) + 4)
+        fail('scontrino 2: confezione da 4 non caricata');
       if (d1.debt.chicco !== d0.debt.chicco - 1257 || d1.cash !== d0.cash) fail('scontrino 2: spesa di CHICCO non scalata dal ticket');
       note('scontrini: 2 letti con il motore vero, righe abbinate, prodotto nuovo, costi e spesa registrati');
     }
