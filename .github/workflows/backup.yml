@@ -1,7 +1,8 @@
 name: Copia automatica
 
 # Ogni notte a mezzanotte (ora italiana d'inverno; d'estate all'una) legge il database del locale e ne salva una
-# copia cifrata, che resta 90 giorni tra gli artefatti della corsa. Si può lanciare anche a mano (Run workflow).
+# copia cifrata tra gli artefatti della corsa. Si tengono solo le 3 copie più recenti: le vecchie si cancellano
+# solo dopo che quella nuova è riuscita, così una notte andata male non toglie niente. Si può lanciare anche a mano.
 on:
   schedule:
     - cron: '0 23 * * *'
@@ -9,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: write # per cancellare le copie vecchie
 
 jobs:
   copia:
@@ -23,8 +25,26 @@ jobs:
         env:
           BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
       - uses: actions/upload-artifact@v4
+        id: copia
         with:
           name: oblio-copia-${{ github.run_number }}
           path: backup/*.json
           retention-days: 90
           if-no-files-found: error
+      # tiene le 3 copie più recenti; se la copia appena fatta non compare nell'elenco non cancella niente
+      - name: cancella le copie vecchie
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUOVA: ${{ steps.copia.outputs.artifact-id }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --paginate \
+            -q '.artifacts[] | select(.name | startswith("oblio-copia-")) | select(.expired | not) | "\(.created_at) \(.id)"' \
+            | sort -r > copie.txt
+          echo "copie presenti:"; cat copie.txt
+          if [ -z "$NUOVA" ] || ! grep -q " $NUOVA\$" copie.txt; then
+            echo "la copia nuova non è nell'elenco: non cancello niente"; exit 0
+          fi
+          tail -n +4 copie.txt | cut -d' ' -f2 | while read -r id; do
+            echo "cancello la copia $id"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"
+          done
