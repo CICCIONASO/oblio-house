@@ -26,7 +26,7 @@ const {
 } = api;
 const { rifiutiSerata, calPieno, prossimiRifiuti, statSpazzatura, pulizieStato, normCfg } = api;
 const extra = pure(
-  `{applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,metiSintomi,sintomiDi,applySintomi0,previsione,VOTI_DAL,leggiScontrino,propostaScontrino,abbinaRiga,applicaScontrino,confezione,nomeProposto,ricordaAlias,chiaveScontrino,rifiutiSerata,BUTTIAMO0}`
+  `{applyCal0,CAL0,SINTOMI0,topSintomo,topSintomi,sintomiVoto,metiSintomi,sintomiDi,applySintomi0,previsione,VOTI_DAL,leggiScontrino,propostaScontrino,abbinaRiga,applicaScontrino,confezione,pacco,nomeProposto,ricordaAlias,chiaveScontrino,rifiutiSerata,BUTTIAMO0}`
 );
 const TV = extra.VOTI_DAL; // i voti più vecchi di questo istante sono stati azzerati alla 0.6.0
 
@@ -752,8 +752,17 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
 
 // ---------- scontrini: dal testo letto alle righe ----------
 {
-  const { leggiScontrino, propostaScontrino, abbinaRiga, applicaScontrino, confezione, nomeProposto, ricordaAlias, chiaveScontrino } =
-    extra;
+  const {
+    leggiScontrino,
+    propostaScontrino,
+    abbinaRiga,
+    applicaScontrino,
+    confezione,
+    pacco,
+    nomeProposto,
+    ricordaAlias,
+    chiaveScontrino,
+  } = extra;
   const fx = (n) => fs.readFileSync(path.join(__dirname, 'fixtures', 'ocr', n + '.txt'), 'utf8');
   const { DESPAR, CONAD } = require('./scontrini.js');
   const riga = (l) => l.righe.map((r) => [r.d, r.q, r.tot]);
@@ -851,6 +860,17 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
   assert.strictEqual(confezione('PERONI 3X33CL'), 3);
   assert.strictEqual(confezione('COCA COLA 33CL'), 1);
   assert.strictEqual(confezione('ACQUA X 50'), 1);
+  // pezzi per pacco dalla lista del menù: il nome del listino deve stare tutto dentro una voce sola
+  const pk = (name, x) => pacco(Object.assign({ name }, x || {}));
+  assert.strictEqual(pk('Pan goccioli'), 8);
+  assert.strictEqual(pk('Fetta al latte'), 5, 'senza «Kinder» nel listino');
+  assert.strictEqual(pk('Despar'), 6);
+  assert.strictEqual(pk('Fonzies'), 9, 'le classiche, non bbq o paprika');
+  assert.strictEqual(pk('Fonzies bbq'), 7);
+  assert.strictEqual(pk('Acqua liscia / frizzante'), 0, 'liscia o frizzante: decide chi conferma');
+  assert.strictEqual(pk('Kinder Bueno'), 0, '3 o 5: decide chi conferma');
+  assert.strictEqual(pk('Snickers'), 0);
+  assert.strictEqual(pk('Kinder Bueno', { pk: 5 }), 5, 'quello confermato sull’ultimo scontrino vince');
   assert.strictEqual(nomeProposto('SACCHI NERI 50PZ'), 'Sacchi neri');
   assert.strictEqual(nomeProposto('PERONI 3X33CL 66CL'), 'Peroni 3x33cl');
   assert.strictEqual(chiaveScontrino(' Kinder  Buenò, T2 '), 'KINDER BUENO T2');
@@ -921,6 +941,29 @@ assert.deepStrictEqual(sintomiDi(nyv, 'pesce'), { 'Silenzio assordante': 1 });
     mars
   );
   assert.strictEqual(SN.moves.find((m) => m.k === 'load').items[0].c, mars.cost);
+  // pacco confermato: 2 pacchi da 8 = 16 pezzi; il prodotto ricorda il pacco e la riga dopo parte già come pacco
+  {
+    const SP = seedState(1),
+      gocc = SP.products.find((p) => p.name === 'Pan goccioli');
+    applicaScontrino(
+      SP,
+      [{ tipo: 'prod', prod: gocc.id, d: 'PAN GOCCIOLI 350G', q: 2, pk: 8, pezzi: 16, spesa: 398 }],
+      { spesa: false },
+      TV + 3,
+      () => 'g' + ++n
+    );
+    assert.strictEqual(derive(SP).stock[gocc.id], 16);
+    assert.deepStrictEqual([gocc.pk, gocc.cost, gocc.al], [8, 25, [{ d: 'PAN GOCCIOLI 350G', k: 8 }]]);
+    assert.strictEqual(normState(JSON.parse(JSON.stringify(SP))).products.find((p) => p.id === gocc.id).pk, 8);
+    const pr = propostaScontrino({ righe: [{ d: 'PAN GOCCIOLI 350G', q: 1, tot: 199 }] }, SP.products)[0];
+    assert.deepStrictEqual([pr.pacco, pr.pk, pr.pezzi], [true, 8, 8]);
+    const p0 = propostaScontrino({ righe: [{ d: 'COCA COLA LATTINA 33CL', q: 1, tot: 89 }] }, SP.products)[0];
+    assert.deepStrictEqual(
+      [p0.pacco, p0.pk, p0.pezzi],
+      [false, 10, 1],
+      'la lattina singola resta un pezzo: il pacco da 10 è solo proposto'
+    );
+  }
   // senza spesa: solo carico; pagata dalla cassa: esce dalla cassa
   const S2 = seedState(1);
   const r2 = applicaScontrino(
