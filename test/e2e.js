@@ -1750,6 +1750,76 @@ const fail = (m) => {
     await c.close();
     note('ospite: codice dall’admin, solo Ludoteca e Classifiche, voto a podio solo per sé, accesso tolto');
   }
+  // inventario aperto su A mentre B segna consumazioni: i numeri non toccati non cancellano le vendite di B,
+  // e chi conta viene avvisato delle vendite dei prodotti che ha cambiato
+  {
+    const riga = (n) => `#foglio li:has(label:text-is("${n}")) input`;
+    const apriInventario = async () => {
+      await A.tab('Altro');
+      await A.p.click('.voce:has-text("Scorte e spesa")');
+      await A.p.click('.pill:has-text("Inventario")');
+      if (await A.p.$('#pin-c')) {
+        await A.p.fill('#pin-c', '3333');
+        await A.p.click('#foglio button[type=submit]');
+      }
+      await A.p.waitForSelector(riga('Birra'));
+    };
+    const vendeB = async (prodotto) => {
+      await B.tab('Farmacia');
+      if ((await B.p.getAttribute('[data-k="chi-pj"]', 'aria-pressed')) !== 'true') await B.p.click('[data-k="chi-pj"]');
+      await B.p.click(`.prod-add:has-text("${prodotto}")`);
+      await B.p.click('.posbar .pill:has-text("Sul ticket")');
+    };
+    const scorta = async (n) => (await A.p.textContent(`#view .riga:has(.nome:text-is("${n}"))`)) || '';
+    await apriInventario();
+    await A.p.fill(riga('Coca Cola lattina'), '10');
+    await A.p.fill(riga('Birra'), '20');
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(400);
+    // 1) B vende 2 Coca mentre A conta solo le birre
+    await apriInventario();
+    const vendite = async () =>
+      (await A.p
+        .evaluate(async () => (await window.__dati('oblio.v1')).moves.filter((m) => m.k === 'tab' && !m.x).length)
+        .catch(() => 0)) || 0;
+    const prima = await vendite();
+    await vendeB('Coca Cola lattina');
+    await vendeB('Coca Cola lattina');
+    await aspetta(
+      A.p,
+      (n) => window.__dati('oblio.v1').then((d) => d.moves.filter((m) => m.k === 'tab' && !m.x).length >= n),
+      prima + 2,
+      'A non riceve le Coca segnate da B'
+    );
+    await A.p.fill(riga('Birra'), '18');
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(150);
+    if (await A.p.$('#foglio .errore:not([hidden])')) fail('inventario: avviso su un prodotto che non ha avuto vendite');
+    if (!/(^|\D)8 pz/.test(await scorta('Coca Cola lattina')))
+      fail('inventario: le 2 Coca vendute da B mentre A contava sono tornate in magazzino');
+    if (!/(^|\D)18 pz/.test(await scorta('Birra'))) fail('inventario: birra contata non salvata');
+    // 2) B vende una birra mentre A la sta contando: A viene avvisato una volta, poi salva
+    await apriInventario();
+    const prima2 = await vendite();
+    await vendeB('Birra');
+    await aspetta(
+      A.p,
+      (n) => window.__dati('oblio.v1').then((d) => d.moves.filter((m) => m.k === 'tab' && !m.x).length >= n),
+      prima2 + 1,
+      'A non riceve la birra segnata da B'
+    );
+    await A.p.fill(riga('Birra'), '15'); // ne mancavano già: l'app ne aspettava 18, poi 17
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(150);
+    const avviso = (await A.p.textContent('#foglio .errore').catch(() => '')) || '';
+    if (!/Mentre contavi sono state segnate: Birra 1/.test(avviso)) fail('inventario: nessun avviso per la birra segnata mentre A contava');
+    await shot('45-inventario-avviso', false, A.p);
+    await A.p.fill(riga('Birra'), '14');
+    await A.p.click('#foglio button[type=submit]');
+    await A.p.waitForTimeout(150);
+    if (!/(^|\D)14 pz/.test(await scorta('Birra'))) fail('inventario: dopo l’avviso il secondo «Salva» non registra');
+    note('inventario con un altro telefono che vende: i numeri non toccati non cancellano le vendite, avviso per quelli contati');
+  }
   // login: PESCE prova a entrare da un telefono nuovo. Serve il codice admin e poi il suo PIN; A esce da solo.
   {
     const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });

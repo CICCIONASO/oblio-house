@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.24.0';
+var APP_V='0.24.1';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -302,6 +302,16 @@ function previsione(S,D){
   o.righe.sort(function(a,b){return b.v-a.v||a.n.localeCompare(b.n);});
   o.attuale=o.cassa+o.scorte;
   o.previsionale=o.attuale+o.incassare-o.restituire;
+  return o;
+}
+/* inventario: le consumazioni segnate dopo t0 (quando si è aperto l'inventario) per i prodotti in ids, in pezzi.
+   Servono ad avvisare chi conta: un pezzo preso dopo che l'ha contato è già fuori dal suo numero. */
+function venditeDopo(S,t0,ids){
+  var o={};
+  S.moves.forEach(function(m){
+    if(!m||m.x||(m.k!=='sale'&&m.k!=='tab')||toInt(m.t)<=t0)return;
+    (m.items||[]).forEach(function(it){if(it&&it.id&&ids[it.id])o[it.id]=(o[it.id]||0)+Math.max(0,toInt(it.q));});
+  });
   return o;
 }
 /* ---------- scontrini: dal testo letto dalla foto alle righe da confermare ---------- */
@@ -3514,13 +3524,33 @@ function openCarico(pre){
 function openInventario(pre){conPin(function(){openInventario_(pre);},'Fare l’inventario');}
 function openInventario_(pre){
   pre=pre||{};
+  // i numeri di partenza sono quelli calcolati all'apertura: si salvano solo i campi toccati, così una consumazione
+  // segnata da un altro telefono mentre il modulo è aperto non viene cancellata da un numero vecchio
+  var t0=toInt(pre.__t)||Date.now(),iniz=pre.__iniz,avvisato='',mem=null;
+  // con una bozza da riprendere valgono i numeri e l'ora di quando era stata aperta
+  try{mem=JSON.parse(lsGet(KEY+'.inv0')||'null');}catch(e){mem=null;}
+  if(!iniz&&bozze()['Inventario']&&mem&&mem.iniz&&typeof mem.iniz==='object'){t0=toInt(mem.t)||t0;iniz=mem.iniz;}
+  if(!iniz){iniz={};S.products.forEach(function(p){if(p.id in D.stock)iniz[p.id]=String(D.stock[p.id]);});}
+  lsSet(KEY+'.inv0',JSON.stringify({t:t0,iniz:iniz}));
   var L=listaNumeri('iv-',function(p){return p.id in pre?pre[p.id]:D.stock[p.id];});
-  formSheet('Inventario',[h('p',{class:'aiuto'},'Scrivi quanti pezzi ci sono davvero. I campi vuoti restano come sono.'),
-    h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button','data-k':'iv-nuovo',onclick:function(){var v=scritti(L);openProdotto(null,{poi:function(){openInventario(v);}});}},'+ Prodotto nuovo')),L.ul],function(){
-    var items=[],bad=false;
-    S.products.forEach(function(p){var i=L.inputs[p.id];if(!i)return;var n=leggiNumero(i.value);if(n==null)return;if(isNaN(n)){bad=true;return;}if(n!==D.stock[p.id])items.push({id:p.id,n:p.name,q:n,pr:p.price});});
+  formSheet('Inventario',[h('p',{class:'aiuto'},'Scrivi quanti pezzi ci sono davvero. I numeri che non tocchi restano come li calcola l’app.'),
+    h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button','data-k':'iv-nuovo',onclick:function(){var v=scritti(L);v.__t=t0;v.__iniz=iniz;openProdotto(null,{poi:function(){openInventario(v);}});}},'+ Prodotto nuovo')),L.ul],function(){
+    var items=[],bad=false,ids={};
+    S.products.forEach(function(p){
+      var i=L.inputs[p.id];if(!i)return;
+      var v=i.value.trim(),prima=p.id in iniz?iniz[p.id]:(p.id in D.stock?String(D.stock[p.id]):'');
+      if(v===prima)return;                                   // non toccato
+      var n=leggiNumero(v);if(n==null)return;if(isNaN(n)){bad=true;return;}
+      if(n!==D.stock[p.id]){items.push({id:p.id,n:p.name,q:n,pr:p.price});ids[p.id]=1;}
+    });
     if(bad)return 'Usa solo numeri interi, per esempio 12.';
     if(!items.length)return 'Non è cambiato nulla.';
+    // consumazioni segnate mentre contavi: lo dico una volta, poi «Salva» registra
+    var dopo=venditeDopo(S,t0,ids),nomi=items.filter(function(it){return dopo[it.id];}).map(function(it){return it.n+' '+dopo[it.id];});
+    if(nomi.length&&nomi.join('|')!==avvisato){
+      avvisato=nomi.join('|');
+      return 'Mentre contavi sono state segnate: '+nomi.join(', ')+'. Se le hai contate prima che le prendessero, togli quei pezzi dal numero. Poi tocca di nuovo «Salva l’inventario».';
+    }
     addMove({k:'inv',a:0,items:items},'Inventario salvato: '+items.length+(items.length===1?' prodotto':' prodotti'));
   },'Salva l’inventario',{giaSporco:Object.keys(pre).length>0});
 }
