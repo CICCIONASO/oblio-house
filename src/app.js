@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.23.0';
+var APP_V='0.24.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -441,6 +441,46 @@ function abbinaRiga(d,products){
   return best;
 }
 function prod0(products,id){for(var i=0;i<products.length;i++)if(products[i].id===id)return products[i];return {};}
+/* ordine dei prodotti in tutta l'app (dalla 0.24.0). L'admin lo sceglie dal Listino con «ord», uguale su tutti i telefoni:
+   una categoria sta dove sta il suo primo prodotto, un prodotto senza «ord» va in fondo alla sua categoria.
+   Finché nessuno l'ha scelto: categorie nell'ordine di creazione e, dentro, prima i più venduti. */
+function ordineProdotti(products,sold){
+  sold=sold||{};
+  var fisso=products.some(function(p){return p.ord!=null;}),idx={},prima={},rango={};
+  function k(p){return p.ord!=null?p.ord:1e9;}
+  products.forEach(function(p,i){
+    idx[p.id]=i;
+    if(!(p.cat in prima)){prima[p.cat]=i;rango[p.cat]=1e9;}
+    if(fisso)rango[p.cat]=Math.min(rango[p.cat],k(p));
+  });
+  return products.slice().sort(function(a,b){
+    if(a.cat!==b.cat)return (fisso?rango[a.cat]-rango[b.cat]:0)||prima[a.cat]-prima[b.cat];
+    return (fisso?k(a)-k(b):(sold[b.id]||0)-(sold[a.id]||0))||idx[a.id]-idx[b.id];
+  });
+}
+/* posizione per un prodotto nuovo (o cambiato di categoria): in fondo. Null se l'ordine non è ancora stato scelto */
+function ordInFondo(products){
+  var m=-1;products.forEach(function(p){if(p.ord!=null&&p.ord>m)m=p.ord;});
+  return m<0?null:m+1;
+}
+/* sposta un prodotto (tipo 'p') o una categoria (tipo 'c') di un posto (dir -1 su, +1 giù) e rinumera tutti:
+   da qui l'ordine è fisso. Torna false se è già in cima o in fondo. */
+function spostaOrdine(products,sold,tipo,chi,dir){
+  var l=ordineProdotti(products,sold);
+  if(tipo==='c'){
+    var cs=[];l.forEach(function(p){if(cs.indexOf(p.cat)<0)cs.push(p.cat);});
+    var i=cs.indexOf(chi),j=i+dir;if(i<0||j<0||j>=cs.length)return false;
+    cs[i]=cs[j];cs[j]=chi;
+    l=[].concat.apply([],cs.map(function(c){return l.filter(function(p){return p.cat===c;});}));
+  }else{
+    var p=prod0(l,chi);if(!p.id)return false;
+    var stessa=l.filter(function(x){return x.cat===p.cat;}),a=stessa.indexOf(p),b=a+dir;
+    if(b<0||b>=stessa.length)return false;
+    var ia=l.indexOf(p),ib=l.indexOf(stessa[b]);l[ia]=stessa[b];l[ib]=p;
+  }
+  l.forEach(function(x,n){x.ord=n;});
+  return true;
+}
 /* pezzi per confezione scritti nella descrizione: «MARS X4», «NUTELLA T6», «PERONI 3X33CL» (solo un suggerimento) */
 function confezione(d){
   var u=normUp(d),m=/\bX\s?(\d{1,2})\b/.exec(u)||/\bT(\d{1,2})\b/.exec(u)||/\b(\d{1,2})\s?X\s?\d/.exec(u);
@@ -502,6 +542,7 @@ function applicaScontrino(S,righe,opz,ora,id){
     var p;
     if(r.tipo==='nuovo'){
       p={id:'p'+id(),name:str(r.nome,40).trim()||'Prodotto',cat:str(r.cat,20).trim()||'Altro',price:Math.max(0,toInt(r.prezzo)),min:null,on:true};
+      var oF=ordInFondo(S.products);if(oF!=null)p.ord=oF;
       S.products.push(p);nuovi.push(p);
     }else p=prod0(S.products,r.prod);
     if(!p||!p.id)return;
@@ -966,7 +1007,7 @@ function tieniAltro(raw,o,noti){
 var NOTI={
   cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto'],
   people:['id','name','kind','on','img','nato','tel','pin','noq','visto'],
-  products:['id','name','cat','price','min','on','cost','al','ph','pk'],
+  products:['id','name','cat','price','min','on','cost','al','ph','pk','ord'],
   moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da','dc'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da','m','dc'],
   quote:['id','mese','a','chi','scad','note','t'],
@@ -1057,6 +1098,7 @@ function normState(raw){
     });
     if(al.length)o.al=al.slice(-12);
     if(toInt(p.pk)>1)o.pk=Math.min(99,toInt(p.pk));                             // pezzi per pacco, dall'ultimo scontrino (dalla 0.23.0)
+    if(p.ord!=null&&p.ord!==''&&isFinite(Number(p.ord)))o.ord=Math.max(0,toInt(p.ord)); // posizione scelta dall'admin (dalla 0.24.0)
     var ph=[];                                                                   // storico dei prezzi
     (Array.isArray(p.ph)?p.ph:[]).forEach(function(x){if(x&&typeof x==='object'&&toInt(x.t)>0)ph.push({t:toInt(x.t),da:Math.max(0,toInt(x.da))});});
     if(ph.length){ph.sort(function(a,b){return a.t-b.t;});o.ph=ph.slice(-20);}
@@ -1907,7 +1949,8 @@ function mettiFaccia(p,img){
   p.img=img;
 }
 function prod(id){return S.products.find(function(x){return x.id===id;});}
-function cats(){var o=[];S.products.forEach(function(p){if(o.indexOf(p.cat)<0)o.push(p.cat);});return o;}
+function prodOrdinati(){return ordineProdotti(S.products,D&&D.sold);}
+function cats(){var o=[];prodOrdinati().forEach(function(p){if(o.indexOf(p.cat)<0)o.push(p.cat);});return o;}
 /* chi ha segnato il movimento: nel registro resta il nome di chi è entrato su questo telefono */
 function firma(m){var io=mio();if(io&&!m.da)m.da=io;return m;}
 function addMove(o,say){
@@ -2867,7 +2910,7 @@ function corpoBanco(){
   // il paziente scelto resta in vista nella riga che scorre
   if(pos.p)requestAnimationFrame(function(){var b=chips.querySelector('[aria-pressed="true"]'),x=b?b.offsetLeft-chips.offsetLeft:0;if(b&&(x<chips.scrollLeft||x+b.offsetWidth>chips.scrollLeft+chips.clientWidth))chips.scrollLeft=Math.max(0,x-16);});
   cats().forEach(function(c){
-    var list=S.products.filter(function(p){return p.on&&p.cat===c;});
+    var list=prodOrdinati().filter(function(p){return p.on&&p.cat===c;});
     if(!list.length)return;
     out.push(h('section',{class:'blocco'},h('h3',{class:'etichetta chiara'},c),h('div',{class:'prods'},list.map(prodTile))));
   });
@@ -3344,7 +3387,7 @@ function vAltro(){
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-io',onclick:esci},ic('esci',18),'Esci dal mio nome'))])];
   out.push(adm?gruppoAltro('Admin',[
       voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, chi ha l’app, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
-      voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){go('altro','listino');}}),
+      voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){UI.riordina=false;go('altro','listino');}}),
       voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
       voceL({ic:'chiave',col:'c-admin',titolo:'Codice admin',sotto:S.cfg.admH?'Cambiato':'Ancora quello iniziale: cambialo',sottoCls:S.cfg.admH?null:'rosso',onclick:function(){go('altro','codici');}}),
@@ -3415,7 +3458,7 @@ function vScorte(){
     formN));
   var righe=[];
   cats().forEach(function(c){
-    var list=S.products.filter(function(p){return p.on&&p.cat===c;});
+    var list=prodOrdinati().filter(function(p){return p.on&&p.cat===c;});
     if(!list.length)return;
     righe.push(h('li',{class:'giorno'},c));
     list.forEach(function(p){
@@ -3440,7 +3483,7 @@ function vScorte(){
 function listaNumeri(prefisso,valore){
   var inputs={},ul=h('ul',{class:'linee'});
   cats().forEach(function(c){
-    var list=S.products.filter(function(p){return p.on&&p.cat===c;});
+    var list=prodOrdinati().filter(function(p){return p.on&&p.cat===c;});
     if(!list.length)return;
     ul.append(h('li',{class:'gruppo-t'},c));
     list.forEach(function(p){
@@ -3495,23 +3538,44 @@ function openSoglie(){
   });
 }
 function vListino(){
-  var righe=[];
-  cats().forEach(function(c){
-    righe.push(h('li',{class:'giorno'},c));
-    S.products.filter(function(p){return p.cat===c;}).forEach(function(p){
+  var R=!!UI.riordina,righe=[],cs=cats();
+  function freccia(tipo,chi,dir,primo,ultimo,nome){
+    var fermo=dir<0?primo:ultimo;
+    return h('button',{type:'button',class:'pill-x freccia','data-k':'ord-'+tipo+'-'+chi+(dir<0?'-su':'-giu'),disabled:fermo,'aria-label':(dir<0?'Sposta su ':'Sposta giù ')+nome,
+      onclick:function(){if(spostaOrdine(S.products,D.sold,tipo,chi,dir)){tocco();commit();}}},dir<0?'↑':'↓');
+  }
+  cs.forEach(function(c,ci){
+    righe.push(h('li',{class:'giorno'+(R?' ord-riga':'')},h('span',{class:'cresce'},c),
+      R?freccia('c',c,-1,ci===0,ci===cs.length-1,c):null,R?freccia('c',c,1,ci===0,ci===cs.length-1,c):null));
+    var l=prodOrdinati().filter(function(p){return p.cat===c;});
+    l.forEach(function(p,pi){
+      var nome=h('span',{class:'nome'},p.name,p.on?null:h('span',{class:'tag'},'fuori listino'));
+      if(R){
+        righe.push(h('li',{class:'ord-riga ord-prod'},h('span',{class:'cresce'},nome),
+          freccia('p',p.id,-1,pi===0,pi===l.length-1,p.name),freccia('p',p.id,1,pi===0,pi===l.length-1,p.name)));
+        return;
+      }
       var ult=p.ph&&p.ph.length?p.ph[p.ph.length-1]:null;
       righe.push(h('li',null,h('button',{type:'button',class:'riga',onclick:function(){openProdotto(p.id);}},
-        h('span',{class:'cresce'},h('span',{class:'nome'},p.name,p.on?null:h('span',{class:'tag'},'fuori listino')),
-          ult?h('span',{class:'sotto'},'era '+eur(ult.da)+' fino al '+dShortT(ult.t)):null),
+        h('span',{class:'cresce'},nome,ult?h('span',{class:'sotto'},'era '+eur(ult.da)+' fino al '+dShortT(ult.t)):null),
         h('span',{class:'importo'},eur(p.price)))));
     });
   });
+  function cambia(){
+    // la prima volta l'ordine di adesso (più venduti in alto) diventa fisso, uguale su tutti i telefoni
+    if(!R&&S.products.length&&!S.products.some(function(p){return p.ord!=null;})){prodOrdinati().forEach(function(p,n){p.ord=n;});UI.riordina=true;commit();return;}
+    UI.riordina=!R;render();
+  }
   return [indietro(),h('h2',{class:'titolo'},'Listino'),
     h('section',{class:'cartella'},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Prodotti e prezzi'),h('button',{class:'pill sm',type:'button',onclick:function(){openProdotto(null);}},'+ Prodotto')),
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},R?'Ordine del bar':'Prodotti e prezzi'),
+        h('span',{class:'cart-btns'},
+          S.products.length>1?h('button',{class:'pill sm',type:'button','data-k':'cambia-ordine',onclick:cambia},R?'Fatto':'Cambia ordine'):null,
+          R?null:h('button',{class:'pill sm',type:'button',onclick:function(){openProdotto(null);}},'+ Prodotto'))),
       h('div',{class:'riga-tratt'}),
       h('ul',{class:'righe'},righe),
-      h('p',{class:'aiuto'},'Tocca un prodotto per cambiare nome, prezzo o categoria. I prezzi nuovi valgono solo per le consumazioni future.'))];
+      h('p',{class:'aiuto'},R?'Con le frecce sposti un prodotto dentro la sua categoria, o una categoria intera. L’ordine vale su tutti i telefoni: al Banco, nelle scorte e qui. I prodotti nuovi vanno in fondo alla loro categoria.':
+        'Tocca un prodotto per cambiare nome, prezzo o categoria. I prezzi nuovi valgono solo per le consumazioni future. Con «Cambia ordine» scegli in che ordine si vedono al Banco.'))];
 }
 function openProdotto(id,opz){
   opz=opz||{};
@@ -3537,11 +3601,12 @@ function openProdotto(id,opz){
     if(!nome)return 'Scrivi il nome del prodotto.';
     if(isNaN(v))return 'Scrivi il prezzo, per esempio 1,20.';
     if(S.products.some(function(x){return x!==p&&x.name.toLowerCase()===nome.toLowerCase();}))return 'C’è già un prodotto con questo nome.';
-    if(p){var prezzoPrima=p.price;p.name=nome;cambiaPrezzo(p,v,Date.now());p.cat=c;p.on=on.checked;commit();toast(prezzoPrima!==v?'Prodotto aggiornato: da '+eur(prezzoPrima)+' a '+eur(v)+' per le consumazioni da adesso.':'Prodotto aggiornato.');}
+    if(p){var prezzoPrima=p.price;p.name=nome;cambiaPrezzo(p,v,Date.now());if(p.cat!==c){var oC=ordInFondo(S.products);if(oC!=null)p.ord=oC;}p.cat=c;p.on=on.checked;commit();toast(prezzoPrima!==v?'Prodotto aggiornato: da '+eur(prezzoPrima)+' a '+eur(v)+' per le consumazioni da adesso.':'Prodotto aggiornato.');}
     else{
       var q=pz?leggiNumero(pz.value):null,m=leggiNumero(so.value);
       if((q!=null&&isNaN(q))||(m!=null&&isNaN(m)))return 'Pezzi e soglia: solo numeri interi, per esempio 12.';
-      var np={id:'p'+rid(),name:nome,cat:c,price:v,min:m==null?null:m,on:on.checked};
+      var np={id:'p'+rid(),name:nome,cat:c,price:v,min:m==null?null:m,on:on.checked},oN=ordInFondo(S.products);
+      if(oN!=null)np.ord=oN;
       S.products.push(np);
       if(q!=null)S.moves.push(firma({id:rid(),t:Date.now(),k:'inv',a:0,items:[{id:np.id,n:np.name,q:q,pr:np.price}]}));
       commit();toast('Prodotto aggiunto: '+nome+(q!=null?' · '+q+' pz in magazzino':''));
@@ -3647,7 +3712,7 @@ function scontrinoDaFoto(file){
 function opzioniProdotto(sel){
   var o=[];
   cats().forEach(function(c){
-    var l=S.products.filter(function(p){return p.cat===c;});if(!l.length)return;
+    var l=prodOrdinati().filter(function(p){return p.cat===c;});if(!l.length)return;
     o.push(h('optgroup',{label:c},l.map(function(p){return h('option',{value:p.id},p.name+(p.on?'':' (fuori listino)'));})));
   });
   o.push(h('optgroup',{label:'Altro'},h('option',{value:'+'},'+ Prodotto nuovo'),h('option',{value:'altro'},'Altra spesa (non va in magazzino)'),h('option',{value:'no'},'Escludi: non è del locale')));
