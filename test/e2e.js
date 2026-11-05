@@ -664,6 +664,41 @@ const fail = (m) => {
   await page.click('#foglio button[type=submit]');
   await page.waitForTimeout(60);
   if (!/1,50/.test(await text('.riga:has-text("Birra")'))) fail('prezzo non aggiornato');
+  // 0.24.0: l'admin cambia l'ordine del bar (Salato sopra Dolci, Kinder Bueno primo dei dolci) e il Banco lo segue
+  await page.click('[data-k="cambia-ordine"]');
+  await page.waitForTimeout(60);
+  await shot('14b-ordine', true);
+  await overflow('ordine del bar');
+  if (!(await page.$('button[aria-label="Sposta su Bevande"]:disabled'))) fail('la prima categoria non deve poter salire');
+  await page.click('button[aria-label="Sposta su Salato"]');
+  for (let i = 0; i < 8; i++) {
+    const su = await page.$('button[aria-label="Sposta su Kinder Bueno"]:not([disabled])');
+    if (!su) break;
+    await su.click();
+    await page.waitForTimeout(30);
+  }
+  await page.click('[data-k="cambia-ordine"]');
+  await page.waitForTimeout(60);
+  if (await page.$('.freccia')) fail('dopo «Fatto» le frecce devono sparire');
+  const banco = async (pg) =>
+    (pg || page).evaluate(() =>
+      [...document.querySelectorAll('#view .blocco')].map((b) => [
+        b.querySelector('h3').textContent,
+        [...b.querySelectorAll('.prod-add')].map((x) => x.textContent),
+      ])
+    );
+  await tab('Farmacia');
+  {
+    const bl = (await banco()).filter((x) => x[1].length).map((x) => x[0]);
+    if (bl.join(',') !== 'Bevande,Salato,Dolci') fail('Banco: categorie nell’ordine sbagliato: ' + bl.join(','));
+    const dolci = (await banco()).find((x) => x[0] === 'Dolci')[1];
+    if (!/Kinder Bueno/.test(dolci[0])) fail('Banco: Kinder Bueno non è il primo dei dolci: ' + dolci[0]);
+    const st = await statoDi(page);
+    if (st.products.some((p) => p.ord == null)) fail('ordine scelto: ogni prodotto deve avere la sua posizione');
+    note('ordine del bar: Salato sopra Dolci, Kinder Bueno primo dei dolci, anche al Banco');
+  }
+  await tab('Altro');
+  await page.click('.voce:has-text("Listino")');
   await page.click('.indietro');
   await page.click('.voce:has-text("Pazienti")');
   await shot('15-pazienti', true);
@@ -1499,12 +1534,30 @@ const fail = (m) => {
   await A.p.click('.riga:has-text("Birra")');
   await A.p.fill('#pr-a', '1,50');
   await A.p.click('#foglio button[type=submit]');
+  // 0.24.0: A mette i Fonzies in cima al salato, B lo vede al Banco
+  await A.p.click('[data-k="cambia-ordine"]');
+  for (let i = 0; i < 8; i++) {
+    const su = await A.p.$('button[aria-label="Sposta su Fonzies"]:not([disabled])');
+    if (!su) break;
+    await su.click();
+    await A.p.waitForTimeout(30);
+  }
   await B.tab('Farmacia'); // B non è admin: il prezzo nuovo lo vede in Farmacia
   await aspetta(
     B.p,
     () => [...document.querySelectorAll('.prod-add')].some((r) => /Birra/.test(r.textContent) && /1,50/.test(r.textContent)),
     null,
     'B non vede il nuovo prezzo della birra'
+  );
+  await aspetta(
+    B.p,
+    () => {
+      const b = [...document.querySelectorAll('#view .blocco')].find((x) => /Salato/.test(x.querySelector('h3').textContent));
+      const p = b && b.querySelector('.prod-add');
+      return !!p && /Fonzies/.test(p.textContent);
+    },
+    null,
+    'B non vede i Fonzies in cima al salato'
   );
   // B senza rete incassa da PESCE; quando torna la rete A vede il ticket chiuso
   await B.c.setOffline(true);

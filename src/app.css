@@ -611,3 +611,10 @@ button:active:not(:disabled){filter:brightness(1.15)}
 .sc-pk-l{order:2}
 .sc-num .sotto:last-child{order:4}
 .chip.sc-pacco{align-self:flex-start;min-height:36px;font-size:14px}
+/* 0.24.0: ordine del bar nel Listino (solo admin) */
+.cart-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.ord-riga{display:flex;align-items:center;gap:6px;min-width:0}
+.ord-prod{padding:4px 0}
+.ord-riga .cresce{flex:1;min-width:0;overflow-wrap:anywhere}
+.cartella .freccia{color:var(--inchiostro);border-color:var(--viola-bordo);font:700 20px/1 var(--f-corpo)}
+.cartella .freccia:disabled{opacity:.25}

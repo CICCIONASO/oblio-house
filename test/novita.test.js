@@ -6,7 +6,7 @@ const pure = require('./pure.js');
 const A =
   pure(`{seedState,normState,derive,previsione,graffiVecchi,prezzoAl,cambiaPrezzo,statoQuote,quoteArretrate,totArretrato,scadenzaQuota,dividiQuota,meseDopo,
   candidatiVoto,sintomiPer,metiVoto,voteSummary,sintomiDi,serateChiuse,statMese,recordFreccette,medaglie,MEDAGLIE,alboOro,
-  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe}`);
+  prossimiCompleanni,normNato,spiegaVerifica,normCfg,impronta,VOTI_DAL,CFG0,serata,ymd,canon,normEnt,inPer,statRe,ordineProdotti,ordInFondo,spostaOrdine}`);
 
 const DAY = 864e5;
 const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, sera
@@ -484,6 +484,52 @@ const T0 = Date.parse('2026-11-02T20:00:00+01:00'); // lunedì 2 novembre 2026, 
   assert.strictEqual(N.verifiche[0].previsionale, 350);
   assert.strictEqual(A.normEnt('muro', S.muro[0]).testo, 'Aiuto, ho finito le cartine');
   assert.strictEqual(A.normEnt('quote', { mese: '2026-12', a: 5000, chi: ['pj'], t: 1 }).id, 'q2026-12');
+}
+
+/* ---------- 0.24.0: ordine dei prodotti ---------- */
+{
+  const S = A.seedState(1);
+  const nomi = (l) => l.map((p) => p.name);
+  const id = (n) => S.products.find((p) => p.name === n).id;
+  // senza ordine scelto: categorie come sempre, dentro prima i più venduti, a pari vendite l'ordine di creazione
+  const sold = { [id('Coca Cola lattina')]: 9, [id('Birra')]: 4, [id('Fonzies')]: 3 };
+  let l = A.ordineProdotti(S.products, sold);
+  assert.deepStrictEqual(nomi(l).slice(0, 4), ['Coca Cola lattina', 'Birra', 'Acqua liscia / frizzante', 'Estathé limone / pesca']);
+  assert.strictEqual(l[4].cat, 'Dolci');
+  assert.strictEqual(l.filter((p) => p.cat === 'Salato')[0].name, 'Fonzies');
+  assert.strictEqual(A.ordInFondo(S.products), null, 'ordine non ancora scelto: i nuovi non hanno posizione');
+  assert.strictEqual(S.products[0].name, 'Acqua liscia / frizzante', 'ordinare non tocca il listino');
+  // prima freccia: l'ordine di adesso diventa fisso, poi la Birra sale in cima
+  assert.strictEqual(A.spostaOrdine(S.products, sold, 'p', id('Birra'), -1), true);
+  l = A.ordineProdotti(S.products, {});
+  assert.deepStrictEqual(nomi(l).slice(0, 2), ['Birra', 'Coca Cola lattina'], 'dopo la scelta le vendite non contano più');
+  assert.strictEqual(A.spostaOrdine(S.products, {}, 'p', id('Birra'), -1), false, 'già in cima');
+  const ultimaBev = l.filter((p) => p.cat === 'Bevande').pop();
+  assert.strictEqual(A.spostaOrdine(S.products, {}, 'p', ultimaBev.id, 1), false, 'non esce dalla sua categoria');
+  // categoria: Salato sale sopra Dolci
+  assert.strictEqual(A.spostaOrdine(S.products, {}, 'c', 'Salato', -1), true);
+  l = A.ordineProdotti(S.products, {});
+  const cats = [];
+  l.forEach((p) => cats.indexOf(p.cat) < 0 && cats.push(p.cat));
+  assert.deepStrictEqual(cats, ['Bevande', 'Salato', 'Dolci']);
+  assert.strictEqual(A.spostaOrdine(S.products, {}, 'c', 'Bevande', -1), false);
+  // prodotto nuovo: in fondo; con categoria nuova, categoria in fondo
+  const fondo = A.ordInFondo(S.products);
+  assert.strictEqual(fondo, S.products.length);
+  S.products.push({ id: 'pn', name: 'Gin', cat: 'Alcol', price: 300, min: null, on: true, ord: fondo });
+  S.products.push({ id: 'pv', name: 'Senza ord', cat: 'Bevande', price: 100, min: null, on: true });
+  l = A.ordineProdotti(S.products, {});
+  assert.strictEqual(l[l.length - 1].name, 'Gin');
+  assert.strictEqual(
+    l.filter((p) => p.cat === 'Bevande').pop().name,
+    'Senza ord',
+    'senza posizione (da un telefono vecchio): in fondo alla categoria'
+  );
+  // la posizione sopravvive a normState e si sincronizza come gli altri campi
+  const N = A.normState(JSON.parse(JSON.stringify(S)));
+  assert.strictEqual(N.products.find((p) => p.id === 'pn').ord, fondo);
+  assert.deepStrictEqual(nomi(A.ordineProdotti(N.products, {})), nomi(l));
+  assert.strictEqual(A.normEnt('products', { id: 'x', name: 'X', cat: 'Y', price: 1, ord: 'boh' }).ord, undefined);
 }
 
 console.log(
