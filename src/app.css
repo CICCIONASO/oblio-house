@@ -607,3 +607,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 @keyframes inviato{0%{box-shadow:0 0 0 0 rgba(155,226,45,.9);transform:scale(1.08)}30%{transform:scale(1)}100%{box-shadow:0 0 0 14px rgba(155,226,45,0)}}
 #view.entra{animation:entra .25s ease-out}
 @keyframes entra{from{opacity:.25}to{opacity:1}}
+.sc-sp-l{order:3}
+.sc-pk-l{order:2}
+.sc-num .sotto:last-child{order:4}
+.chip.sc-pacco{align-self:flex-start;min-height:36px;font-size:14px}
