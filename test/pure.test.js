@@ -1203,3 +1203,35 @@ console.log('0.16.0: operazioni per conto di altri da confermare');
   assert.ok(!('visto' in N.people[2]), 'non è un testo: via');
 }
 console.log('0.17.0: ultima apertura dell’app per persona');
+
+// 0.24.1: inventario, le consumazioni segnate dopo che il modulo è stato aperto (per avvisare chi conta)
+{
+  const { venditeDopo } = pure('{venditeDopo}');
+  const S = normState({
+    people: [{ id: 'a', name: 'A' }],
+    products: [
+      { id: 'coca', name: 'Coca', price: 120 },
+      { id: 'birra', name: 'Birra', price: 100 },
+    ],
+    moves: [
+      { id: '1', t: 5, k: 'sale', a: 120, items: [{ id: 'coca', n: 'Coca', q: 1, pr: 120 }] },
+      {
+        id: '2',
+        t: 20,
+        k: 'tab',
+        p: 'a',
+        a: 340,
+        items: [
+          { id: 'coca', n: 'Coca', q: 2, pr: 120 },
+          { id: 'birra', n: 'Birra', q: 1, pr: 100 },
+        ],
+      },
+      { id: '3', t: 30, k: 'sale', a: 120, items: [{ id: 'coca', n: 'Coca', q: 1, pr: 120 }], x: { t: 31 } },
+      { id: '4', t: 40, k: 'load', a: 0, items: [{ id: 'coca', n: 'Coca', q: 10 }] },
+    ],
+  });
+  assert.deepStrictEqual(venditeDopo(S, 10, { coca: 1 }), { coca: 2 }, 'solo dopo l’apertura, niente annullate né carichi');
+  assert.deepStrictEqual(venditeDopo(S, 10, { coca: 1, birra: 1 }), { coca: 2, birra: 1 });
+  assert.deepStrictEqual(venditeDopo(S, 50, { coca: 1 }), {});
+}
+console.log('0.24.1: consumazioni segnate durante l’inventario');
