@@ -120,6 +120,10 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .importo small{display:block;font:600 10.5px/1.2 var(--f-etichetta);letter-spacing:.08em;text-transform:uppercase;color:var(--grigio)}
 .ora{flex:none;width:42px;font-size:12px;color:var(--grigio)}
 .riga.annullato .nome,.riga.annullato .importo{text-decoration:line-through;color:var(--grigio)}
+.spesa-x{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:36px;padding:0 12px 0 8px;border-radius:999px;border:1px solid var(--lilla-2);font-size:13px;font-weight:600}
+.riga.spesa .nome{transition:color .3s}
+.riga.spesa.barrato .nome{text-decoration:line-through;color:var(--grigio)}
+.riga.spesa.barrato .spesa-x{background:var(--lilla-2)}
 .giorno{font:700 12px/1.2 var(--f-etichetta);letter-spacing:.1em;text-transform:uppercase;color:var(--grigio);padding:10px 0 2px}
 .tally{display:flex;flex-wrap:wrap;gap:2px 7px;align-items:center}
 .tally svg{flex:none}
@@ -618,3 +622,11 @@ button:active:not(:disabled){filter:brightness(1.15)}
 .ord-riga .cresce{flex:1;min-width:0;overflow-wrap:anywhere}
 .cartella .freccia{color:var(--inchiostro);border-color:var(--viola-bordo);font:700 20px/1 var(--f-corpo)}
 .cartella .freccia:disabled{opacity:.25}
+.mesi-pagati{display:flex;flex-direction:column}
+.mese-pagato{border-top:1px dashed var(--riga)}
+.mese-pagato:first-child{border-top:0}
+.mese-pagato summary{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;list-style:none;font-weight:600}
+.mese-pagato summary::-webkit-details-marker{display:none}
+.mese-pagato summary::after{content:'';flex:none;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin:0 6px 4px 0;transition:transform .2s}
+.mese-pagato[open] summary::after{transform:rotate(-135deg);margin-bottom:-4px}
+.mese-dentro{padding-bottom:10px}

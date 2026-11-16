@@ -141,6 +141,10 @@ main{position:relative;display:flex;flex-direction:column;gap:16px}
 .importo small{display:block;font:600 10.5px/1.2 var(--f-etichetta);letter-spacing:.08em;text-transform:uppercase;color:var(--grigio)}
 .ora{flex:none;width:42px;font-size:12px;color:var(--grigio)}
 .riga.annullato .nome,.riga.annullato .importo{text-decoration:line-through;color:var(--grigio)}
+.spesa-x{flex:none;display:inline-flex;align-items:center;gap:4px;min-height:36px;padding:0 12px 0 8px;border-radius:999px;border:1px solid var(--lilla-2);font-size:13px;font-weight:600}
+.riga.spesa .nome{transition:color .3s}
+.riga.spesa.barrato .nome{text-decoration:line-through;color:var(--grigio)}
+.riga.spesa.barrato .spesa-x{background:var(--lilla-2)}
 .giorno{font:700 12px/1.2 var(--f-etichetta);letter-spacing:.1em;text-transform:uppercase;color:var(--grigio);padding:10px 0 2px}
 .tally{display:flex;flex-wrap:wrap;gap:2px 7px;align-items:center}
 .tally svg{flex:none}
@@ -639,6 +643,14 @@ button:active:not(:disabled){filter:brightness(1.15)}
 .ord-riga .cresce{flex:1;min-width:0;overflow-wrap:anywhere}
 .cartella .freccia{color:var(--inchiostro);border-color:var(--viola-bordo);font:700 20px/1 var(--f-corpo)}
 .cartella .freccia:disabled{opacity:.25}
+.mesi-pagati{display:flex;flex-direction:column}
+.mese-pagato{border-top:1px dashed var(--riga)}
+.mese-pagato:first-child{border-top:0}
+.mese-pagato summary{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;list-style:none;font-weight:600}
+.mese-pagato summary::-webkit-details-marker{display:none}
+.mese-pagato summary::after{content:'';flex:none;width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin:0 6px 4px 0;transition:transform .2s}
+.mese-pagato[open] summary::after{transform:rotate(-135deg);margin-bottom:-4px}
+.mese-dentro{padding-bottom:10px}
 </style>
 <div class="app" id="app">
   <div class="decor" aria-hidden="true"><div class="spirale"></div></div>
@@ -685,7 +697,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.24.1';
+var APP_V='0.25.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -737,7 +749,7 @@ function unitsOf(mv){var u=0;(mv.items||[]).forEach(function(it){u+=Math.max(1,t
 /* D.open[p]: i graffi ancora aperti, dal più vecchio ({rem: centesimi, t: quando}); D.fondo: il fondo quota del locale,
    separato dalla cassa; D.qv["mese|persona"]: quanto ha versato quella persona per la quota di quel mese */
 function derive(S){
-  var D={cash:0,debt:{},units:{},stock:{},sold:{},spent:{},open:{},fondo:0,qv:{}};
+  var D={cash:0,debt:{},units:{},stock:{},sold:{},spent:{},open:{},fondo:0,qv:{},rif:{}};
   var q={},cred={},ora=0;
   function add(p,a,u){
     if(!p||a<=0)return;
@@ -781,8 +793,9 @@ function derive(S){
         }else sub(mv.paidBy,a);
         break;
       case 'count':D.cash+=a;break;
-      case 'load':(mv.items||[]).forEach(function(it){if(it&&it.id)D.stock[it.id]=(D.stock[it.id]||0)+toInt(it.q);});break;
-      case 'inv':(mv.items||[]).forEach(function(it){if(it&&it.id)D.stock[it.id]=toInt(it.q);});break;
+      // D.rif[prodotto]: l'ultima volta che è stato caricato o contato (per la lista della spesa)
+      case 'load':(mv.items||[]).forEach(function(it){if(it&&it.id){D.stock[it.id]=(D.stock[it.id]||0)+toInt(it.q);D.rif[it.id]=ora;}});break;
+      case 'inv':(mv.items||[]).forEach(function(it){if(it&&it.id){D.stock[it.id]=toInt(it.q);D.rif[it.id]=ora;}});break;
       // quota del locale: soldi a parte, non entrano in cassa e non sono graffi
       case 'qin':if(mv.p){D.fondo+=a;var kq=str(mv.mese,7)+'|'+mv.p;D.qv[kq]=(D.qv[kq]||0)+a;}break;
       case 'qout':D.fondo-=a;break;
@@ -945,11 +958,22 @@ function daConfermare(S){
     var key=m.g||m.id;if(visti[key])return;visti[key]=1;
     out.push({id:'m'+key,t:m.t,da:m.da||'',mv:m.g?S.moves.filter(function(x){return x.g===m.g;}):[m]});
   });
+  // annullamenti fatti da chi non è admin (dalla 0.25.0): contano subito, l'admin li conferma o rimette il movimento
+  var vistiX={};
+  S.moves.forEach(function(m){
+    if(!m.x||!m.xa)return;
+    var key=m.g||m.id;if(vistiX[key])return;vistiX[key]=1;
+    out.push({id:'x'+key,t:toInt(m.x.t)||m.t,da:m.xd||'',annullo:true,mv:m.g?S.moves.filter(function(x){return x.g===m.g;}):[m]});
+  });
   S.votes.forEach(function(v){if(v.dc)out.push({id:'v'+v.id,t:v.t,da:v.da||'',voto:v});});
   return out.sort(function(a,b){return a.t-b.t;});
 }
-function confermaOp(op){(op.voto?[op.voto]:op.mv).forEach(function(x){delete x.dc;});}
+function confermaOp(op){
+  if(op.annullo){op.mv.forEach(function(x){delete x.xa;delete x.xd;});return;}
+  (op.voto?[op.voto]:op.mv).forEach(function(x){delete x.dc;});
+}
 function annullaOp(S,op,t){
+  if(op.annullo){op.mv.forEach(function(m){delete m.x;delete m.xm;delete m.xa;delete m.xd;});return;}   // annullamento sospetto: il movimento torna
   if(op.voto){var i=S.votes.indexOf(op.voto);if(i>=0)S.votes.splice(i,1);return;}
   op.mv.forEach(function(m){if(!m.x){m.x={t:t};m.xm='Operazione sospetta, annullata dall’admin';}});
 }
@@ -1698,10 +1722,10 @@ function tieniAltro(raw,o,noti){
   return o;
 }
 var NOTI={
-  cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto'],
-  people:['id','name','kind','on','img','nato','tel','pin','noq','visto'],
-  products:['id','name','cat','price','min','on','cost','al','ph','pk','ord'],
-  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da','dc'],
+  cfg:['voteCut','selfVote','puliziaGiorni','rifiuti','sintomi','buttiamo','votiMax','graffiGiorni','pinH','admH','voto','lapOk'],
+  people:['id','name','kind','on','img','nato','tel','pin','noq','visto','ver'],
+  products:['id','name','cat','price','min','on','cost','al','ph','pk','ord','preso'],
+  moves:['id','t','k','a','p','note','cat','items','paidBy','settle','shares','counted','expected','x','xm','g','mese','pc','da','dc','xa','xd'],
   votes:['id','s','v','c','t','y','ys','cs','cy','da','m','dc'],
   quote:['id','mese','a','chi','scad','note','t'],
   muro:['id','t','p','testo','col','dv','mod','fis'],
@@ -1730,6 +1754,7 @@ function normCfg(c){
   if(c.voto==='n')o.voto='n';                                   // «fino a N persone»; senza = podio (dalla 0.11.0)
   if(c.pinH&&typeof c.pinH==='string')o.pinH=str(c.pinH,24);
   if(c.admH&&typeof c.admH==='string')o.admH=str(c.admH,24);
+  if(toInt(c.lapOk)>0)o.lapOk=toInt(c.lapOk);                   // cancellazioni in massa approvate fino a qui (dalla 0.25.0)
   return tieniAltro(c,o,NOTI.cfg);
 }
 /* sintomi: chi aveva la lista di partenza precedente riceve quelli aggiunti dopo, una volta sola */
@@ -1777,6 +1802,7 @@ function normState(raw){
       if(p.pin&&typeof p.pin==='string')o.pin=str(p.pin,24);              // impronta del PIN personale
       if(p.noq)o.noq=1;                                                   // non paga la quota del locale
       if(typeof p.visto==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(p.visto))o.visto=p.visto;   // ultimo giorno in cui ha aperto l'app (dalla 0.17.0)
+      if(typeof p.ver==='string'&&/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(p.ver))o.ver=p.ver;   // versione dell'app sul suo telefono (dalla 0.25.0)
       S.people.push(tieniAltro(p,o,NOTI.people));
     }
   });
@@ -1792,6 +1818,7 @@ function normState(raw){
     if(al.length)o.al=al.slice(-12);
     if(toInt(p.pk)>1)o.pk=Math.min(99,toInt(p.pk));                             // pezzi per pacco, dall'ultimo scontrino (dalla 0.23.0)
     if(p.ord!=null&&p.ord!==''&&isFinite(Number(p.ord)))o.ord=Math.max(0,toInt(p.ord)); // posizione scelta dall'admin (dalla 0.24.0)
+    if(toInt(p.preso)>0)o.preso=toInt(p.preso);                                 // «Preso» nella lista della spesa: quando (dalla 0.25.0)
     var ph=[];                                                                   // storico dei prezzi
     (Array.isArray(p.ph)?p.ph:[]).forEach(function(x){if(x&&typeof x==='object'&&toInt(x.t)>0)ph.push({t:toInt(x.t),da:Math.max(0,toInt(x.da))});});
     if(ph.length){ph.sort(function(a,b){return a.t-b.t;});o.ph=ph.slice(-20);}
@@ -1816,6 +1843,8 @@ function normState(raw){
     if(m.pc)o.pc=1;                                 // preso dalla cassa: debito + uscita, non è una spesa del locale
     if(m.da)o.da=str(m.da,24);                      // chi l'ha segnato (dalla 0.11.0, con il login)
     if(m.dc)o.dc=1;                                 // da confermare dall'admin (dalla 0.16.0)
+    if(m.x&&m.xa)o.xa=1;                            // annullamento da confermare dall'admin (dalla 0.25.0)
+    if(m.x&&m.xd)o.xd=str(m.xd,24);                 // chi l'ha annullato
     if(m.mese&&/^\d{4}-\d{2}$/.test(String(m.mese)))o.mese=String(m.mese);   // quota del locale: di che mese
     S.moves.push(tieniAltro(m,o,NOTI.moves));
   });
@@ -1931,10 +1960,19 @@ function entita(S){
   return out;
 }
 /* cosa va mandato: entità nuove, cambiate o non ancora confermate, e lapidi per quelle tolte */
+/* impronta di un'entità, ricordata (dalla 0.25.0): se il suo JSON non è cambiato dall'ultima volta, anche il JSON canonico
+   e l'impronta sono gli stessi, e JSON.stringify costa molto meno di canon. Così ogni tocco non rifà l'impronta di tutto. */
+var IMPRONTE={};
+function improntaEnt(k,e){
+  var f=JSON.stringify(e),c=IMPRONTE[k];
+  if(c&&c.f===f)return c;
+  var j=canon(e);
+  return (IMPRONTE[k]={f:f,j:j,h:hashStr(j)});
+}
 function syncDiff(S,SY){
   var w=[],vivi={};
   entita(S).forEach(function(x){
-    var j=canon(x.e),h=hashStr(j),loc=SY.ent[x.k];vivi[x.k]=1;
+    var im=improntaEnt(x.k,x.e),j=im.j,h=im.h,loc=SY.ent[x.k];vivi[x.k]=1;
     if(!loc||loc[1]!==h||!loc[2])w.push({key:x.k,c:x.c,i:x.i,j:j,h:h});
   });
   Object.keys(SY.ent).forEach(function(k){
@@ -1992,6 +2030,43 @@ function syncRipara(S,SY,soglia){
   m.forEach(function(k){delete SY.ent[k];});
   SY.cursor=0;
   return m.length;
+}
+/* Freno sulle cancellazioni in arrivo (dalla 0.25.0). Più di «soglia» lapidi insieme che toglierebbero cose che questo
+   telefono ha non si applicano: restano in SY.lap ({chiave: {c, i, u}}) finché l'admin non decide. Valgono subito le
+   lapidi scritte fino a cfg.lapOk (l'admin ha ripristinato un backup o ha detto «Cancella davvero»). Le lapidi della lista
+   della spesa e dei «Ti capisco» non contano: si tolgono spesso e valgono poco. Restituisce le modifiche da applicare. */
+var SENZA_FRENO={shop:1,capisco:1};
+function lapOkIn(S,SY,changes){
+  var ok=toInt(S.cfg.lapOk);
+  changes.forEach(function(ch){
+    if(!ch||ch.key!=='cfg~main'||ch.j==null)return;
+    var loc=SY.ent[ch.key];if(loc&&loc[0]>ch.u)return;
+    try{ok=Math.max(ok,toInt(JSON.parse(ch.j).lapOk));}catch(e){}
+  });
+  return ok;
+}
+function syncFrena(S,SY,changes,soglia){
+  var ok=lapOkIn(S,SY,changes),vivi={},lap=SY.lap||{};
+  entita(S).forEach(function(x){vivi[x.k]=1;});
+  changes.forEach(function(ch){if(ch&&ch.j!=null&&lap[ch.key]&&ch.u>lap[ch.key].u)delete lap[ch.key];});   // tornata viva
+  var sosp=changes.filter(function(ch){
+    if(!ch||ch.j!=null||!vivi[ch.key]||SENZA_FRENO[ch.c]||toInt(ch.u)<=ok)return false;
+    var loc=SY.ent[ch.key];return !(loc&&loc[0]>ch.u);
+  });
+  if(sosp.length>soglia){
+    sosp.forEach(function(ch){lap[ch.key]={c:ch.c,i:ch.i,u:toInt(ch.u)};});
+    changes=changes.filter(function(ch){return sosp.indexOf(ch)<0;});
+  }
+  if(Object.keys(lap).length)SY.lap=lap;else delete SY.lap;
+  return changes;
+}
+/* le lapidi in attesa ormai approvate (scritte fino a cfg.lapOk): le applica e le toglie dall'attesa */
+function syncRilascia(S,SY){
+  if(!SY.lap)return false;
+  var ok=toInt(S.cfg.lapOk),via=[];
+  Object.keys(SY.lap).forEach(function(k){var x=SY.lap[k];if(x.u<=ok){via.push({key:k,c:x.c,i:x.i,j:null,u:x.u});delete SY.lap[k];}});
+  if(!Object.keys(SY.lap).length)delete SY.lap;
+  return via.length?syncApply(S,via,SY,false):false;
 }
 /* applica le modifiche arrivate dagli altri telefoni, sul posto. Alla prima unione (init) vince il locale condiviso. */
 function syncApply(S,changes,SY,init){
@@ -2440,7 +2515,9 @@ function ascolta(){
 function ricevi(changes,fromCache){
   if(fromCache&&!SY.init)return;   // prima di fondere aspetto i dati veri del locale
   var init=!SY.init;
+  if(!init)changes=syncFrena(S,SY,changes,SOGLIA_LAPIDI);
   var cambiato=syncApply(S,changes,SY,init);
+  if(syncRilascia(S,SY))cambiato=true;
   if(init&&applyElena(S))cambiato=true;
   if(!fromCache&&segnaVisto())cambiato=true;
   if(!fromCache)setTimeout(rimpicciolisciFoto,3000);
@@ -2542,6 +2619,26 @@ function openSync(){
       h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){location.reload();}},'Ricarica l’app'))];
   };
   openSheet('Telefoni collegati',live(),live);
+}
+/* cancellazioni bloccate dal freno (dalla 0.25.0): decide l'admin */
+function lapidiInAttesa(){return SY&&SY.lap?Object.keys(SY.lap).length:0;}
+function openLapidi(){
+  if(!isAdmin()){toast('Lo decide l’admin.');return;}
+  var live=function(){
+    var n=lapidiInAttesa();if(!n)return [h('p',{class:'vuoto'},'Niente in attesa. Tutto a posto.')];
+    var per={};Object.keys(SY.lap).forEach(function(k){var c=SY.lap[k].c;per[c]=(per[c]||0)+1;});
+    var NOMI={people:'persone',products:'prodotti',moves:'movimenti',votes:'voti',games:'partite',trash:'uscite dei rifiuti',cleanings:'pulizie',quote:'quote',muro:'post-it',verifiche:'verifiche'};
+    return [h('p',{class:'aiuto'},'Dal database sono arrivate insieme '+n+' cancellazioni: '+Object.keys(per).map(function(c){return per[c]+' '+(NOMI[c]||c);}).join(', ')+'. Su questo telefono i dati ci sono ancora.'),
+      h('p',{class:'aiuto'},'Se non le ha fatte nessuno di voi (un telefono rotto, qualcuno da fuori), tocca «Rimetti i dati»: tornano su tutti i telefoni.'),
+      h('div',{class:'azioni'},
+        h('button',{class:'pill duo-verde',type:'button','data-k':'lapidi-rimetti',onclick:function(){
+          Object.keys(SY.lap).forEach(function(k){if(SY.ent[k])SY.ent[k][2]=0;});
+          delete SY.lap;syncSalva();closeSheet();render();syncSpingi(true);toast('Dati rimessi: li rimando a tutti i telefoni.');}},'Rimetti i dati'),
+        h('button',{class:'pill pericolo',type:'button','data-k':'lapidi-cancella',onclick:function(){
+          var max=0;Object.keys(SY.lap).forEach(function(k){if(SY.lap[k].u>max)max=SY.lap[k].u;});
+          S.cfg.lapOk=Math.max(toInt(S.cfg.lapOk),max);syncRilascia(S,SY);closeSheet();commit();toast('Cancellate su tutti i telefoni.');}},'Cancella davvero'))];
+  };
+  openSheet('Cancellazioni bloccate',live(),live);
 }
 /* se arriva una modifica mentre si sta scrivendo in un campo, ridisegno dopo */
 var renderRinviato=false;
@@ -2652,14 +2749,18 @@ function addMove(o,say){
   if(say)toast(say,function(){var i=S.moves.indexOf(mv);if(i>=0){S.moves.splice(i,1);commit();toast('Annullato.');}});
   return mv;
 }
+/* prodotti da ricomprare. Chi tocca «Preso» nella lista della spesa lo toglie finché non arriva un carico o un inventario
+   di quel prodotto: se anche dopo restano pochi pezzi, torna nella lista (dalla 0.25.0) */
+function presoDaPoco(p){return !!p.preso&&p.preso>(D.rif[p.id]||0);}
 function lowStock(){
-  return S.products.filter(function(p){return p.on&&(p.id in D.stock)&&(D.stock[p.id]<=0||(p.min!=null&&D.stock[p.id]<=p.min));});
+  return S.products.filter(function(p){return p.on&&(p.id in D.stock)&&(D.stock[p.id]<=0||(p.min!=null&&D.stock[p.id]<=p.min))&&!presoDaPoco(p);});
 }
 function backupLine(){
   var t=S.meta.exported;if(!t)return 'mai fatto';
   var g=Math.floor((Date.now()-t)/864e5);return g<=0?'fatto oggi':g===1?'fatto ieri':g+' giorni fa';
 }
-function backupOld(){var t=S.meta.exported;if(!t)return S.moves.length>=10;return Date.now()-t>14*864e5;}
+/* con i telefoni collegati c'è la copia automatica di ogni notte (dalla 0.21.0): il promemoria del backup a mano serve solo senza */
+function backupOld(){if(SYNC)return false;var t=S.meta.exported;if(!t)return S.moves.length>=10;return Date.now()-t>14*864e5;}
 
 /* ---------- questo telefono: di chi è, modalità admin, PIN ----------
    Restano solo su questo telefono (non si sincronizzano). I codici invece valgono per tutti: se l'admin li cambia,
@@ -2674,14 +2775,14 @@ function improntaPin(id,pin){return hashStr('oblio|pin|'+id+'|'+String(pin==null
 function pinGiusto(id,pin){var p=person(id);return !!p&&!!p.pin&&p.pin===improntaPin(id,pin);}
 function legaTelefono(id){
   var dev=devId();
-  S.people.forEach(function(p){if(p.id===id){p.tel=dev;p.visto=today();}else if(p.tel===dev)delete p.tel;});
+  S.people.forEach(function(p){if(p.id===id){p.tel=dev;p.visto=today();p.ver=APP_V;}else if(p.tel===dev)delete p.tel;});
 }
 /* l'ultimo giorno in cui ognuno ha aperto l'app, per l'elenco dell'admin (dalla 0.17.0). Si scrive al massimo una volta
    al giorno e solo dopo aver ricevuto i dati veri del locale: così non si riscrive una persona con dati vecchi. */
 function segnaVisto(){
   var id=mio(),p=id&&person(id);
-  if(!p||!p.pin||!SY||!SY.init||p.visto===today())return false;
-  p.visto=today();return true;
+  if(!p||!p.pin||!SY||!SY.init||(p.visto===today()&&p.ver===APP_V))return false;
+  p.visto=today();p.ver=APP_V;return true;
 }
 function vistoTxt(p){
   if(!p.visto)return 'ultima apertura non ancora registrata';
@@ -2783,7 +2884,7 @@ var REGOLE=[
   ['Ogni consumazione si segna:','sul ticket oppure paga subito.'],
   ['PIN dimenticato?','Lo azzera l’admin e ne crei uno nuovo.']];
 var REGOLE_OSPITE=[
-  ['Sei ospite.','Vedi la Ludoteca e le Classifiche.'],
+  ['Sei ospite.','Vedi la Ludoteca, le Classifiche e il tuo ticket.'],
   ['Voti solo per te,','con il podio: 1°, 2° e 3°.'],
   ['Questo telefono è tuo.','Ogni volta che apri l’app sei già tu.'],
   ['Codice dimenticato o telefono nuovo?','Te ne crea uno nuovo l’admin.']];
@@ -2798,7 +2899,7 @@ function vRegolePrime(){
 function openOspite(){
   var io=mio();if(!io)return;
   openSheet(pName(io)+' · ospite',[
-    h('p',{class:'aiuto'},'Sei entrato come ospite: vedi la Ludoteca e le Classifiche e voti solo per te.'),
+    h('p',{class:'aiuto'},'Sei entrato come ospite: vedi la Ludoteca, le Classifiche e il tuo ticket, e voti solo per te.'),
     h('div',{class:'azioni'},h('button',{type:'button',class:'pill viola','data-k':'esci-ospite',onclick:function(){closeSheet();esci();}},ic('esci',18),'Esci'))]);
 }
 function esci(){
@@ -2981,9 +3082,9 @@ function peopleOpts(extraAll){
 /* ---------- navigazione ---------- */
 var TABS=[['reparto','Reparto','croce'],['farmacia','Farmacia','bicchiere'],['ludoteca','Ludoteca','bersaglio'],['altro','Altro','altro']];
 var NOMI_TAB={reparto:'Reparto',farmacia:'Farmacia',ludoteca:'Ludoteca',altro:'Altro',classifiche:'Classifiche'};
-/* l'ospite ha due tasti: Ludoteca e Classifiche (dalla 0.15.0) */
-var TABS_OSPITE=[['ludoteca','Ludoteca','bersaglio'],['classifiche','Classifiche','podio']];
-var TAB_OSPITE={ludoteca:1,classifiche:1},SUB_OSPITE={freccette:1,classifiche:1,statistiche:1,medaglie:1,muro:1};
+/* l'ospite ha tre tasti: Ludoteca, Classifiche (dalla 0.15.0) e il suo ticket, solo da vedere (dalla 0.25.0) */
+var TABS_OSPITE=[['ludoteca','Ludoteca','bersaglio'],['classifiche','Classifiche','podio'],['ticket','Ticket','tacche']];
+var TAB_OSPITE={ludoteca:1,classifiche:1,ticket:1},SUB_OSPITE={freccette:1,classifiche:1,statistiche:1,medaglie:1,muro:1};
 /* i Ticket stanno nella Farmacia, le freccette nella Ludoteca (dalla 0.11.0) */
 function apriTicket(){UI.farm='ticket';go('farmacia');}
 function apriFreccette(){go('ludoteca','freccette');}
@@ -3243,6 +3344,10 @@ function cardFaccende(st){
     azione:h('button',{class:'pill sm',type:'button',onclick:function(){go('reparto','backup');}},'Fallo')}));
   if(SYNC&&SST.stato==='errore')urg.push(rigaFare({ic:'rete',accesa:true,titolo:'Telefoni non collegati',sotto:'Quello che segni resta su questo telefono e parte appena torna il collegamento.',
     azione:h('button',{class:'pill sm',type:'button',onclick:openSync},'Dettagli')}));
+  var nLap=lapidiInAttesa();
+  if(nLap&&isAdmin())urg.push(rigaFare({ic:'avviso',accesa:true,titolo:nLap+' cancellazioni bloccate',
+    sotto:'Sono arrivate tutte insieme dal database: per sicurezza non le ho applicate. Se non le ha fatte nessuno di voi, rimetti i dati.',
+    azione:h('button',{class:'pill sm',type:'button','data-k':'apri-lapidi',onclick:openLapidi},'Decidi')}));
   var righe=[];
   urg.concat(ok).forEach(function(r,i){if(i)righe.push(h('div',{class:'riga-tratt'}));righe.push(r);});
   return h('section',{class:'cartella'},
@@ -3285,8 +3390,9 @@ function nomiLista(ids){
 }
 /* come si vota lo sceglie l'admin: podio (1°, 2°, 3°: 3, 2 e 1 punto) oppure «fino a N persone» (1 punto a testa).
    Con il podio «votiMax» resta 3, così anche i telefoni non ancora aggiornati lasciano tre voti. */
-function podio(){return S.cfg.voto!=='n';}
-function votiMassimi(){return podio()?3:(S.cfg.votiMax||1);}
+/* dalla 0.25.0 si vota solo a podio: la scelta «fino a N persone» è stata tolta (non la usava nessuno) */
+function podio(){return true;}
+function votiMassimi(){return 3;}
 var POSTI=['1°','2°','3°'];
 function puntiTxt(n){return n+(n===1?' punto':' punti');}
 function descrVoto(v){
@@ -3346,7 +3452,7 @@ function cardTriage(){
   var diag=ver&&ver.sm.winners.length===1?topSintomi(ver.sm.sint[ver.sm.winners[0]],3):[];
   return h('section',{class:'triage'},
     h('div',{class:'cart-h'},h('h2',{class:'tri-t'},'Triage: chi sta peggio?'),h('span',{class:'timbro scuro'},sm.n+(sm.n===1?' votante':' votanti'))),
-    h('p',{class:'tri-s'},(podio()?'Podio: il 1° vale 3 punti, il 2° 2, il 3° 1. ':votiMassimi()>1?'Ognuno vota fino a '+votiMassimi()+' persone, 1 punto a testa. ':'Un voto a testa. ')+'Ognuno vota dal suo telefono. Si chiude '+chiusuraTxt()+'.'),
+    h('p',{class:'tri-s'},'Podio: il 1° vale 3 punti, il 2° 2, il 3° 1. '+'Ognuno vota dal suo telefono. Si chiude '+chiusuraTxt()+'.'),
     ord.length?h('ol',{class:'tri-podio'},ord.slice(0,3).map(function(c){
       return h('li',{class:sm.winners.indexOf(c)>=0?'testa':null},ava(c,'sm'),h('span',{class:'nome'},pName(c)),h('span',{class:'tri-v'},puntiTxt(sm.tally[c])));
     })):h('p',{class:'tri-s'},'Ancora nessun voto stasera.'),
@@ -3451,6 +3557,7 @@ function openVoti(){
 function descrOp(op){
   if(op.voto)return {t:'Voto di '+pName(op.voto.v)+' (visitatore)',s:descrVoto(op.voto),a:null};
   var m=op.mv.find(function(x){return x.dc;})||op.mv[0],inf=moveInfo(m);
+  if(op.annullo)return {t:'Annullato: '+inf.t,s:[inf.s,m.xm?'motivo: '+m.xm:''].filter(Boolean).join(' · '),a:eur(Math.abs(toInt(m.a)))};
   if(m.pc)return {t:pName(m.p)+' prende dalla cassa',s:m.note||'',a:eur(toInt(m.a))};
   return {t:'Sul ticket di '+pName(m.p),s:inf.s,a:eur(toInt(m.a))};
 }
@@ -3458,26 +3565,29 @@ function bottoniConferma(op){
   return h('div',{class:'azioni'},
     h('button',{class:'pill sm duo-verde',type:'button','data-k':'conferma-'+op.id,onclick:function(){
       if(!isAdmin()){toast('Lo conferma solo l’admin.');return;}
-      confermaOp(op);commit();refreshSheet();toast('Confermata.');}},'Conferma'),
+      confermaOp(op);commit();refreshSheet();toast(op.annullo?'Annullamento confermato.':'Confermata.');}},op.annullo?'Conferma l’annullamento':'Conferma'),
     h('button',{class:'pill sm pericolo',type:'button','data-k':'sospetta-'+op.id,onclick:function(){
       if(!isAdmin()){toast('La annulla solo l’admin.');return;}
       var vecchio=op.voto?JSON.parse(JSON.stringify(op.voto)):null;
+      var prima=op.annullo?op.mv.map(function(m){return {m:m,x:m.x,xm:m.xm,xa:m.xa,xd:m.xd};}):null;
       annullaOp(S,op,Date.now());commit();refreshSheet();
-      toast(op.voto?'Voto tolto.':'Annullata: resta nel registro come sospetta.',function(){
-        if(op.voto)S.votes.push(vecchio);else op.mv.forEach(function(m){delete m.x;delete m.xm;});
-        commit();refreshSheet();toast('Rimessa da confermare.');});}},'Annulla operazione sospetta'));
+      toast(op.voto?'Voto tolto.':op.annullo?'Movimento rimesso: conta di nuovo.':'Annullata: resta nel registro come sospetta.',function(){
+        if(op.voto)S.votes.push(vecchio);
+        else if(prima)prima.forEach(function(o){['x','xm','xa','xd'].forEach(function(k){if(o[k]!=null)o.m[k]=o[k];});});
+        else op.mv.forEach(function(m){delete m.x;delete m.xm;});
+        commit();refreshSheet();toast('Rimessa da confermare.');});}},op.annullo?'Rimetti il movimento':'Annulla operazione sospetta'));
 }
 function openConferme(){
   if(!isAdmin()){toast('Le operazioni da confermare le vede solo l’admin.');return;}
   var live=function(){
     var l=daConfermare(S);
     if(!l.length)return [h('p',{class:'vuoto'},'Niente da confermare. Tutto a posto.')];
-    return [h('p',{class:'aiuto'},'Segnate da qualcuno per conto di un altro. Contano già: conferma quelle giuste, annulla quelle sospette.'),
+    return [h('p',{class:'aiuto'},'Segnate da qualcuno per conto di un altro, o movimenti annullati da chi non è admin. Contano già: conferma quelle giuste, annulla quelle sospette.'),
       h('ul',{class:'righe conferme'},l.map(function(op){
         var d=descrOp(op);
         return h('li',{class:'conferma'},
           h('div',{class:'riga'},h('span',{class:'ora'},GIORNI3[new Date(op.t).getDay()]+' '+hm(op.t)),
-            h('span',{class:'cresce'},h('span',{class:'nome'},d.t),h('span',{class:'sotto'},[d.s,'segnato da '+(op.da?pName(op.da):'chi non si sa')].filter(Boolean).join(' · '))),
+            h('span',{class:'cresce'},h('span',{class:'nome'},d.t),h('span',{class:'sotto'},[d.s,(op.annullo?'annullato da ':'segnato da ')+(op.da?pName(op.da):'chi non si sa')].filter(Boolean).join(' · '))),
             d.a?h('span',{class:'importo rosso'},d.a):null),
           bottoniConferma(op));
       }))];
@@ -3637,6 +3747,34 @@ function openExtra(){
   },'Aggiungi');
 }
 
+/* ---------- il ticket dell'ospite (dalla 0.25.0): solo da vedere, quanto deve al locale o quanto ha di credito ---------- */
+function mieiMovimenti(io){
+  return S.moves.filter(function(m){return !m.x&&(m.p===io||(m.k==='exp'&&m.settle!=='cassa'&&(m.paidBy===io||(m.shares&&m.shares[io]))));});
+}
+function vMioTicket(){
+  var io=mio();if(!io)return [];
+  var d=D.debt[io]||0,qa=arretrato(io),tot=Math.max(0,d)+qa,u=D.units[io]||0,vec=extra().v[io];
+  var mov=mieiMovimenti(io).slice(-40).reverse();
+  function riga(m){
+    var inf=moveInfo(m),dt=new Date(m.t),titolo=inf.t.replace(/ · [^·]*$/,''),imp;
+    if(m.k==='exp'){var mia=m.paidBy===io?-toInt(m.a)+toInt((m.shares||{})[io]):toInt((m.shares||{})[io]);
+      imp=h('span',{class:'importo '+(mia>0?'rosso':'verde')},eurS(mia),h('small',null,mia>0?'la tua parte':'anticipata da te'));}
+    else imp=amountNode(inf);
+    return h('li',null,h('div',{class:'riga'},h('span',{class:'ora'},dt.getDate()+'/'+(dt.getMonth()+1)),
+      h('span',{class:'cresce'},h('span',{class:'nome'},m.k==='sale'?'Pagato subito':titolo),inf.s?h('span',{class:'sotto'},inf.s):null),imp));
+  }
+  return [h('h2',{class:'titolo'},'Il mio ticket'),
+    h('section',{class:'cartella'},
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Con il locale'),h('span',{class:'timbro'+(tot>0?'':' ok')},tot>0?'Da pagare':d<0?'In credito':'In regola')),
+      h('span',{class:'cifrona'+(tot>0?' rosso':''),'data-k':'mio-ticket'},tot>0?eur(tot):d<0?eur(-d):eur(0)),
+      tot>0&&u?tally(u):null,
+      h('p',{class:'aiuto'},tot>0?'È quello che devi al locale'+(qa?', di cui '+eur(qa)+' di quota':'')+'. Si paga a uno di loro, che lo segna nell’app.':
+        d<0?'È il tuo credito: lo usi per le prossime consumazioni.':'Non devi niente al locale.'),
+      vec?h('p',{class:'avviso-riga'},eur(vec.a)+' sono lì da più di '+S.cfg.graffiGiorni+' giorni.'):null),
+    h('section',{class:'cartella'},
+      h('h3',{class:'etichetta'},'Ultimi movimenti'),h('div',{class:'riga-tratt'}),
+      mov.length?h('ul',{class:'righe'},mov.map(riga)):h('p',{class:'vuoto'},'Ancora niente a tuo nome.'))];
+}
 /* ---------- vista: Ticket ---------- */
 function corpoTicket(){
   var x=extra(),dovuto=function(p){return Math.max(0,D.debt[p.id]||0)+arretrato(p.id);};
@@ -3781,7 +3919,7 @@ function openPerson(id,after){
         delete p.tel;commit();toast(pName(p.id)+' scollegato dal suo telefono: rientra con il suo PIN su qualsiasi telefono.');closeSheet();}},'Scollega il telefono'):null)):null;
   // codice ospite: lo crea l'admin e lo dà al visitatore, che entra dal suo telefono (dalla 0.15.0)
   if(p&&p.kind==='amico')pinBox=h('div',{class:'campo'},h('span',{class:'lab'},'Accesso ospite'),
-    h('p',{class:'aiuto'},p.pin?'Ha il codice ospite: entra dal suo telefono e vede solo Ludoteca e Classifiche. '+(p.tel?'È già entrato.':'Non è ancora entrato.'):'Senza codice non entra nell’app: a segnare a suo nome è uno di voi.'),
+    h('p',{class:'aiuto'},p.pin?'Ha il codice ospite: entra dal suo telefono e vede solo Ludoteca, Classifiche e il suo ticket. '+(p.tel?'È già entrato.':'Non è ancora entrato.'):'Senza codice non entra nell’app: a segnare a suo nome è uno di voi.'),
     h('div',{class:'azioni'},
       h('button',{type:'button',class:'pill sm','data-k':'pe-codice',onclick:function(){closeSheet();setTimeout(function(){openCodiceOspite(p.id);},60);}},p.pin?'Nuovo codice ospite':'Crea codice ospite'),
       p.pin?h('button',{type:'button',class:'pill sm pericolo','data-k':'pe-togli',onclick:function(){
@@ -3930,11 +4068,12 @@ function openMove(id){
       altri.length?[h('dt',null,'Va insieme a'),h('dd',null,altri.map(function(m){return moveInfo(m).t+' '+eur(Math.abs(toInt(m.a)));}).join(' · '))]:null,
       mv.x?[h('dt',null,'Stato'),h('dd',{class:'rosso'},'Annullato'+(mv.x.t?' il '+dLong(new Date(mv.x.t)).toLowerCase()+' alle '+hm(mv.x.t):''))]:null,
       mv.x&&mv.xm?[h('dt',null,'Motivo'),h('dd',null,mv.xm)]:null,
+      mv.x&&mv.xa?[h('dt',null,'Annullato da'),h('dd',null,(mv.xd?pName(mv.xd)+' · ':'')+'da confermare dall’admin')]:null,
       !mv.x&&gr.some(function(m){return m.dc;})?[h('dt',null,'Stato'),h('dd',null,h('span',{class:'tag attesa'},'da confermare'),' Lo conferma l’admin.')]:null);
-    var az,op=!mv.x&&daConfermare(S).find(function(o){return o.mv&&o.mv.indexOf(mv)>=0;});
+    var az,op=daConfermare(S).find(function(o){return o.mv&&o.mv.indexOf(mv)>=0;});
     if(op&&isAdmin())az=bottoniConferma(op);
     else if(mv.x)az=h('div',{class:'azioni'},h('button',{class:'pill',type:'button',onclick:function(){
-      conPin(function(){gr.forEach(function(m){delete m.x;delete m.xm;});commit();toast(gr.length>1?'Movimenti ripristinati.':'Movimento ripristinato.');},'Ripristinare un movimento');}},'Ripristina'));
+      conPin(function(){gr.forEach(function(m){delete m.x;delete m.xm;delete m.xa;delete m.xd;});commit();toast(gr.length>1?'Movimenti ripristinati.':'Movimento ripristinato.');},'Ripristinare un movimento');}},'Ripristina'));
     else if(chiedi){
       motivo=motivo||testo('mv-mot','Es. segnato due volte, persona sbagliata',120);
       az=[h('p',{class:'errore'},'Annullare '+(altri.length?'questo movimento e quelli che vanno con lui':'questo movimento')+'? Cassa, ticket e scorte vengono ricalcolati.'),
@@ -3944,8 +4083,9 @@ function openMove(id){
             var mt=motivo.value.trim();
             if(grande&&mt.length<3){toast('Scrivi il motivo: sopra '+eur(ANNULLO_GRANDE)+' è obbligatorio.');try{motivo.focus();}catch(e){}return;}
             conPin(function(){
-              var t=Date.now();gr.forEach(function(m){if(!m.x){m.x={t:t};if(mt)m.xm=mt.slice(0,120);}});
-              chiedi=false;commit();toast(gr.length>1?'Movimenti annullati.':'Movimento annullato.');
+              var t=Date.now(),adm=isAdmin(),io=mio();
+              gr.forEach(function(m){if(!m.x){m.x={t:t};if(mt)m.xm=mt.slice(0,120);if(!adm){m.xa=1;if(io)m.xd=io;}}});
+              chiedi=false;commit();toast((gr.length>1?'Movimenti annullati':'Movimento annullato')+(adm?'.':': lo conferma l’admin.'));
             },'Annullare un movimento');
           }},'Sì, annulla'),
           h('button',{class:'pill',type:'button',onclick:function(){chiedi=false;refreshSheet();}},'No'))];
@@ -4081,7 +4221,7 @@ function vAltro(){
   out.push(adm?gruppoAltro('Admin',[
       voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, chi ha l’app, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
       voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){UI.riordina=false;go('altro','listino');}}),
-      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
+      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto, rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
       voceL({ic:'chiave',col:'c-admin',titolo:'Codice admin',sotto:S.cfg.admH?'Cambiato':'Ancora quello iniziale: cambialo',sottoCls:S.cfg.admH?null:'rosso',onclick:function(){go('altro','codici');}}),
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-admin',onclick:esciAdmin},ic('esci',18),'Esci dalla modalità admin'))],'admin')
@@ -4137,9 +4277,19 @@ function vCodici(){
 function vScorte(){
   var low=lowStock(),out=[indietro(),h('h2',{class:'titolo'},'Scorte')];
   var daComprare=[];
-  low.forEach(function(p){daComprare.push(h('li',null,h('div',{class:'riga'},h('span',{class:'cresce'},h('span',{class:'nome'},p.name),h('span',{class:'sotto'},D.stock[p.id]<=0?'finito':'ne restano '+D.stock[p.id])))));});
-  S.shop.forEach(function(s){daComprare.push(h('li',null,h('div',{class:'riga'},h('span',{class:'cresce'},h('span',{class:'nome'},s.text)),
-    h('button',{type:'button',class:'pill sm',onclick:function(){S.shop=S.shop.filter(function(x){return x.id!==s.id;});commit();}},'Preso'))));});
+  // ogni voce si tocca per dire «Preso»: si barra e sparisce dalla lista (dalla 0.25.0 anche i prodotti finiti)
+  function voce(k,nome,sotto,fatto,annulla){
+    return h('li',null,h('button',{type:'button',class:'riga spesa','data-k':'preso-'+k,'aria-label':nome+': preso',onclick:function(ev){
+      var b=ev.currentTarget;if(b.classList.contains('barrato'))return;
+      b.classList.add('barrato');tocco();
+      setTimeout(function(){fatto();commit();toast('Preso: '+nome+'.',function(){annulla();commit();toast('Rimesso nella lista.');});},movimentoRidotto()?0:380);}},
+      h('span',{class:'cresce'},h('span',{class:'nome'},nome),sotto?h('span',{class:'sotto'},sotto):null),
+      h('span',{class:'spesa-x','aria-hidden':'true'},ic('x',18),'Preso')));
+  }
+  low.forEach(function(p){daComprare.push(voce(p.id,p.name,D.stock[p.id]<=0?'finito':'ne restano '+D.stock[p.id],
+    function(){var q=prod(p.id);if(q)q.preso=Date.now();},function(){var q=prod(p.id);if(q)delete q.preso;}));});
+  S.shop.forEach(function(s){daComprare.push(voce(s.id,s.text,null,
+    function(){S.shop=S.shop.filter(function(x){return x.id!==s.id;});},function(){if(!S.shop.some(function(x){return x.id===s.id;}))S.shop.push(s);}));});
   var nuovo=testo('sh-n','Es. carta igienica, sacchi',60);
   nuovo.setAttribute('aria-label','Aggiungi alla lista della spesa');
   var formN=h('form',{class:'linea',onsubmit:function(ev){ev.preventDefault();var v=nuovo.value.trim();if(!v)return;S.shop.push({id:'s'+rid(),text:v,t:Date.now()});commit();}},
@@ -4549,12 +4699,14 @@ function confermaScontrino(letto,grezzo){
   aggSomma();
 }
 /* chi ha l'app: PIN creato e telefono collegato. I PIN non si vedono mai: nei dati c'è solo l'impronta. */
+/* la versione dell'app sul telefono della persona: serve a sapere quando tutti hanno aggiornato */
+function verTxt(p){return p.ver?' · versione '+p.ver+(p.ver===APP_V?'':versionePrima(p.ver,APP_V)?' (da aggiornare)':''):' · versione non ancora nota';}
 function statoApp(p){
   if(p.kind!=='paziente'){
     if(!p.pin)return null;                                   // visitatore senza codice ospite: niente app
-    return haApp(p)?'ha l’app · '+vistoTxt(p):'codice ospite creato · non ancora entrato';
+    return haApp(p)?'ha l’app · '+vistoTxt(p)+verTxt(p):'codice ospite creato · non ancora entrato';
   }
-  if(haApp(p))return 'ha l’app · '+vistoTxt(p);
+  if(haApp(p))return 'ha l’app · '+vistoTxt(p)+verTxt(p);
   return (p.pin?'PIN sì':'senza PIN')+' · '+(p.tel?'telefono collegato':'nessun telefono');
 }
 function riepilogoApp(){
@@ -4651,7 +4803,8 @@ function chiediImport(b){
       h('dt',null,'Contiene'),h('dd',null,st.people.length+' persone, '+st.products.length+' prodotti, '+st.moves.length+' movimenti, '+st.votes.length+' voti, '+st.games.length+' partite')),
     h('p',{class:'errore'},SYNC&&remote?'I dati attuali vengono sostituiti su tutti i telefoni collegati, non solo su questo.':'I dati che ci sono adesso su questo telefono vengono sostituiti.'),
     h('div',{class:'azioni'},
-      h('button',{class:'pill pericolo',type:'button',onclick:function(){var cur=lsGet(KEY);if(cur){lsSet(KEY+'.snap',cur);lsSet(KEY+'.snapT',String(Date.now()));}S=st;lapidiOk=true;closeSheet();commit();toast('Backup ripristinato. I dati di prima sono nella copia automatica.');}},'Sostituisci i dati'),
+      h('button',{class:'pill pericolo',type:'button',onclick:function(){if(!isAdmin()){toast('Il backup lo ripristina solo l’admin.');return;}var cur=lsGet(KEY);if(cur){lsSet(KEY+'.snap',cur);lsSet(KEY+'.snapT',String(Date.now()));}S=st;lapidiOk=true;S.cfg.lapOk=Date.now()+60000;   // le cancellazioni di questo ripristino passano il freno degli altri telefoni
+closeSheet();commit();toast('Backup ripristinato. I dati di prima sono nella copia automatica.');}},'Sostituisci i dati'),
       h('button',{class:'pill',type:'button',onclick:closeSheet},'Lascia stare'))]);
 }
 function vBackup(){
@@ -4951,11 +5104,10 @@ function vQuota(){
     h('p',{class:'aiuto'},'Quando l’admin imposta quei mesi, i soldi sono già dentro.')));
   if(adm&&prossimo)out.push(h('div',{class:'azioni'},h('button',{class:'pill duo-rosa largo',type:'button','data-k':'nuova-quota',onclick:function(){openQuotaMese(null);}},'Imposta la quota di '+meseNome(prossimo))));
   if(!stati.length)out.push(h('section',{class:'cartella'},h('p',{class:'vuoto'},adm?'Nessuna quota ancora: impostala qui sopra. Dal 20 del mese si comincia a raccogliere, entro il 1° si paga.':'Nessuna quota ancora: la imposta l’admin, di solito tra il 20 e il 25 del mese.')));
-  stati.slice(0,4).forEach(function(st){
+  // dettaglio di un mese: cifra, scadenza e chi l'ha versata
+  function corpoMese(st){
     var q=st.q,tutti=!st.mancano.length;
-    out.push(h('section',{class:'cartella'+(st.scaduta&&!tutti?' allarme':'')},
-      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Quota di '+meseNome(st.mese)),
-        h('span',{class:'timbro'+(tutti?' ok':'')},tutti?'Pagata':st.scaduta?'In ritardo':'Da raccogliere')),
+    return [
       h('p',{class:'quota-cifra'},h('b',null,eur(q.a)+' a testa'),' · entro il '+dataBreve(st.scad)+(q.note?' · '+q.note:'')),
       h('p',{class:'aiuto'},'Raccolti '+eur(st.versato)+' su '+eur(st.dovuto)+'.'+(st.scaduta&&!tutti?' Chi non l’ha versata se la ritrova nei graffi, come voce a parte.':'')),
       h('ul',{class:'righe'},st.righe.map(function(r){
@@ -4965,8 +5117,25 @@ function vQuota(){
             h('span',{class:'sotto'},r.resto>0?(r.versato?'ha versato '+eur(r.versato)+', '+(st.scaduta?'in ritardo':'mancano '+eur(r.resto)):(st.scaduta?'in ritardo':'non ancora')):'versata il '+dShortT(t)+(r.piu?' · '+eur(r.piu)+' in più':''))),
           h('span',{class:'importo '+(r.resto>0?(st.scaduta?'rosso':''):'verde')},r.resto>0?eur(r.resto):'✓')));
       })),
-      adm?h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button',onclick:function(){openQuotaMese(st.mese);}},'Modifica la quota')):null));
+      adm?h('div',{class:'azioni'},h('button',{class:'pill sm',type:'button',onclick:function(){openQuotaMese(st.mese);}},'Modifica la quota')):null];
+  }
+  // i mesi da raccogliere restano aperti; quelli pagati da tutti si chiudono: solo il mese e «Pagata» (dalla 0.25.0)
+  var aperti=stati.filter(function(st){return st.mancano.length;}),pagati=stati.filter(function(st){return !st.mancano.length;});
+  aperti.slice(0,4).forEach(function(st){
+    out.push(h('section',{class:'cartella'+(st.scaduta?' allarme':'')},
+      h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Quota di '+meseNome(st.mese)),
+        h('span',{class:'timbro'},st.scaduta?'In ritardo':'Da raccogliere')),
+      corpoMese(st)));
   });
+  if(pagati.length)out.push(h('section',{class:'cartella'},
+    h('h3',{class:'etichetta'},'Mesi pagati'),
+    h('div',{class:'mesi-pagati'},pagati.slice(0,12).map(function(st){
+      var m=meseNome(st.mese);
+      UI.qAperti=UI.qAperti||{};
+      return h('details',{class:'mese-pagato','data-k':'mese-'+st.mese,open:!!UI.qAperti[st.mese],ontoggle:function(ev){UI.qAperti[st.mese]=ev.currentTarget.open;}},
+        h('summary',null,h('span',{class:'cresce1'},m.charAt(0).toUpperCase()+m.slice(1)),h('span',{class:'timbro ok'},'Pagata ✓')),
+        h('div',{class:'mese-dentro'},corpoMese(st)));
+    }))));
   var usc=S.moves.filter(function(m){return !m.x&&m.k==='qout';}).reverse();
   out.push(h('section',{class:'cartella'},
     h('div',{class:'cart-h'},h('h3',{class:'etichetta'},'Quando avete pagato il locale')),
@@ -5545,14 +5714,12 @@ function vRegole(){
   var ora=h('select',{class:'inp',id:'rg-ora'},[0,1,2,3,4,5,6,7,8,9,10,11,12].map(function(n){return h('option',{value:String(n)},n===0?'a mezzanotte':'alle '+n+':00 del mattino');}));
   ora.value=String(S.cfg.voteCut);
   var self=h('input',{type:'checkbox',id:'rg-self',checked:S.cfg.selfVote});
-  var vm=h('select',{class:'inp',id:'rg-vm'},h('option',{value:'p'},'Podio: 1°, 2° e 3° (3, 2 e 1 punto)'),[1,2,3,4,5].map(function(n){return h('option',{value:String(n)},n===1?'Una persona a testa':'Fino a '+n+' persone, 1 punto a testa');}));
-  vm.value=podio()?'p':String(S.cfg.votiMax);
   var form=formPagina(function(){
     S.cfg.voteCut=+ora.value;S.cfg.selfVote=self.checked;
-    if(vm.value==='p'){delete S.cfg.voto;S.cfg.votiMax=3;}else{S.cfg.voto='n';S.cfg.votiMax=+vm.value;}
+    delete S.cfg.voto;S.cfg.votiMax=3;
     commit();toast('Regole del triage salvate.');},[
     campo('La serata si chiude',ora,'rg-ora'),
-    campo('Come si vota',vm,'rg-vm'),
+    h('p',{class:'aiuto'},'Si vota a podio: il 1° vale 3 punti, il 2° 2, il 3° 1.'),
     h('label',{class:'spunta',for:'rg-self'},self,'Ci si può votare da soli'),
     h('button',{class:'pill duo-verde largo',type:'submit'},'Salva il triage')]);
   var giorni=[1,2,3,4,5,6].map(function(g){
@@ -5609,7 +5776,7 @@ function vRegole(){
       formS)];
 }
 
-var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro,classifiche:vClassifiche};
+var VIEWS={reparto:vReparto,farmacia:vFarmacia,ludoteca:vLudoteca,altro:vAltro,classifiche:vClassifiche,ticket:vMioTicket};
 var SUBS={freccette:vFreccette,cassa:vCassa,soldi:vSoldi,classifiche:vClassifiche,scorte:vScorte,listino:vListino,persone:vPersone,regole:vRegole,backup:vBackup,installa:vInstalla,
   statistiche:function(){UI.cl='triage';return vClassifiche();},medaglie:function(){UI.cl='albo';return vClassifiche();},muro:vMuro,quota:vQuota,compleanni:vCompleanni,codici:vCodici};
 var ADMIN_SUBS={listino:1,persone:1,regole:1,compleanni:1,codici:1};

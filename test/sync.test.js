@@ -3,21 +3,39 @@ process.env.TZ = 'Europe/Rome';
 const assert = require('assert');
 const pure = require('./pure.js');
 const A_ = pure(
-  `{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt,syncRipara,syncMancanti,SOGLIA_LAPIDI}`
+  `{seedState,normState,derive,canon,hashStr,entita,syncDiff,syncApply,splitShares,normEnt,syncRipara,syncMancanti,SOGLIA_LAPIDI,syncFrena,syncRilascia}`
 );
-const { seedState, derive, canon, hashStr, entita, syncDiff, syncApply, normEnt, syncRipara, syncMancanti, SOGLIA_LAPIDI } = A_;
+const {
+  seedState,
+  derive,
+  canon,
+  hashStr,
+  entita,
+  syncDiff,
+  syncApply,
+  normEnt,
+  syncRipara,
+  syncMancanti,
+  SOGLIA_LAPIDI,
+  syncFrena,
+  syncRilascia,
+} = A_;
 
 // impronta canonica: l'ordine delle chiavi non conta
 assert.strictEqual(canon({ b: 1, a: [1, { d: 2, c: 3 }] }), canon({ a: [1, { c: 3, d: 2 }], b: 1 }));
 assert.notStrictEqual(hashStr(canon({ a: 1 })), hashStr(canon({ a: 2 })));
 
-// finto server: ultimo che scrive vince (come Firestore), con un contatore come ora del server
+// finto server: come Firestore con le regole della 0.25.0 (una modifica passa solo se «u» è più recente di quella salvata),
+// con un contatore come ora del server
 function Server() {
   this.docs = {};
   this.clock = 0;
 }
 Server.prototype.write = function (key, d) {
+  const prima = this.docs[key];
+  if (prima && !(d.u > prima.u)) return false; // permesso negato
   this.docs[key] = Object.assign({ key }, d, { s: ++this.clock });
+  return true;
 };
 Server.prototype.since = function (c) {
   return Object.values(this.docs)
@@ -41,18 +59,17 @@ Phone.prototype.push = function (srv) {
     const prev = this.SY.ent[x.key];
     const u = Math.max(clock, prev ? prev[0] + 1 : 0);
     this.SY.ent[x.key] = [u, x.h, 0];
-    if (this.online) {
-      srv.write(x.key, { c: x.c, i: x.i, j: x.j, u, by: this.dev });
-      this.SY.ent[x.key][2] = 1;
-    }
+    if (this.online && srv.write(x.key, { c: x.c, i: x.i, j: x.j, u, by: this.dev })) this.SY.ent[x.key][2] = 1;
   });
   return w.length;
 };
 Phone.prototype.pull = function (srv) {
   if (!this.online) return false;
-  const ch = srv.since(this.SY.cursor);
+  let ch = srv.since(this.SY.cursor);
   const init = !this.SY.init;
-  const changed = syncApply(this.S, ch, this.SY, init);
+  if (!init) ch = syncFrena(this.S, this.SY, ch, SOGLIA_LAPIDI);
+  let changed = syncApply(this.S, ch, this.SY, init);
+  if (syncRilascia(this.S, this.SY)) changed = true;
   ch.forEach((c) => {
     if (c.s > this.SY.cursor) this.SY.cursor = c.s;
   });
@@ -243,6 +260,96 @@ assert.deepStrictEqual(derive(A.S), derive(B.S));
   // un telefono che non ha mai fuso col locale non ripara niente
   const E = new Phone('E', seedState(10));
   assert.strictEqual(syncRipara(E.S, E.SY, 0), 0);
+}
+
+// due telefoni cambiano insieme la stessa cosa (dalla 0.25.0): nel database resta la versione che vedono i telefoni
+{
+  const pj = (ph) => ph.S.people.find((p) => p.id === 'pj');
+  const t0 = clock;
+  pj(A).name = 'PJ di A';
+  A.SY.ent['people~pj'] && (A.SY.ent['people~pj'][0] = Math.max(A.SY.ent['people~pj'][0], t0)); // A scrive con l'ora di adesso
+  pj(C).name = 'PJ di C';
+  clock += 5000; // C ha l'orologio avanti: la sua modifica è «più recente»
+  C.push(srv);
+  clock -= 5000;
+  A.push(srv); // arriva dopo ma è più vecchia: il database la rifiuta
+  assert.strictEqual(JSON.parse(srv.docs['people~pj'].j).name, 'PJ di C', 'nel database resta la più recente');
+  A.giro(srv);
+  C.giro(srv);
+  assert.strictEqual(pj(A).name, 'PJ di C');
+  assert.strictEqual(pj(C).name, 'PJ di C');
+  assert.strictEqual(A.SY.ent['people~pj'][2], 1, 'niente resta in coda');
+  uguali(A, C);
+}
+
+// freno sulle cancellazioni in arrivo (dalla 0.25.0)
+{
+  const ids = [];
+  for (let i = 0; i < 25; i++) {
+    const id = 'fr' + i;
+    ids.push(id);
+    A.S.moves.push({ id, t: tick(), k: 'sale', p: 'pj', a: 100 });
+  }
+  A.giro(srv);
+  C.giro(srv);
+  const n = C.S.moves.length;
+  // qualcuno da fuori scrive 25 lapidi
+  ids.forEach((id) => srv.write('moves~' + id, { c: 'moves', i: id, j: null, u: tick(), by: 'intruso' }));
+  C.giro(srv);
+  assert.strictEqual(C.S.moves.length, n, 'le lapidi in massa non si applicano');
+  assert.strictEqual(Object.keys(C.SY.lap).length, 25);
+  // l'admin rimette i dati: tornano sul database e sugli altri telefoni
+  A.giro(srv);
+  assert.strictEqual(Object.keys(A.SY.lap).length, 25);
+  Object.keys(A.SY.lap).forEach((k) => (A.SY.ent[k][2] = 0));
+  delete A.SY.lap;
+  tick();
+  A.giro(srv);
+  C.giro(srv);
+  assert.ok(
+    ids.every((id) => srv.docs['moves~' + id].j !== null),
+    'i dati tornano nel database'
+  );
+  assert.ok(!C.SY.lap, 'sull’altro telefono non resta niente in attesa');
+  assert.strictEqual(C.S.moves.length, n);
+  uguali(A, C);
+  // poche cancellazioni vere passano come sempre
+  A.S.moves = A.S.moves.filter((m) => m.id !== 'fr0' && m.id !== 'fr1');
+  tick();
+  A.giro(srv);
+  C.giro(srv);
+  assert.strictEqual(C.S.moves.length, n - 2);
+  // ripristino di un backup (o «Cancella davvero»): l'admin le approva con cfg.lapOk e passano ovunque
+  A.S.moves = A.S.moves.filter((m) => !/^fr/.test(m.id));
+  A.S.cfg.lapOk = tick() + 60000;
+  A.giro(srv);
+  C.giro(srv);
+  assert.ok(!C.SY.lap);
+  assert.strictEqual(C.S.moves.length, n - 25);
+  uguali(A, C);
+  // bloccate e poi approvate: la lista dell'altro telefono si svuota da sola quando arriva cfg.lapOk
+  clock += 120000; // il minuto approvato dal ripristino è passato
+  const altri = [];
+  for (let i = 0; i < 22; i++) {
+    altri.push('ap' + i);
+    A.S.moves.push({ id: 'ap' + i, t: tick(), k: 'sale', p: 'conti', a: 50 });
+  }
+  A.giro(srv);
+  C.giro(srv);
+  altri.forEach((id) => srv.write('moves~' + id, { c: 'moves', i: id, j: null, u: tick(), by: 'X' }));
+  A.giro(srv);
+  C.giro(srv);
+  assert.strictEqual(Object.keys(C.SY.lap).length, 22);
+  let max = 0;
+  Object.values(A.SY.lap).forEach((x) => (max = Math.max(max, x.u)));
+  A.S.cfg.lapOk = max;
+  assert.ok(syncRilascia(A.S, A.SY));
+  tick();
+  A.giro(srv);
+  C.giro(srv);
+  assert.ok(!C.SY.lap);
+  assert.strictEqual(C.S.moves.filter((m) => /^ap/.test(m.id)).length, 0);
+  uguali(A, C);
 }
 
 console.log('sincronizzazione: tutto torna (' + Object.keys(srv.docs).length + ' documenti sul finto server, 3 telefoni allineati)');

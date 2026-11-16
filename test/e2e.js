@@ -30,7 +30,7 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 // servito sotto /app/ per provare i percorsi relativi come su un sito con sottocartella
-// finto server di sincronizzazione (al posto di Firebase): l'ultimo che scrive vince, «s» è l'ora del server
+// finto server di sincronizzazione (al posto di Firebase): vince la modifica più recente, «s» è l'ora del server
 const stanze = {};
 let orologio = 0;
 function mock(req, res) {
@@ -43,6 +43,12 @@ function mock(req, res) {
     req.on('end', () => {
       const d = JSON.parse(b);
       const st = (stanze[d.room] = stanze[d.room] || {});
+      // come le regole di Firestore della 0.25.0: una modifica più vecchia di quella salvata non passa
+      if (st[d.key] && !(d.u > st[d.key].u)) {
+        res.writeHead(403);
+        res.end('{}');
+        return;
+      }
       st[d.key] = { key: d.key, c: d.c, i: d.i, j: d.j, u: d.u, by: d.by, s: ++orologio };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end('{}');
@@ -405,6 +411,20 @@ const fail = (m) => {
   await overflow('scorte');
   const sc = await text('#view');
   if (!/Birra/.test(sc) || !/Sacchi neri/.test(sc) || !/ne restano 3/.test(sc)) fail('lista spesa non coerente');
+  // 0.25.0: ogni voce si tocca per dire «Preso» e sparisce, anche i prodotti finiti
+  await page.click('[data-k="preso-p2"]');
+  await page.waitForTimeout(500);
+  if (/ne restano 3/.test(await text('#view'))) fail('«Preso» sulla birra: resta nella lista');
+  await page.click('#toast button');
+  await page.waitForTimeout(80);
+  if (!/ne restano 3/.test(await text('#view'))) fail('«Annulla» dopo «Preso»: la birra non torna nella lista');
+  await page.click('.riga.spesa:has-text("Sacchi neri")');
+  await page.waitForTimeout(200);
+  await shot('13b-spesa-preso');
+  await page.waitForTimeout(400);
+  if (/Sacchi neri/.test(await text('#view'))) fail('«Preso» sui sacchi neri: restano nella lista');
+  await page.click('[data-k="preso-p2"]');
+  await page.waitForTimeout(500);
   await page.click('.pill:has-text("Carico")');
   await page.fill('#ca-p2', '24');
   await page.click('#foglio button[type=submit]');
@@ -1675,6 +1695,48 @@ const fail = (m) => {
     if (ver === '0.5.0' || !ver) fail('dopo l’aggiornamento la sincronizzazione non segna la versione nuova: ' + ver);
     note('aggiornamento: B rilegge il locale, ripara il voto ridotto e non rimanda niente');
   }
+  // 0.25.0: B (non admin) annulla una sua consumazione: conta subito ma l'admin la vede da confermare e la rimette
+  {
+    await B.tab('Farmacia');
+    await B.p.click('.prod-add:has-text("Kinder Bueno")');
+    await B.p.click('.posbar .pill:has-text("Sul ticket")');
+    await B.p.waitForTimeout(300);
+    await B.tab('Ticket');
+    await B.p.click('#view .riga:has-text("PJ"), #view .riga:has-text("Pj")');
+    await B.p.click('#foglio .riga:has-text("Kinder Bueno")');
+    await B.p.click('#foglio .pill:has-text("Annulla movimento")');
+    await B.p.click('#foglio .pill:has-text("Sì, annulla")');
+    if (await B.p.$('#pin-c')) {
+      await B.p.fill('#pin-c', '4444');
+      await B.p.click('#foglio [data-k="pin-ok"]');
+    }
+    await B.p.waitForTimeout(200);
+    if (!/lo conferma l’admin/.test(await B.p.textContent('#toast')))
+      fail('annullamento di un non admin: manca l’avviso «lo conferma l’admin»');
+    await aspetta(
+      A.p,
+      async () =>
+        ((await window.__dati('oblio.v1')).moves || []).some((m) => m.x && m.xa && /Kinder Bueno/.test(JSON.stringify(m.items || []))),
+      null,
+      'A non riceve l’annullamento da confermare'
+    );
+    await A.tab('Reparto');
+    await A.p.click('[data-k="apri-conferme"]');
+    await A.p.waitForTimeout(100);
+    if (!/Annullato: Sul ticket/.test(await A.p.textContent('#foglio'))) fail('da confermare: manca l’annullamento di B');
+    await shot('46b-annullo-da-confermare', false, A.p);
+    await A.p.click('#foglio .conferma:has-text("Annullato") [data-k^="sospetta-"]');
+    await A.p.click('#foglio-x');
+    await aspetta(
+      B.p,
+      async () =>
+        ((await window.__dati('oblio.v1')).moves || []).some((m) => !m.x && !m.xa && /Kinder Bueno/.test(JSON.stringify(m.items || []))),
+      null,
+      'l’admin ha rimesso il movimento ma B lo vede ancora annullato'
+    );
+    await B.p.click('#foglio-x').catch(() => {});
+    note('annullamento di un non admin: da confermare, l’admin lo rimette');
+  }
   // ospite (0.15.0): l'admin (A) crea il codice di un visitatore; l'ospite entra dal suo telefono, vede solo Ludoteca e
   // Classifiche (senza Bar) e vota solo per sé. Poi l'admin gli toglie l'accesso e il suo telefono esce.
   {
@@ -1718,7 +1780,8 @@ const fail = (m) => {
     await g.click('[data-k="regole-ok"]');
     await g.waitForSelector('.tab');
     const tasti = await g.$$eval('.tab', (t) => t.map((x) => x.textContent.trim()));
-    if (tasti.join('|') !== 'Ludoteca|Classifiche') fail('ospite: tasti attesi Ludoteca e Classifiche, trovati ' + tasti.join(', '));
+    if (tasti.join('|') !== 'Ludoteca|Classifiche|Ticket')
+      fail('ospite: tasti attesi Ludoteca, Classifiche e Ticket, trovati ' + tasti.join(', '));
     if (await g.$('[data-k="vota-visitatore"]')) fail('ospite: vede «Voto di un visitatore»');
     await g.click('[data-k="vota"]');
     await g.click('#foglio [data-k="vt-pesce"]');
@@ -1742,13 +1805,48 @@ const fail = (m) => {
     await g.waitForSelector('.tab');
     if (!/Ludoteca/.test(await g.textContent('.tab[aria-current=page]'))) fail('ospite: dall’indirizzo #farmacia entra in Farmacia');
     if (await g.$('[data-k="farm-banco"]')) fail('ospite: vede il banco della Farmacia');
+    // 0.25.0: l'ospite vede il suo ticket. L'admin gli segna una birra; poi l'ospite porta 5 euro e resta in credito
+    await g.click('.tab:has-text("Ticket")');
+    await g.waitForSelector('[data-k="mio-ticket"]');
+    if (!/In regola/.test(await g.textContent('#view'))) fail('ospite: ticket vuoto non «In regola»');
+    await A.tab('Farmacia');
+    await A.p.click('[data-k="chi-' + gid + '"]');
+    await A.p.click('.prod-add:has-text("Birra")');
+    await A.p.click('.posbar .pill:has-text("Sul ticket")');
+    await aspetta(
+      g,
+      () => /1,50/.test(document.querySelector('[data-k="mio-ticket"]').textContent),
+      null,
+      'l’ospite non vede la birra sul suo ticket'
+    );
+    if (!/Da pagare/.test(await g.textContent('#view'))) fail('ospite: con un debito il timbro non dice «Da pagare»');
+    if (!/Birra/.test(await g.textContent('#view'))) fail('ospite: nel suo ticket manca la riga della birra');
+    await shot('45-ospite-ticket', false, g);
+    await A.tab('Farmacia');
+    await A.p.click('[data-k="farm-ticket"]');
+    await A.p.click('#view .riga:has-text("Ospite1")');
+    await A.p.click('#foglio .pill:has-text("Incassa")');
+    await A.p.fill('#py-a', '5,00');
+    await A.p.click('#foglio button[type=submit]');
+    await aspetta(
+      g,
+      () => /3,50/.test(document.querySelector('[data-k="mio-ticket"]').textContent),
+      null,
+      'l’ospite non vede il suo credito'
+    );
+    if (!/In credito/.test(await g.textContent('#view'))) fail('ospite: con un credito il timbro non dice «In credito»');
+    if (await g.$('#view button.riga')) fail('ospite: dal suo ticket può aprire i movimenti');
+    await A.tab('Altro');
+    await A.p.click('.voce:has-text("Persone e PIN")');
     // l'admin toglie l'accesso: il telefono dell'ospite esce
     await A.p.click('#view .riga:has-text("Ospite1")');
     await A.p.click('#foglio [data-k="pe-togli"]');
     await aspetta(g, () => !!document.querySelector('[data-k^="chi-sono-"]'), null, 'tolto l’accesso, il telefono dell’ospite non esce');
     if (await g.$(chip)) fail('tolto l’accesso, l’ospite resta in «Chi sei?»');
     await c.close();
-    note('ospite: codice dall’admin, solo Ludoteca e Classifiche, voto a podio solo per sé, accesso tolto');
+    note(
+      'ospite: codice dall’admin, solo Ludoteca, Classifiche e il suo ticket (debito e credito), voto a podio solo per sé, accesso tolto'
+    );
   }
   // inventario aperto su A mentre B segna consumazioni: i numeri non toccati non cancellano le vendite di B,
   // e chi conta viene avvisato delle vendite dei prodotti che ha cambiato
