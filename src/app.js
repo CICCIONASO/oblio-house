@@ -2695,8 +2695,9 @@ function nomiLista(ids){
 }
 /* come si vota lo sceglie l'admin: podio (1°, 2°, 3°: 3, 2 e 1 punto) oppure «fino a N persone» (1 punto a testa).
    Con il podio «votiMax» resta 3, così anche i telefoni non ancora aggiornati lasciano tre voti. */
-function podio(){return S.cfg.voto!=='n';}
-function votiMassimi(){return podio()?3:(S.cfg.votiMax||1);}
+/* dalla 0.25.0 si vota solo a podio: la scelta «fino a N persone» è stata tolta (non la usava nessuno) */
+function podio(){return true;}
+function votiMassimi(){return 3;}
 var POSTI=['1°','2°','3°'];
 function puntiTxt(n){return n+(n===1?' punto':' punti');}
 function descrVoto(v){
@@ -2756,7 +2757,7 @@ function cardTriage(){
   var diag=ver&&ver.sm.winners.length===1?topSintomi(ver.sm.sint[ver.sm.winners[0]],3):[];
   return h('section',{class:'triage'},
     h('div',{class:'cart-h'},h('h2',{class:'tri-t'},'Triage: chi sta peggio?'),h('span',{class:'timbro scuro'},sm.n+(sm.n===1?' votante':' votanti'))),
-    h('p',{class:'tri-s'},(podio()?'Podio: il 1° vale 3 punti, il 2° 2, il 3° 1. ':votiMassimi()>1?'Ognuno vota fino a '+votiMassimi()+' persone, 1 punto a testa. ':'Un voto a testa. ')+'Ognuno vota dal suo telefono. Si chiude '+chiusuraTxt()+'.'),
+    h('p',{class:'tri-s'},'Podio: il 1° vale 3 punti, il 2° 2, il 3° 1. '+'Ognuno vota dal suo telefono. Si chiude '+chiusuraTxt()+'.'),
     ord.length?h('ol',{class:'tri-podio'},ord.slice(0,3).map(function(c){
       return h('li',{class:sm.winners.indexOf(c)>=0?'testa':null},ava(c,'sm'),h('span',{class:'nome'},pName(c)),h('span',{class:'tri-v'},puntiTxt(sm.tally[c])));
     })):h('p',{class:'tri-s'},'Ancora nessun voto stasera.'),
@@ -3525,7 +3526,7 @@ function vAltro(){
   out.push(adm?gruppoAltro('Admin',[
       voceL({ic:'persone',col:'c-admin',titolo:'Persone e PIN',sotto:'Pazienti, visitatori, chi ha l’app, codici ospite, azzera un PIN'+(senzaFaccia?' · '+senzaFaccia+' senza faccia':''),val:String(people().length),onclick:function(){go('altro','persone');}}),
       voceL({ic:'etichetta',col:'c-admin',titolo:'Listino',sotto:'Prezzi e storico dei prezzi',val:String(S.products.filter(function(p){return p.on;}).length),onclick:function(){UI.riordina=false;go('altro','listino');}}),
-      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto ('+(podio()?'podio':'fino a '+votiMassimi())+'), rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
+      voceL({ic:'cursori',col:'c-admin',titolo:'Regole del reparto',sotto:'Voto, rifiuti'+(calPieno(S.cfg)?'':' (da compilare)')+', pulizie, graffi vecchi',onclick:function(){go('altro','regole');}}),
       voceL({ic:'torta',col:'c-admin',titolo:'Compleanni',sotto:S.people.filter(function(p){return p.on&&p.nato;}).length+' segnati',onclick:function(){go('altro','compleanni');}}),
       voceL({ic:'chiave',col:'c-admin',titolo:'Codice admin',sotto:S.cfg.admH?'Cambiato':'Ancora quello iniziale: cambialo',sottoCls:S.cfg.admH?null:'rosso',onclick:function(){go('altro','codici');}}),
       h('li',{class:'esci-riga'},h('button',{type:'button',class:'pill viola largo','data-k':'esci-admin',onclick:esciAdmin},ic('esci',18),'Esci dalla modalità admin'))],'admin')
@@ -5018,14 +5019,12 @@ function vRegole(){
   var ora=h('select',{class:'inp',id:'rg-ora'},[0,1,2,3,4,5,6,7,8,9,10,11,12].map(function(n){return h('option',{value:String(n)},n===0?'a mezzanotte':'alle '+n+':00 del mattino');}));
   ora.value=String(S.cfg.voteCut);
   var self=h('input',{type:'checkbox',id:'rg-self',checked:S.cfg.selfVote});
-  var vm=h('select',{class:'inp',id:'rg-vm'},h('option',{value:'p'},'Podio: 1°, 2° e 3° (3, 2 e 1 punto)'),[1,2,3,4,5].map(function(n){return h('option',{value:String(n)},n===1?'Una persona a testa':'Fino a '+n+' persone, 1 punto a testa');}));
-  vm.value=podio()?'p':String(S.cfg.votiMax);
   var form=formPagina(function(){
     S.cfg.voteCut=+ora.value;S.cfg.selfVote=self.checked;
-    if(vm.value==='p'){delete S.cfg.voto;S.cfg.votiMax=3;}else{S.cfg.voto='n';S.cfg.votiMax=+vm.value;}
+    delete S.cfg.voto;S.cfg.votiMax=3;
     commit();toast('Regole del triage salvate.');},[
     campo('La serata si chiude',ora,'rg-ora'),
-    campo('Come si vota',vm,'rg-vm'),
+    h('p',{class:'aiuto'},'Si vota a podio: il 1° vale 3 punti, il 2° 2, il 3° 1.'),
     h('label',{class:'spunta',for:'rg-self'},self,'Ci si può votare da soli'),
     h('button',{class:'pill duo-verde largo',type:'submit'},'Salva il triage')]);
   var giorni=[1,2,3,4,5,6].map(function(g){
