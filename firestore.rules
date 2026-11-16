@@ -5,8 +5,14 @@ service cloud.firestore {
     // Niente cancellazioni: l'app scrive una «lapide» (j = null) e gli altri telefoni la tolgono.
     match /locali/{room}/e/{key} {
       allow get, list: if room == 'oblio-0awwk6pqgkvr8o1x';
-      allow create, update: if room == 'oblio-0awwk6pqgkvr8o1x'
-        && request.resource.data.keys().hasOnly(['c', 'i', 'j', 'u', 'by', 's'])
+      // una modifica vale solo se è più recente di quella già salvata (u = ora della modifica): così, se due telefoni
+      // cambiano insieme la stessa cosa, nel database resta la stessa versione che vedono i telefoni (dalla 0.25.0)
+      allow create: if room == 'oblio-0awwk6pqgkvr8o1x' && valido();
+      allow update: if room == 'oblio-0awwk6pqgkvr8o1x' && valido()
+        && (!(resource.data.u is int) || request.resource.data.u > resource.data.u);
+    }
+    function valido() {
+      return request.resource.data.keys().hasOnly(['c', 'i', 'j', 'u', 'by', 's'])
         && request.resource.data.c is string && request.resource.data.c.size() <= 20
         && request.resource.data.i is string && request.resource.data.i.size() <= 40
         && (request.resource.data.j == null
