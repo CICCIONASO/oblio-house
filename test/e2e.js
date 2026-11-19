@@ -1964,6 +1964,47 @@ const fail = (m) => {
   }
   for (const t of [A, B, C]) await t.c.close();
 
+  // ---------- codice del locale (dalla 0.26.0): prima di tutto, a ogni apertura ----------
+  {
+    const imp = require('crypto').pbkdf2Sync('oblio2026x', 'oblio-house|codice-del-locale', 150000, 32, 'sha256').toString('hex');
+    const c = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'it-IT', timezoneId: 'Europe/Rome' });
+    await c.addInitScript((imp) => {
+      window.OBLIO_PORTA = { imp };
+    }, imp);
+    const p = await c.newPage();
+    ascolta(p);
+    await p.goto(base);
+    await p.waitForSelector('[data-k="porta-c"]');
+    const chiusa = await p.evaluate(() => ({
+      nav: document.querySelector('#nav').hidden,
+      sync: document.querySelector('#sync').hidden,
+      nomi: document.querySelectorAll('[data-k^="chi-sono-"]').length,
+      testo: document.querySelector('#view').textContent,
+    }));
+    if (!chiusa.nav || !chiusa.sync || chiusa.nomi || /Bollettino|Chi sei/.test(chiusa.testo))
+      fail('con il codice del locale non ancora scritto si vede qualcosa dell’app');
+    await shot('46-codice-locale', false, p);
+    await p.fill('[data-k="porta-c"]', 'sbagliato1');
+    await p.click('[data-k="porta-ok"]');
+    await p.waitForSelector('#view .errore:not([hidden])');
+    if (!/Codice sbagliato/.test(await p.textContent('#view .errore'))) fail('codice del locale sbagliato senza avviso');
+    if (await p.$('[data-k^="chi-sono-"]')) fail('con il codice sbagliato si entra lo stesso');
+    // maiuscole e spazi non contano
+    await p.fill('[data-k="porta-c"]', ' Oblio 2026X ');
+    await p.click('[data-k="porta-ok"]');
+    await p.waitForSelector('[data-k^="chi-sono-"]');
+    await entra(p);
+    // riaprendo l'app lo chiede di nuovo, poi si torna dentro senza rifare il login
+    await p.reload();
+    await p.waitForSelector('[data-k="porta-c"]');
+    if (await p.$('.tab')) fail('riaprendo l’app non chiede di nuovo il codice del locale');
+    await p.fill('[data-k="porta-c"]', 'oblio2026x');
+    await p.press('[data-k="porta-c"]', 'Enter');
+    await p.waitForSelector('.tab');
+    await c.close();
+    note('codice del locale: chiesto a ogni apertura prima di tutto, sbagliato non entra, maiuscole e spazi non contano');
+  }
+
   const ctx3 = await browser.newContext({
     viewport: { width: 390, height: 844 },
     locale: 'it-IT',

@@ -27,6 +27,21 @@ const syncScript = syncCfg
   ? '<script>window.OBLIO_SYNC=window.OBLIO_SYNC||' + JSON.stringify({ room: syncCfg.room, firebase: syncCfg.firebase }) + ';</script>\n'
   : '';
 
+// codice del locale (dalla 0.26.0): se c'è il segreto OBLIO_CODICE (GitHub › Settings › Secrets › Actions), nel sito va
+// solo la sua impronta e l'app lo chiede a ogni apertura. Il codice non sta mai nel repository né nel sito.
+const codice = String(process.env.OBLIO_CODICE || '')
+  .toLowerCase()
+  .replace(/\s+/g, '');
+if (process.env.OBLIO_CODICE && codice.length < 8) throw new Error('OBLIO_CODICE troppo corto: servono almeno 8 caratteri');
+const PORTA_ITER = +(/PORTA_ITER=(\d+)/.exec(js) || [])[1];
+const PORTA_SALE = (/PORTA_SALE='([^']+)'/.exec(js) || [])[1];
+if (!PORTA_ITER || !PORTA_SALE) throw new Error('PORTA_ITER o PORTA_SALE non trovati in src/app.js');
+const portaScript = codice
+  ? '<script>window.OBLIO_PORTA={imp:' +
+    JSON.stringify(require('crypto').pbkdf2Sync(codice, PORTA_SALE, PORTA_ITER, 32, 'sha256').toString('hex')) +
+    '};</script>\n'
+  : '';
+
 // 1) Anteprima dentro Claude
 fs.writeFileSync(path.join(root, 'preview.html'), '<title>The Oblio House</title>\n' + corpo);
 
@@ -49,6 +64,7 @@ const index =
   '<style>html{padding-top:env(safe-area-inset-top,0px)}img{max-width:100%}</style>\n' +
   '</head>\n<body>\n' +
   syncScript +
+  portaScript +
   corpo +
   '</body>\n</html>\n';
 fs.writeFileSync(path.join(dist, 'index.html'), index);
