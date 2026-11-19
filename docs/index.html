@@ -697,7 +697,7 @@ button:active:not(:disabled){filter:brightness(1.15)}
 'use strict';
 
 /* ===================== PURE ===================== */
-var APP_V='0.25.0';
+var APP_V='0.26.0';
 var MODI={'501':'501','301':'301','orologio':'Giro dell’orologio'};
 /* votiMax: come si vota, 3 = podio (1°, 2°, 3°), 1 = un voto solo (fino alla 0.10 si poteva scegliere da 1 a 5); graffiGiorni: dopo quanti giorni un graffio è «vecchio» */
 var CFG0={voteCut:6,selfVote:true,puliziaGiorni:14,votiMax:3,graffiGiorni:30};
@@ -2585,7 +2585,7 @@ function syncBreve(){
 }
 function paintSync(){
   var el=$('#sync');if(!el)return;
-  var io=loggato()?mio():'',on=!!io||(!!SYNC&&SST.stato!=='spento');
+  var io=loggato()?mio():'',on=!portaChiusa()&&(!!io||(!!SYNC&&SST.stato!=='spento'));
   el.hidden=!on;
   if(!on)return;
   var st=SYNC?SST.stato:'spento';
@@ -2797,6 +2797,44 @@ function ospitiCheEntrano(){return people().filter(function(p){return p.kind==='
    e vota solo per sé, dal suo telefono. */
 function ospite(){return loggato()&&isVisitor(mio());}
 function codiceOspite(p){return !!p&&p.kind==='amico'&&!!p.pin;}
+/* ---------- codice del locale (dalla 0.26.0) ----------
+   Se il sito è stato montato con il segreto OBLIO_CODICE, nella pagina c'è OBLIO_PORTA con l'impronta del
+   codice (PBKDF2-SHA256), mai il codice. A ogni apertura l'app chiede il codice prima di mostrare qualsiasi cosa e prima
+   di collegarsi al locale. Maiuscole e spazi non contano. È un blocco dell'app: i dati su Firestore restano come prima. */
+var PORTA_ITER=150000,PORTA_SALE='oblio-house|codice-del-locale';
+var PORTA=null,portaAperta=false,PORTA_V={v:'',prova:false};
+function normCodice(c){return String(c||'').toLowerCase().replace(/\s+/g,'');}
+function improntaCodice(c){
+  var C=window.crypto&&window.crypto.subtle;
+  if(!C)return Promise.reject(new Error('senza crypto'));
+  var te=new TextEncoder();
+  return C.importKey('raw',te.encode(normCodice(c)),'PBKDF2',false,['deriveBits']).then(function(k){
+    return C.deriveBits({name:'PBKDF2',salt:te.encode(PORTA_SALE),iterations:PORTA_ITER,hash:'SHA-256'},k,256);
+  }).then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return (x<16?'0':'')+x.toString(16);}).join('');});
+}
+function portaChiusa(){return !!PORTA&&!portaAperta;}
+function vPorta(){
+  var err=h('p',{class:'errore',role:'alert',hidden:true});
+  var i=h('input',{class:'inp',type:'password',autocomplete:'off',autocapitalize:'off',spellcheck:'false','data-k':'porta-c'});
+  i.value=PORTA_V.v;i.addEventListener('input',function(){PORTA_V.v=i.value;});
+  var b=h('button',{class:'pill duo-verde largo',type:'submit','data-k':'porta-ok'},'Entra');
+  var f=h('form',{class:'modulo'},campo('Codice del locale',i,'porta-c'),err,b);
+  function sbaglio(t){err.textContent=t;err.hidden=false;scuoti(err);scuoti(i);i.value='';PORTA_V.v='';try{i.focus();}catch(e){}}
+  f.addEventListener('submit',function(ev){ev.preventDefault();
+    if(PORTA_V.prova)return;
+    if(!normCodice(i.value))return sbaglio('Scrivi il codice.');
+    PORTA_V.prova=true;b.disabled=true;b.textContent='Controllo…';
+    improntaCodice(i.value).then(function(imp){
+      PORTA_V.prova=false;
+      if(imp!==PORTA.imp){b.disabled=false;b.textContent='Entra';return sbaglio('Codice sbagliato.');}
+      portaAperta=true;PORTA_V={v:'',prova:false};tocco([12,40,12]);
+      render();syncAvvia();
+    },function(){PORTA_V.prova=false;b.disabled=false;b.textContent='Entra';sbaglio('Questo browser non riesce a controllare il codice: apri l’app con Safari o Chrome aggiornati.');});
+  });
+  return [h('h2',{class:'titolo'},'Codice del locale'),
+    h('p',{class:'nota-chiara'},'Per aprire l’app serve il codice del locale. Te lo chiede ogni volta che la apri.'),
+    h('section',{class:'cartella'},f)];
+}
 var LOG={chi:null,passo:'chi',admin:false,v:{}};
 function campoPin(id,label){
   // il valore resta in LOG.v: se arrivano dati dagli altri telefoni e la pagina si ridisegna, non si perde
@@ -3118,6 +3156,16 @@ function posTotal(){
 }
 function render(){
   var act=document.activeElement,key=act&&act.dataset?act.dataset.k:null;
+  // codice del locale non ancora scritto: si vede solo la sua schermata, niente dati e niente tasti
+  document.body.classList.toggle('porta',portaChiusa());
+  if(portaChiusa()){
+    $('#nav').hidden=true;$('#nav').replaceChildren();
+    document.body.classList.add('fuori');
+    $('#view').replaceChildren(frag(vPorta()));
+    if(key){var pk=document.querySelector('[data-k="'+key+'"]');if(pk){try{pk.focus({preventScroll:true});}catch(e){}}}
+    paintSync();
+    return;
+  }
   $('#nav').hidden=!(loggato()&&lsGet(KEY+'.regole')==='1');
   var nuovi=loggato()&&UI.sub!=='muro'?muroNuovi():0;
   var osp=ospite();
@@ -5860,8 +5908,10 @@ function avvia(){
   document.addEventListener('visibilitychange',function(){if(document.hidden)return;controlla();if(segnaVisto()){persist();D=derive(S);syncSpingi();}});
   setInterval(controlla,60000);
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();}catch(e){}
+  var po=window.OBLIO_PORTA;
+  if(po&&typeof po.imp==='string'&&/^[0-9a-f]{64}$/.test(po.imp)&&!IN_CLAUDE)PORTA={imp:po.imp};
   render();
-  syncAvvia();
+  if(!portaChiusa())syncAvvia();
   window.addEventListener('online',function(){statoSync();syncSpingi(true);});
   window.addEventListener('offline',statoSync);
   if(!IN_CLAUDE&&'serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){

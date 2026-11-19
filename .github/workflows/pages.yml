@@ -29,6 +29,14 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # codice del locale: l'app lo chiede a ogni apertura; nel sito va solo la sua impronta
+          OBLIO_CODICE: ${{ secrets.OBLIO_CODICE }}
+      - name: Controlla il codice del locale
+        run: |
+          if ! grep -q 'window.OBLIO_PORTA=' docs/index.html; then
+            echo "::warning::Manca il segreto OBLIO_CODICE: l'app si apre senza chiedere il codice del locale"
+          fi
       # senza la config della sincronizzazione i telefoni si staccherebbero dal locale senza nessun avviso
       - name: Controlla la config della sincronizzazione
         run: |
